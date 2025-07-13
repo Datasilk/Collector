@@ -1,0 +1,51 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Collector</title>
+    <link rel="stylesheet" href="/css/app.css"/>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wdth,wght@0,87.5,100..900;1,87.5,100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+    @await RenderSectionAsync("Head", required: false)
+</head>
+<body>
+    <div class="init"></div>
+    <div class="dash">
+        <nav>
+            <div class="logo">
+                <svg viewBox="0 0 1850 705" class="light">
+                    <use xlink:href="#collector-logo" x="0" y="0" width="1850" height="705" class="svg-nocolor"></use>
+                </svg>
+                <svg viewBox="0 0 1850 705" class="dark">
+                    <use xlink:href="#collector-logo-light" x="0" y="0" width="1850" height="705" class="svg-nocolor"></use>
+                </svg>
+            </div>
+            <ul class="menu">
+                <li class="item-articles">
+                    <svg viewBox="0 0 1850 705" class="dark">
+                        <use xlink:href="#icon-article" x="0" y="0"></use>
+                    </svg>
+                    <span>Articles</span>
+                </li>
+                <li class="item-subjects">
+                    <svg viewBox="0 0 1850 705" class="dark">
+                        <use xlink:href="#icon-subjects" x="0" y="0"></use>
+                    </svg>
+                    <span>Subjects</span>
+                </li>
+            </ul>
+            <darkmode-toggle></darkmode-toggle>
+            <div class="dropdown-menu">
+                <div class="hamburger">
+                    <span class="material-symbols-outlined">menu</span>
+                </div>
+                <ul>
+                </ul>
+            </div>
+        </nav>
+        @RenderBody()
+    </div>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

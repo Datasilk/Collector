@@ -1,0 +1,105 @@
+.toggle {
+    display: inline-block;
+    width: 3.5em;
+    height: 1.5em;
+    border: 2px solid #fafafa;
+    outline: 2px solid #333;
+    border-radius: 2em;
+    background: #3eafe6;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    animation: toggle-off 0.3s ease-in;
+
+    .switch {
+        width: 1.5em;
+        height: 1.5em;
+        left: 0;
+        background: #333;
+        border-radius: 5em;
+        position: relative;
+        box-shadow: 2px 2px 8px rgba(0,0,0,0.2);
+        animation: toggle-switch-off 0.3s ease-in;
+
+        .light {
+            position: absolute;
+            color: #fff4b4;
+            right: -1.25em;
+        }
+
+        .dark {
+            position: absolute;
+            color: #fff4b4;
+            left: -1.25em;
+        }
+    }
+
+    &.on {
+        background: #666;
+        border: 2px solid #333;
+        outline: 2px solid #fafafa;
+        animation: toggle-on 0.3s ease-in;
+
+        .switch {
+            left: 2em;
+            animation: toggle-switch-on 0.3s ease-in;
+        }
+    }
+}
+
+.toggle-dark-mode {
+    width: 10em;
+
+    & > span {
+        display: inline-block;
+        vertical-align: super;
+        padding-right:0.5em;
+    }
+
+    .toggle {
+        margin: 0 auto;
+    }
+}
+
+.toggle-dark-mode{
+}
+
+@keyframes toggle-switch-on {
+    from {
+       left:0em;
+    }
+
+    to {
+        left:2em;
+    }
+}
+
+@keyframes toggle-switch-off {
+    from {
+        left: 2em;
+    }
+
+    to {
+        left: 0em;
+    }
+}
+
+@keyframes toggle-on {
+    from {
+        background: #3eafe6;
+    }
+
+    to {
+        background: #666;
+    }
+}
+
+@keyframes toggle-off {
+    from {
+        background: #666;
+    }
+
+    to {
+        background: #3eafe6;
+    }
+}

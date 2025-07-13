@@ -1,0 +1,47 @@
+.dash {
+    nav {
+        width: 100%;
+        display: block;
+
+        & > * {
+            display:inline-block;
+        }
+
+        .logo{
+            width:10em;
+        }
+
+        darkmode-toggle{
+            float:right;
+        }
+
+        & > .dropdown-menu {
+            float:right;
+            ul {
+                list-style: none;
+
+                li {
+                    display: inline-block;
+                    padding: 0.5em 1em;
+
+                    &:hover {
+                    }
+                }
+            }
+        }
+
+
+
+        & > ul.menu{
+            list-style:none;
+            font-size:1.6em;
+            padding:0 2em;
+            margin:0;
+            vertical-align:top;
+            li{
+                display:inline-block;
+                padding:0.5em;
+            }
+        }
+    }
+}

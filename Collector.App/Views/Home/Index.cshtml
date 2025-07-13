@@ -1,0 +1,45 @@
+﻿@{
+    ViewData["Title"] = "Log In";
+}
+
+@section Head {
+    <link href="/css/login.css" rel="stylesheet" />
+}
+
+@section Scripts {
+    <script src="/js/login.js"></script>
+}
+
+<div class="bg-overlay"></div>
+<div class="login-section">
+    <div class="login-title">
+        <div class="logo">
+            <img src="/images/collector-logo-med.png" class="light" />
+            <img src="/images/collector-logo-med-darkmode.png" class="dark" />
+        </div>
+        <darkmode-toggle></darkmode-toggle>
+    </div>
+
+    <div class="login-box">
+        <form method="post">
+            <div class="row hover">
+                <div class="col field">Username</div>
+                <div class="col input"><input type="text" name="username" /></div>
+            </div>
+            <div class="row hover">
+                <div class="col field">Password</div>
+                <div class="col input"><input type="password" name="password" /></div>
+            </div>
+            <div class="row buttons">
+                <button type="submit" class="login">
+                    Login
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div class="login-footer">
+        <p>Learn more about Collector on <a href="https://www.github.com/datasilk/collector" target="_blank">GitHub</a>.</p>
+    </div>
+</div>
+
