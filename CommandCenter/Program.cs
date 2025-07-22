@@ -1,7 +1,5 @@
 using Collector.Common;
 using CommandCenter;
-using CommandCenter.Models;
-using System.Text.Json;
 
 Console.WriteLine("Initializing Collector Command Center...");
 
@@ -9,37 +7,16 @@ Console.WriteLine("Initializing Collector Command Center...");
 App.IsDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
 
 //load config file
-App.ConfigFilename = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
-    "config" + (App.IsDocker ? ".docker" : "") + (App.Environment == "production" ? ".prod" : "") + ".json"
-    );
 Console.ForegroundColor = ConsoleColor.Gray;
 Console.WriteLine("opening config file " + App.ConfigFilename);
-if (File.Exists(App.ConfigFilename))
-{
-    try
-    {
-        App.Config = JsonSerializer.Deserialize<Config>(File.ReadAllText(App.ConfigFilename)) ?? new Config();
-        SetOpenAIConfig("Qwen", App.Config.Qwen);
-        SetOpenAIConfig("ChatGPT", App.Config.ChatGPT);
-        SetOpenAIConfig("Gemini", App.Config.Gemini);
-        SetOpenAIConfig("DeepSeek", App.Config.DeepSeek);
-        TextToSpeech.PrivateKey = App.Config.ElevenLabs.PrivateKey;
-    }
-    catch (Exception ex) { }
-}
+App.LoadConfig();
 
-static void SetOpenAIConfig(string key, ConfigPrivateKey item)
-{
-    try
-    {
-        var llm = LLMs.Available.Where(a => a.Key == key).FirstOrDefault();
-        if (!string.IsNullOrEmpty(llm.Key)) llm.Value.PrivateKey = item.PrivateKey;
-    }
-    catch (Exception ex) { }
-}
-
-
+//load audio engine
+Console.WriteLine("Loading audio engine...");
 var audio = new AudioPlayer();
+Console.ResetColor();
+
+//print welcome message
 var audioFile = TextToSpeech.ConvertTextToSpeech("Collector command center is active. Ask me anything.");
 Console.WriteLine("");
 Console.ForegroundColor = ConsoleColor.Magenta;
@@ -49,6 +26,7 @@ Console.WriteLine("\"Collector command center is active. Ask me anything.\"");
 Console.ResetColor();
 Console.WriteLine("");
 
+//play welcome message audio file
 audio.Play(audioFile);
 
 // Start background spacebar listener
