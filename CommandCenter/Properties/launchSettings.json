@@ -1,6 +1,6 @@
 {
   "profiles": {
-    "Collector.YouTube": {
+    "CommandCenter": {
       "commandName": "Project"
     },
     "Container (Dockerfile)": {

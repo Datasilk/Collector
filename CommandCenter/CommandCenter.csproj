@@ -6,11 +6,17 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
-    <DockerfileContext>.</DockerfileContext>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="libsoundio-sharp-net" Version="1.0.0" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.22.1" />
+    <PackageReference Include="NAudio" Version="2.2.1" />
+    <PackageReference Include="OwnAudioSharp" Version="0.89.45" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Collector.Common\Collector.Common.csproj" />
   </ItemGroup>
 
 </Project>

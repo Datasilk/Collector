@@ -1,6 +1,12 @@
 # Collector
 A web scraping platform for the AI era.
 
+## Installation
+`git clone https://github.com/Datasilk/Collector`
+`git submodule init`
+`git submodule update --init`
+`cd Collector/Collector.App`
+`npm install`
 
 ### History
 I started this project in 2015 by building [Charlotte](https://github.com/Datasilk/Charlotte) along with a web UI in ASP.NET Core using C#. I've built this project from the ground up several times, eventually transforming it into a plugin for [Saber](https://github.com/Datasilk/Saber) (a website builder), and so now I am turning it into a set of tools. 

@@ -9,6 +9,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="SQL\**" />
+    <Content Remove="SQL\**" />
+    <EmbeddedResource Remove="SQL\**" />
+    <None Remove="SQL\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Remove="config.json" />
     <Content Remove="web.config" />
   </ItemGroup>
@@ -63,7 +70,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="SQL\" />
     <Folder Include="wwwroot\css\" />
     <Folder Include="wwwroot\js\" />
   </ItemGroup>
