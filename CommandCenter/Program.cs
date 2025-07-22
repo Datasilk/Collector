@@ -7,7 +7,7 @@ Console.WriteLine("Initializing Collector Command Center...");
 App.IsDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
 
 //load config file
-Console.ForegroundColor = ConsoleColor.Gray;
+Console.ForegroundColor = ConsoleColor.DarkGray;
 Console.WriteLine("opening config file " + App.ConfigFilename);
 App.LoadConfig();
 
@@ -34,7 +34,10 @@ var cancellationTokenSource = new CancellationTokenSource();
 var keyListenerTask = Task.Run(() => SpacebarKeyListener(cancellationTokenSource.Token));
 
 // Keep the program running
-Console.WriteLine("Press spacebar to talk to Charlotte or press Ctrl+C to exit...");
+Console.ForegroundColor = ConsoleColor.DarkGray;
+Console.WriteLine("Type your question, press shift+spacebar to talk to Charlotte, or press Ctrl+C to exit...");
+Console.WriteLine("");
+NewUserInputLine();
 Console.CancelKeyPress += (sender, e) =>
 {
     e.Cancel = true;
@@ -42,16 +45,23 @@ Console.CancelKeyPress += (sender, e) =>
     Environment.Exit(0);
 };
 
-// Wait for the key listener task or keep program alive
+// Wait for either task to complete or keep program alive
 try
 {
-    await keyListenerTask;
+    await Task.WhenAny(keyListenerTask);
 }
 catch (OperationCanceledException)
 {
     Console.WriteLine("Program terminated.");
 }
 
+static void NewUserInputLine()
+{
+    Console.ForegroundColor = ConsoleColor.Yellow;
+    Console.Write("> ");
+    Console.ResetColor();
+    App.CharPos = 0;
+}
 
 static async Task SpacebarKeyListener(CancellationToken cancellationToken)
 {
@@ -60,13 +70,43 @@ static async Task SpacebarKeyListener(CancellationToken cancellationToken)
         if (Console.KeyAvailable)
         {
             var keyInfo = Console.ReadKey(true);
-            if (keyInfo.Key == ConsoleKey.Spacebar)
+            if (keyInfo.Key == ConsoleKey.Spacebar && keyInfo.Modifiers == ConsoleModifiers.Shift)
             {
                 //toggle listening
                 App.Listening = !App.Listening;
                 if (App.Listening == true)
                 {
-
+                    Console.WriteLine("Listening...");
+                    var wait = Task.Run(() =>
+                    {
+                        Task.Delay(3000);
+                    });
+                    wait.Wait();
+                    NewUserInputLine();
+                }
+            }
+            else if (keyInfo.Key == ConsoleKey.Enter)
+            {
+                Console.WriteLine();
+                NewUserInputLine();
+            }
+            else if (keyInfo.Modifiers == ConsoleModifiers.None || keyInfo.Modifiers == ConsoleModifiers.Shift)
+            {
+                if(keyInfo.Key == ConsoleKey.Backspace)
+                {
+                    if(App.CharPos > 0)
+                    {
+                        Console.SetCursorPosition(Console.CursorLeft - 1, Console.CursorTop);
+                        Console.Write(" ");
+                        Console.SetCursorPosition(Console.CursorLeft - 1, Console.CursorTop);
+                        App.CharPos -= 1;
+                    }
+                }
+                else
+                {
+                    Console.ResetColor();
+                    Console.Write(keyInfo.KeyChar);
+                    App.CharPos++;
                 }
             }
         }
