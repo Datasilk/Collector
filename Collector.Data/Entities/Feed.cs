@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using Collector.Data.Enums;
 
 namespace Collector.Data.Entities
 {
@@ -6,7 +7,7 @@ namespace Collector.Data.Entities
     {
         public int feedId { get; set; }
         public int domainId { get; set; }
-        public Feeds.DocTypes doctype { get; set; }
+        public FeedDocType doctype { get; set; }
         public string title { get; set; }
         public string url { get; set; }
         public int? checkIntervals { get; set; }

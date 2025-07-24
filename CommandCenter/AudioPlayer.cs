@@ -48,6 +48,7 @@ namespace CommandCenter
             using (var outputDevice = new WaveOutEvent())
             {
                 outputDevice.Init(audioFile);
+                outputDevice.Volume = App.Volume;
                 outputDevice.Play();
                 while (outputDevice.PlaybackState == PlaybackState.Playing)
                 {

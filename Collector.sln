@@ -27,6 +27,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Collector.YouTube", "Collec
 EndProject
 Project("{00D1A9C2-B5F0-4AF3-8072-F6C62B433612}") = "Collector.SQL", "Collector.SQL\Collector.SQL.sqlproj", "{44BD9A08-F200-44B2-A793-688263E539CD}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Collector.Data", "Collector.Data\Collector.Data.csproj", "{75F7E9E7-4F60-490C-9300-31F32BA22E2D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -67,6 +69,10 @@ Global
 		{44BD9A08-F200-44B2-A793-688263E539CD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{44BD9A08-F200-44B2-A793-688263E539CD}.Release|Any CPU.Build.0 = Release|Any CPU
 		{44BD9A08-F200-44B2-A793-688263E539CD}.Release|Any CPU.Deploy.0 = Release|Any CPU
+		{75F7E9E7-4F60-490C-9300-31F32BA22E2D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{75F7E9E7-4F60-490C-9300-31F32BA22E2D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{75F7E9E7-4F60-490C-9300-31F32BA22E2D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{75F7E9E7-4F60-490C-9300-31F32BA22E2D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

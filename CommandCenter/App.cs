@@ -12,6 +12,7 @@ namespace CommandCenter
         public static Config Config { get; set; } = new Config();
         public static bool Listening { get; set; } = false;
         public static int CharPos { get; set; } = 0;
+        public static float Volume { get; set; } = 0.5f;
 
         public static void LoadConfig() {
             App.ConfigFilename = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,

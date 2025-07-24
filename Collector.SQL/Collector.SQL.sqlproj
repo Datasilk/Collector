@@ -268,4 +268,7 @@
     <Build Include="dbo\Tables\Subjects.sql" />
     <Build Include="dbo\Tables\Whitelist_Domains.sql" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="Collector.SQL.publish.xml" />
+  </ItemGroup>
 </Project>

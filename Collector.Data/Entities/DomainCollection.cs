@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using Collector.Data.Enums;
 
 namespace Collector.Data.Entities
 {

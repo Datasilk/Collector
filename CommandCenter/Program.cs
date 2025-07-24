@@ -40,6 +40,8 @@ Console.WriteLine("");
 NewUserInputLine();
 Console.CancelKeyPress += (sender, e) =>
 {
+    audioFile = TextToSpeech.ConvertTextToSpeech("Goodbye...");
+    audio.Play(audioFile).Wait();
     e.Cancel = true;
     cancellationTokenSource.Cancel();
     Environment.Exit(0);
