@@ -1,0 +1,4 @@
+﻿CREATE TABLE [dbo].[CommonWords]
+(
+	[word] NVARCHAR(16) NOT NULL PRIMARY KEY
+)

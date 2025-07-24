@@ -1,0 +1,271 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <Name>Collector.SQL</Name>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectVersion>4.1</ProjectVersion>
+    <ProjectGuid>{44bd9a08-f200-44b2-a793-688263e539cd}</ProjectGuid>
+    <DSP>Microsoft.Data.Tools.Schema.Sql.Sql160DatabaseSchemaProvider</DSP>
+    <OutputType>Database</OutputType>
+    <RootPath>
+    </RootPath>
+    <RootNamespace>Collector.SQL</RootNamespace>
+    <AssemblyName>Collector.SQL</AssemblyName>
+    <ModelCollation>1033, CI</ModelCollation>
+    <DefaultFileStructure>BySchemaAndSchemaType</DefaultFileStructure>
+    <DeployToDatabase>True</DeployToDatabase>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <TargetLanguage>CS</TargetLanguage>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <SqlServerVerification>False</SqlServerVerification>
+    <IncludeCompositeObjects>True</IncludeCompositeObjects>
+    <TargetDatabaseSet>True</TargetDatabaseSet>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <OutputPath>bin\Release\</OutputPath>
+    <BuildScriptName>$(MSBuildProjectName).sql</BuildScriptName>
+    <TreatWarningsAsErrors>False</TreatWarningsAsErrors>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <DefineDebug>false</DefineDebug>
+    <DefineTrace>true</DefineTrace>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <OutputPath>bin\Debug\</OutputPath>
+    <BuildScriptName>$(MSBuildProjectName).sql</BuildScriptName>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <DefineDebug>true</DefineDebug>
+    <DefineTrace>true</DefineTrace>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup>
+    <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">11.0</VisualStudioVersion>
+    <!-- Default to the v11.0 targets path if the targets file for the current VS version is not found -->
+    <SSDTExists Condition="Exists('$(MSBuildExtensionsPath)\Microsoft\VisualStudio\v$(VisualStudioVersion)\SSDT\Microsoft.Data.Tools.Schema.SqlTasks.targets')">True</SSDTExists>
+    <VisualStudioVersion Condition="'$(SSDTExists)' == ''">11.0</VisualStudioVersion>
+  </PropertyGroup>
+  <Import Condition="'$(SQLDBExtensionsRefPath)' != ''" Project="$(SQLDBExtensionsRefPath)\Microsoft.Data.Tools.Schema.SqlTasks.targets" />
+  <Import Condition="'$(SQLDBExtensionsRefPath)' == ''" Project="$(MSBuildExtensionsPath)\Microsoft\VisualStudio\v$(VisualStudioVersion)\SSDT\Microsoft.Data.Tools.Schema.SqlTasks.targets" />
+  <ItemGroup>
+    <Folder Include="Properties" />
+    <Folder Include="dbo" />
+    <Folder Include="dbo\Functions" />
+    <Folder Include="dbo\Indexes" />
+    <Folder Include="dbo\Sequences" />
+    <Folder Include="dbo\Stored Procedures" />
+    <Folder Include="dbo\Stored Procedures\Articles" />
+    <Folder Include="dbo\Stored Procedures\Blacklist" />
+    <Folder Include="dbo\Stored Procedures\Domains" />
+    <Folder Include="dbo\Stored Procedures\Domains\AnalyzerRules" />
+    <Folder Include="dbo\Stored Procedures\Domains\Clean" />
+    <Folder Include="dbo\Stored Procedures\Domains\CollectionGroups" />
+    <Folder Include="dbo\Stored Procedures\Domains\Collections" />
+    <Folder Include="dbo\Stored Procedures\Domains\Delete" />
+    <Folder Include="dbo\Stored Procedures\Domains\DomainTypeMatches" />
+    <Folder Include="dbo\Stored Procedures\Domains\DownloadRules" />
+    <Folder Include="dbo\Stored Procedures\Domains\Get" />
+    <Folder Include="dbo\Stored Procedures\Domains\Hierarchy" />
+    <Folder Include="dbo\Stored Procedures\Domains\Links" />
+    <Folder Include="dbo\Stored Procedures\Domains\Update" />
+    <Folder Include="dbo\Stored Procedures\Downloads" />
+    <Folder Include="dbo\Stored Procedures\Feeds" />
+    <Folder Include="dbo\Stored Procedures\Subjects" />
+    <Folder Include="dbo\Stored Procedures\Whitelist" />
+    <Folder Include="dbo\Stored Procedures\Words" />
+    <Folder Include="dbo\Tables" />
+    <Folder Include="dbo\Tables\Articles" />
+    <Folder Include="dbo\Tables\Domains" />
+    <Folder Include="dbo\Tables\Downloads" />
+    <Folder Include="dbo\Tables\Feeds" />
+    <Folder Include="dbo\Tables\Languages" />
+    <Folder Include="dbo\Tables\Statistics" />
+    <Folder Include="dbo\Tables\Words" />
+  </ItemGroup>
+  <ItemGroup>
+    <Build Include="dbo\Functions\GetPathFromUrl.sql" />
+    <Build Include="dbo\Indexes\IndexArticleBugs.sql" />
+    <Build Include="dbo\Indexes\IndexArticleDateCreated.sql" />
+    <Build Include="dbo\Indexes\IndexArticleDomain.sql" />
+    <Build Include="dbo\Indexes\IndexArticleScore.sql" />
+    <Build Include="dbo\Indexes\IndexArticleSentences.sql" />
+    <Build Include="dbo\Indexes\IndexArticleSubjects.sql" />
+    <Build Include="dbo\Indexes\IndexArticleTitle.sql" />
+    <Build Include="dbo\Indexes\IndexArticleUrl.sql" />
+    <Build Include="dbo\Indexes\IndexArticleVisited.sql" />
+    <Build Include="dbo\Indexes\IndexArticleWords.sql" />
+    <Build Include="dbo\Indexes\IndexArticleWordsByArticle.sql" />
+    <Build Include="dbo\Indexes\IndexDictionary.sql" />
+    <Build Include="dbo\Indexes\IndexDomainHierarchy.sql" />
+    <Build Include="dbo\Indexes\IndexDomains.sql" />
+    <Build Include="dbo\Indexes\IndexDownloadQueueDateCreated.sql" />
+    <Build Include="dbo\Indexes\IndexDownloadQueueUrls.sql" />
+    <Build Include="dbo\Indexes\IndexDownloadUrls.sql" />
+    <Build Include="dbo\Indexes\IndexStatisticsResults.sql" />
+    <Build Include="dbo\Indexes\IndexStatisticsResultsDate.sql" />
+    <Build Include="dbo\Indexes\IndexStatisticsResultsLocation.sql" />
+    <Build Include="dbo\Indexes\IndexStatisticsResultsProject.sql" />
+    <Build Include="dbo\Indexes\IndexSubjectsBreadcrumb.sql" />
+    <Build Include="dbo\Indexes\IndexSubjectsHierarchy.sql" />
+    <Build Include="dbo\Indexes\IndexWords.sql" />
+    <Build Include="dbo\Sequences\SequenceAnalyzerRules.sql" />
+    <Build Include="dbo\Sequences\SequenceArticleBugs.sql" />
+    <Build Include="dbo\Sequences\SequenceArticles.sql" />
+    <Build Include="dbo\Sequences\SequenceDomainCollectionGroups.sql" />
+    <Build Include="dbo\Sequences\SequenceDomainCollections.sql" />
+    <Build Include="dbo\Sequences\SequenceDomains.sql" />
+    <Build Include="dbo\Sequences\SequenceDomainTypeMatches.sql" />
+    <Build Include="dbo\Sequences\SequenceDownloadQueue.sql" />
+    <Build Include="dbo\Sequences\SequenceDownloadRules.sql" />
+    <Build Include="dbo\Sequences\SequenceFeedCategories.sql" />
+    <Build Include="dbo\Sequences\SequenceFeeds.sql" />
+    <Build Include="dbo\Sequences\SequenceStatisticsProjects.sql" />
+    <Build Include="dbo\Sequences\SequenceStatisticsResults.sql" />
+    <Build Include="dbo\Sequences\SequenceSubjects.sql" />
+    <Build Include="dbo\Sequences\SequenceWords.sql" />
+    <Build Include="dbo\Stored Procedures\Articles\Article_Add.sql" />
+    <Build Include="dbo\Stored Procedures\Articles\Article_Clean.sql" />
+    <Build Include="dbo\Stored Procedures\Articles\Article_Exists.sql" />
+    <Build Include="dbo\Stored Procedures\Articles\Article_GetById.sql" />
+    <Build Include="dbo\Stored Procedures\Articles\Article_GetByUrl.sql" />
+    <Build Include="dbo\Stored Procedures\Articles\Article_Remove.sql" />
+    <Build Include="dbo\Stored Procedures\Articles\Article_Update.sql" />
+    <Build Include="dbo\Stored Procedures\Articles\Article_UpdateCache.sql" />
+    <Build Include="dbo\Stored Procedures\Articles\Article_UpdateUrl.sql" />
+    <Build Include="dbo\Stored Procedures\Articles\Article_Visited.sql" />
+    <Build Include="dbo\Stored Procedures\Articles\ArticleBug_Add.sql" />
+    <Build Include="dbo\Stored Procedures\Articles\ArticleBug_UpdateDescription.sql" />
+    <Build Include="dbo\Stored Procedures\Articles\ArticleBug_UpdateStatus.sql" />
+    <Build Include="dbo\Stored Procedures\Articles\ArticleBugs_GetList.sql" />
+    <Build Include="dbo\Stored Procedures\Articles\ArticleDate_Add.sql" />
+    <Build Include="dbo\Stored Procedures\Articles\Articles_GetCount.sql" />
+    <Build Include="dbo\Stored Procedures\Articles\Articles_GetList.sql" />
+    <Build Include="dbo\Stored Procedures\Articles\ArticleSentence_Add.sql" />
+    <Build Include="dbo\Stored Procedures\Articles\ArticleSentences_Remove.sql" />
+    <Build Include="dbo\Stored Procedures\Articles\ArticleSubject_Add.sql" />
+    <Build Include="dbo\Stored Procedures\Articles\ArticleSubjects_Remove.sql" />
+    <Build Include="dbo\Stored Procedures\Articles\ArticleWord_Add.sql" />
+    <Build Include="dbo\Stored Procedures\Articles\ArticleWords_Remove.sql" />
+    <Build Include="dbo\Stored Procedures\Blacklist\Blacklist_Domain_Add.sql" />
+    <Build Include="dbo\Stored Procedures\Blacklist\Blacklist_Domain_Check.sql" />
+    <Build Include="dbo\Stored Procedures\Blacklist\Blacklist_Domain_Rermove.sql" />
+    <Build Include="dbo\Stored Procedures\Blacklist\Blacklist_Domains_CheckAll.sql" />
+    <Build Include="dbo\Stored Procedures\Blacklist\Blacklist_Domains_GetList.sql" />
+    <Build Include="dbo\Stored Procedures\Blacklist\Blacklist_Wildcard_Add.sql" />
+    <Build Include="dbo\Stored Procedures\Blacklist\Blacklist_Wildcard_Rermove.sql" />
+    <Build Include="dbo\Stored Procedures\Blacklist\Blacklist_Wildcards_GetList.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\AnalyzerRules\Domain_AnalyzerRule_Add.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\AnalyzerRules\Domain_AnalyzerRule_Remove.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\AnalyzerRules\Domain_AnalyzerRules_GetList.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\Clean\Domain_CleanDownloads.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\Clean\Domain_GetDownloadsToClean.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\CollectionGroups\Domain_CollectionGroup_Add.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\CollectionGroups\Domain_CollectionGroup_Remove.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\CollectionGroups\Domain_CollectionGroups_GetList.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\Collections\Domain_Collection_Add.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\Collections\Domain_Collection_Remove.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\Collections\Domain_Collections_GetList.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\Delete\Domain_Delete.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\Delete\Domain_DeleteAllArticles.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\DomainTypeMatches\DomainTypeMatches_Add.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\DomainTypeMatches\DomainTypeMatches_GetList.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\DomainTypeMatches\DomainTypeMatches_Remove.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\DownloadRules\Domain_DownloadRule_Add.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\DownloadRules\Domain_DownloadRule_GetArticles.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\DownloadRules\Domain_DownloadRule_GetDownloads.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\DownloadRules\Domain_DownloadRule_Remove.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\DownloadRules\Domain_DownloadRules_GetForDomains.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\DownloadRules\Domain_DownloadRules_GetList.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\Get\Domain_GetById.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\Get\Domain_GetInfo.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\Get\Domains_GetCount.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\Get\Domains_GetList.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\Links\DomainLink_Add.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\Links\DomainLinks_GetList.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\Update\Domain_FindDescription.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\Update\Domain_FindTitle.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\Update\Domain_HasFreeContent.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\Update\Domain_IsDeleted.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\Update\Domain_IsEmpty.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\Update\Domain_RequireSubscription.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\Update\Domain_UpdateHttpsWww.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\Update\Domain_UpdateInfo.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\Update\Domain_UpdateLanguage.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\Update\Domain_UpdateType.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\Update\Domain_UpdateType2.sql" />
+    <Build Include="dbo\Stored Procedures\Domains\Domain_Add.sql" />
+    <Build Include="dbo\Stored Procedures\Downloads\Download_Delete.sql" />
+    <Build Include="dbo\Stored Procedures\Downloads\Download_Update.sql" />
+    <Build Include="dbo\Stored Procedures\Downloads\Download_UpdateUrl.sql" />
+    <Build Include="dbo\Stored Procedures\Downloads\DownloadQueue_Add.sql" />
+    <Build Include="dbo\Stored Procedures\Downloads\DownloadQueue_Archive.sql" />
+    <Build Include="dbo\Stored Procedures\Downloads\DownloadQueue_BulkAdd.sql" />
+    <Build Include="dbo\Stored Procedures\Downloads\DownloadQueue_Check.sql" />
+    <Build Include="dbo\Stored Procedures\Downloads\DownloadQueue_Move.sql" />
+    <Build Include="dbo\Stored Procedures\Downloads\DownloadQueue_MoveArchived.sql" />
+    <Build Include="dbo\Stored Procedures\Downloads\Downloads_GetCount.sql" />
+    <Build Include="dbo\Stored Procedures\Feeds\Feed_Add.sql" />
+    <Build Include="dbo\Stored Procedures\Feeds\Feed_AddCheckedLog.sql" />
+    <Build Include="dbo\Stored Procedures\Feeds\Feed_Checked.sql" />
+    <Build Include="dbo\Stored Procedures\Feeds\Feed_GetInfo.sql" />
+    <Build Include="dbo\Stored Procedures\Feeds\Feeds_Categories_GetList.sql" />
+    <Build Include="dbo\Stored Procedures\Feeds\Feeds_Category_Add.sql" />
+    <Build Include="dbo\Stored Procedures\Feeds\Feeds_Check.sql" />
+    <Build Include="dbo\Stored Procedures\Feeds\Feeds_GetList.sql" />
+    <Build Include="dbo\Stored Procedures\Feeds\Feeds_GetListWithLogs.sql" />
+    <Build Include="dbo\Stored Procedures\Subjects\Subject_Create.sql" />
+    <Build Include="dbo\Stored Procedures\Subjects\Subject_GetById.sql" />
+    <Build Include="dbo\Stored Procedures\Subjects\Subject_GetByTitle.sql" />
+    <Build Include="dbo\Stored Procedures\Subjects\Subject_Move.sql" />
+    <Build Include="dbo\Stored Procedures\Subjects\Subjects_GetList.sql" />
+    <Build Include="dbo\Stored Procedures\Whitelist\Whitelist_Domain_Add.sql" />
+    <Build Include="dbo\Stored Procedures\Whitelist\Whitelist_Domain_Check.sql" />
+    <Build Include="dbo\Stored Procedures\Whitelist\Whitelist_Domain_Remove.sql" />
+    <Build Include="dbo\Stored Procedures\Whitelist\Whitelist_Domains_GetList.sql" />
+    <Build Include="dbo\Stored Procedures\Words\CommonWords_Add.sql" />
+    <Build Include="dbo\Stored Procedures\Words\CommonWords_GetList .sql" />
+    <Build Include="dbo\Stored Procedures\Words\Word_Add.sql" />
+    <Build Include="dbo\Stored Procedures\Words\Words_BulkAdd.sql" />
+    <Build Include="dbo\Stored Procedures\Words\Words_GetList.sql" />
+    <Build Include="dbo\Stored Procedures\DestroyCollection.sql" />
+    <Build Include="dbo\Tables\Articles\ArticleBugs.sql" />
+    <Build Include="dbo\Tables\Articles\ArticleDates.sql" />
+    <Build Include="dbo\Tables\Articles\Articles.sql" />
+    <Build Include="dbo\Tables\Articles\ArticleSentences.sql" />
+    <Build Include="dbo\Tables\Articles\ArticleSubjects.sql" />
+    <Build Include="dbo\Tables\Articles\ArticleWords.sql" />
+    <Build Include="dbo\Tables\Domains\AnalyzerRules.sql" />
+    <Build Include="dbo\Tables\Domains\DomainAddresses.sql" />
+    <Build Include="dbo\Tables\Domains\DomainCollectionGroups.sql" />
+    <Build Include="dbo\Tables\Domains\DomainCollections.sql" />
+    <Build Include="dbo\Tables\Domains\DomainHierarchy.sql" />
+    <Build Include="dbo\Tables\Domains\DomainLinks.sql" />
+    <Build Include="dbo\Tables\Domains\Domains.sql" />
+    <Build Include="dbo\Tables\Domains\DomainTypeMatches.sql" />
+    <Build Include="dbo\Tables\Domains\DownloadRules.sql" />
+    <Build Include="dbo\Tables\Downloads\DownloadQueue.sql" />
+    <Build Include="dbo\Tables\Downloads\Downloads.sql" />
+    <Build Include="dbo\Tables\Feeds\FeedCategories.sql" />
+    <Build Include="dbo\Tables\Feeds\Feeds.sql" />
+    <Build Include="dbo\Tables\Feeds\FeedsCheckedLog.sql" />
+    <Build Include="dbo\Tables\Statistics\StatisticsProjectResearchers.sql" />
+    <Build Include="dbo\Tables\Statistics\StatisticsProjects.sql" />
+    <Build Include="dbo\Tables\Statistics\StatisticsResearchers.sql" />
+    <Build Include="dbo\Tables\Statistics\StatisticsResults.sql" />
+    <Build Include="dbo\Tables\Words\CommonWords.sql" />
+    <Build Include="dbo\Tables\Words\SubjectWords.sql" />
+    <Build Include="dbo\Tables\Words\Words.sql" />
+    <Build Include="dbo\Tables\Blacklist_Domains.sql" />
+    <Build Include="dbo\Tables\Blacklist_Wildcards.sql" />
+    <Build Include="dbo\Tables\Dictionary.sql" />
+    <Build Include="dbo\Tables\Subjects.sql" />
+    <Build Include="dbo\Tables\Whitelist_Domains.sql" />
+  </ItemGroup>
+</Project>

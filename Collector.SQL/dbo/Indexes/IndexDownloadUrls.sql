@@ -1,0 +1,1 @@
+﻿CREATE INDEX [IndexDownloadUrl] ON [dbo].[Downloads] ([url])

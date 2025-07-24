@@ -31,7 +31,7 @@ audio.Play(audioFile);
 
 // Start background spacebar listener
 var cancellationTokenSource = new CancellationTokenSource();
-var keyListenerTask = Task.Run(() => SpacebarKeyListener(cancellationTokenSource.Token));
+var keyListenerTask = Task.Run(() => KeyPressListener(cancellationTokenSource.Token));
 
 // Keep the program running
 Console.ForegroundColor = ConsoleColor.DarkGray;
@@ -63,26 +63,23 @@ static void NewUserInputLine()
     App.CharPos = 0;
 }
 
-static async Task SpacebarKeyListener(CancellationToken cancellationToken)
+static async Task KeyPressListener(CancellationToken cancellationToken)
 {
     while (!cancellationToken.IsCancellationRequested)
     {
         if (Console.KeyAvailable)
         {
             var keyInfo = Console.ReadKey(true);
-            if (keyInfo.Key == ConsoleKey.Spacebar && keyInfo.Modifiers == ConsoleModifiers.Shift)
+            if (keyInfo.Key == ConsoleKey.Spacebar && keyInfo.Modifiers == ConsoleModifiers.Shift && App.Listening == false)
             {
                 //toggle listening
                 App.Listening = !App.Listening;
                 if (App.Listening == true)
                 {
                     Console.WriteLine("Listening...");
-                    var wait = Task.Run(() =>
-                    {
-                        Task.Delay(3000);
-                    });
-                    wait.Wait();
+                    Task.Delay(3000);
                     NewUserInputLine();
+                    App.Listening = false;
                 }
             }
             else if (keyInfo.Key == ConsoleKey.Enter)
