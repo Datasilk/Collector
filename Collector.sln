@@ -3,8 +3,6 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.14.36121.58
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Collector", "Collector.App\Collector.csproj", "{A09A6A42-31C8-1F5F-FFAA-BF82444948DE}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{8EC462FD-D22E-90A8-E5CE-7E832BA40C5D}"
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
@@ -17,7 +15,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Collector.Common", "Collect
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Charlotte", "Charlotte\Charlotte\Charlotte.csproj", "{338ACA5D-993E-15CC-9C17-30F235FB4977}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Router", "Charlotte\Router\Router.csproj", "{E42778A5-55CB-F1E4-9706-3CFCBC6A3B45}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Charlotte.Router", "Charlotte\Router\Charlotte.Router.csproj", "{E42778A5-55CB-F1E4-9706-3CFCBC6A3B45}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CommandCenter", "CommandCenter\CommandCenter.csproj", "{ED482512-513E-4D3F-915A-B5BEB03A52C1}"
 EndProject
@@ -29,16 +27,16 @@ Project("{00D1A9C2-B5F0-4AF3-8072-F6C62B433612}") = "Collector.SQL", "Collector.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Collector.Data", "Collector.Data\Collector.Data.csproj", "{75F7E9E7-4F60-490C-9300-31F32BA22E2D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Collector.API", "Collector.API\Collector.API.csproj", "{860EAB58-5EF0-426F-AF86-C1065CBFC4C9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Collector.Auth", "Collector.Auth\Collector.Auth.csproj", "{8F4B085E-4733-AD1F-F690-21C9C01203A5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{A09A6A42-31C8-1F5F-FFAA-BF82444948DE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{A09A6A42-31C8-1F5F-FFAA-BF82444948DE}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{A09A6A42-31C8-1F5F-FFAA-BF82444948DE}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{A09A6A42-31C8-1F5F-FFAA-BF82444948DE}.Release|Any CPU.Build.0 = Release|Any CPU
 		{681FB5DF-967C-9767-891F-B087571FC391}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{681FB5DF-967C-9767-891F-B087571FC391}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{681FB5DF-967C-9767-891F-B087571FC391}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -73,6 +71,14 @@ Global
 		{75F7E9E7-4F60-490C-9300-31F32BA22E2D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{75F7E9E7-4F60-490C-9300-31F32BA22E2D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{75F7E9E7-4F60-490C-9300-31F32BA22E2D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{860EAB58-5EF0-426F-AF86-C1065CBFC4C9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{860EAB58-5EF0-426F-AF86-C1065CBFC4C9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{860EAB58-5EF0-426F-AF86-C1065CBFC4C9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{860EAB58-5EF0-426F-AF86-C1065CBFC4C9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8F4B085E-4733-AD1F-F690-21C9C01203A5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8F4B085E-4733-AD1F-F690-21C9C01203A5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8F4B085E-4733-AD1F-F690-21C9C01203A5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8F4B085E-4733-AD1F-F690-21C9C01203A5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
