@@ -1,0 +1,23 @@
+
+.forgot-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  
+  .forgot-button {
+    background: #2c2c2c;
+    color: white;
+    border: none;
+    padding: 1rem;
+    border-radius: 4px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    font-family: Georgia, serif;
+    margin-top: 1rem;
+  }
+  
+  .forgot-button:hover {
+    background: #1a1a1a;
+  }

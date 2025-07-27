@@ -1,0 +1,60 @@
+.admin-header {
+    width: 100%;
+    padding: 10px;
+    background-color: #e7e7e7;
+    box-sizing: border-box;
+    border-bottom: 2px solid #dcdcdc;
+}
+
+.admin-header::after {
+    content: '';
+    display: block;
+    clear: both;
+    height: 0;
+}
+
+.admin-title {
+    font-size: 1.4em;
+    display: inline-block;
+    margin: 0.2em 0 0 0.5em;
+}
+
+.admin-header .right-side {
+    float: right;
+    margin: 0 1em 0 0;
+}
+
+.container-centered {
+    width: 100%;
+    max-width: 1920px;
+    margin: 0 auto;
+}
+
+.admin-form .buttons {
+    float: right;
+}
+
+.admin-form .buttons>* {
+    margin: 0 0 0 0.5em;
+}
+
+.admin-header .breadcrumbs{padding: 0.5em 0 0 2em; font-size:1em;}
+.admin-header .goback{padding: 0 0 0 2em;}
+.admin-header .goback span{position: relative; top:-0.1em;}
+
+.admin-header.is-child{
+    background: linear-gradient(180deg,rgba(0,0,0,0) 0%, rgba(0,0,0,0) 65%, rgba(0,0,0,0.05) 100%);
+}
+
+.admin-header.is-child.tool-bar .tab-label{
+    background-color:#d2dfd3;
+}
+
+.admin-header.is-child.tool-bar .tab-label.selected{
+    background-color:#f5f5f5;
+}
+
+.admin-header.is-child > div > .tabs-row {
+    margin-top: -1.5em;
+}
+

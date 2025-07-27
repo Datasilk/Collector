@@ -1,0 +1,33 @@
+.form-wrap {
+    /*display: flex;*/
+    justify-content: center;
+    align-items: baseline;
+    display: block;
+    margin: 0 auto;
+    max-width:100vw;
+    min-height: calc(100vh - 80px);
+    padding: 2rem;
+}
+
+.form-container {
+    background: white;
+    padding: 2.5rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 100vw;
+}
+
+.form-container h1 {
+    color: #2c2c2c;
+    font-size: 2rem;
+    margin: 0 0 0.5rem;
+    font-family: Georgia, serif;
+    text-align: center;
+}
+
+.form-container .subtitle {
+    color: #666;
+    text-align: center;
+    margin-bottom: 2rem;
+}

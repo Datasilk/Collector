@@ -1,0 +1,43 @@
+.dash-header {
+    width: 100%;
+    padding: 10px;
+    background-color: #e7e7e7;
+    box-sizing: border-box;
+    border-bottom: 2px solid #dcdcdc;
+}
+
+.dash-header::after {
+    content: '';
+    display: block;
+    clear: both;
+    height: 0;
+}
+
+.dash-title {
+    font-size: 1.4em;
+    display: inline-block;
+    margin: 0.2em 0 0 0.5em;
+}
+
+.dash-header .right-side {
+    float: right;
+    margin: 0 1em 0 0;
+}
+
+.container-centered {
+    width: 100%;
+    max-width: 1920px;
+    margin: 0 auto;
+}
+
+.dash-form .buttons {
+    float: right;
+}
+
+.dash-form .buttons>* {
+    margin: 0 0 0 0.5em;
+}
+
+.dash-header .breadcrumbs{padding: 0.5em 0 0 2em; font-size:1em;}
+.dash-header .goback{padding: 0 0 0 2em;}
+.dash-header .goback span{position: relative; top:-0.1em;}

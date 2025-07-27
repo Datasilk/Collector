@@ -1,0 +1,156 @@
+.nav-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0 auto;
+  width: 100%;
+  -webkit-user-select: none; /* Safari */
+  -ms-user-select: none; /* IE 10 and IE 11 */
+  user-select: none; /* Standard syntax */
+}
+
+.nav-left, .nav-right {
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+}
+.nav-left{
+  padding:0 0 0 3em;
+  height:2.8em;
+}
+.nav-right{
+  padding:1em 3em 1em 0;
+  position: relative;
+}
+
+.nav-link {
+  color: #2c2c2c;
+  text-decoration: none;
+  font-weight: 500;
+  padding: 0.5rem;
+  transition: color 0.2s ease;
+  border-bottom:3px solid transparent;
+}
+
+.nav-link:hover {
+  color: #000000;
+  border-bottom:3px solid #cfa1ff;
+}
+
+.nav-link.selected{
+  border-bottom:3px solid #b46fff;
+}
+
+.nav-left .logo{
+  font-size:1em;
+  cursor:default;
+  position:relative;
+  top:-0.5em;
+}
+
+/* Sidebar Account Icon Styles */
+.account-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #f5f5f5;
+  border: 4px solid #e0e0e0;
+  margin: 0 auto;
+  box-sizing: border-box;
+  transition: border 0.2s;
+}
+.account-icon .material-icons, .account-icon svg {
+  font-size: 2rem;
+  color: #757575;
+}
+.account-icon:hover {
+  border-color: #bdbdbd;
+  background: #ececec;
+  cursor: pointer;
+}
+
+.main-header .user-menu-popup{
+  position:absolute;
+  top:4em;
+  right:0;
+  padding:1em 0;
+  background-color:#fff;
+  border-radius:8px;
+  box-shadow:0 0 5px rgba(0,0,0,0.1);
+  min-width: 15em;
+  list-style: none;
+  margin: 0;
+  z-index: 1000;
+}
+
+.main-header .user-menu-popup .user-menu-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0.5em 1.5em;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-size: 1em;
+  transition: background 0.15s;
+  color: #222;
+  border-bottom: 1px solid rgba(0,0,0,0.07);
+}
+.main-header .user-menu-popup .user-menu-item:last-child {
+  border-bottom: 0 none transparent !important;
+}
+.main-header .user-menu-popup .user-menu-item:hover,
+.main-header .user-menu-popup .user-menu-item:focus-within {
+  background-color: #f5f5f5;
+}
+
+.main-header .user-menu-popup .user-menu-item a {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  color: inherit;
+  text-decoration: none;
+}
+.main-header .user-menu-popup .user-menu-item a .material-symbols-rounded,
+.main-header .user-menu-popup .user-menu-item a .material-icons,
+.main-header .user-menu-popup .user-menu-item a svg {
+  margin-right: 0.8em;
+  font-size: 1.3em;
+  color: #555;
+}
+
+.main-header .user-menu-popup li:nth-child(2),
+.main-header .user-menu-popup li:nth-child(3),
+.main-header .user-menu-popup li:nth-child(4){
+  display: none;
+}
+
+.main-header .user-menu-popup .user-menu-item:hover{
+  background-color:#f5f5f5;
+}
+
+@media screen and (min-width: 1080px) {
+  .main-header .user-menu-popup.mobile-only{
+    display:none !important;
+  }
+}
+
+@media screen and (max-width: 700px) {
+    .main-header .nav-right .nav-link{
+        display:none;
+    }
+    .main-header .user-menu-popup li{
+      display:block !important;
+    }
+}
+
+@media screen and (max-width: 650px) {
+    .main-header .nav-right{
+        padding:1em 1em 1em 0;
+    }
+}

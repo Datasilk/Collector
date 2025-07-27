@@ -4,7 +4,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Data.SqlClient;
 using Collector.Data.Interfaces;
+using Collector.Data.Interfaces.Users;
 using Collector.Data.Repositories;
+using Collector.Data.Repositories.Auth;
 
 namespace Collector.Data.Services
 {
@@ -15,6 +17,12 @@ namespace Collector.Data.Services
 
             //Database
             builder.Services.AddTransient<IDbConnection>((sp) => new SqlConnection(builder.Configuration.GetConnectionString("Database")));
+
+            //Auth Tables
+            builder.Services.AddTransient<IAppUserRepository, AppUserRepository>();
+            builder.Services.AddTransient<IAppRoleRepository, AppRoleRepository>();
+            builder.Services.AddTransient<IAppUserRolesRepository, AppUserRolesRepository>();
+            builder.Services.AddTransient<IAppUserTokenRepository, AppUserTokenRepository>();
 
             //Tables
             builder.Services.AddTransient<IArticlesRepository, ArticlesRepository>();

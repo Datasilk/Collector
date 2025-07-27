@@ -1,0 +1,83 @@
+table.spreadsheet {
+    width: 100%;
+    border-spacing: 0 3px;
+    border-top: 0px solid transparent;
+    position: relative;
+    top: -3px;
+}
+
+.filters {
+    display: flex;
+}
+
+table.spreadsheet thead td,
+table.spreadsheet thead th {
+    background-color: #dfd4ec;
+    color: #3e0c7c;
+    text-align: left;
+}
+
+table.spreadsheet thead .material-symbols-rounded {
+    font-size: 1em;
+    padding-left: 0.25em;
+    vertical-align: text-top;
+}
+
+table.spreadsheet td,
+table.spreadsheet th {
+    padding: 0.3em 0.6em;
+}
+
+table.spreadsheet td a,
+table.spreadsheet th a {
+    color: #8662b9;
+}
+
+table.spreadsheet td a:hover,
+table.spreadsheet th a:hover {
+    color: #66429a;
+}
+
+table.spreadsheet td a:active {
+    color: #66429a;
+}
+
+table.spreadsheet td,
+table.spreadsheet th {
+    cursor: default;
+}
+
+table.spreadsheet tbody tr a {
+    color: #b0afaf;
+}
+
+table.spreadsheet tbody tr:hover a {
+    color: #8662b9;
+}
+
+table.spreadsheet tbody tr:hover a:hover {
+    color: #66429a;
+}
+
+table.spreadsheet tbody tr:nth-child(odd) {
+    background-color: #f3f3f3;
+}
+
+table.spreadsheet tbody tr:nth-child(even) {
+    background-color: #e8e8e8;
+}
+
+table.spreadsheet tbody tr:nth-child(odd):hover {
+    background-color: #dfd4ec;
+}
+
+table.spreadsheet tbody tr:nth-child(even):hover {
+    background-color: #dfd4ec;
+}
+
+table.spreadsheet tbody td.buttons {
+    text-align: right;
+    padding-right: 1em;
+    display: flex;
+    padding-top: 0.5em
+}

@@ -1,0 +1,23 @@
+@media (max-width: 1700px) {
+    .admin-users table.spreadsheet tr > *:nth-child(7) {
+        display: none;
+    }
+}
+
+@media (max-width: 1450px) {
+    .admin-users table.spreadsheet tr > *:nth-child(4) {
+        display: none;
+    }
+}
+
+@media (max-width: 1350px) {
+    .admin-users table.spreadsheet tr > *:nth-child(6) {
+        display: none;
+    }
+}
+
+@media (max-width: 1200px) {
+    .admin-users table.spreadsheet tr > *:nth-child(1) {
+        display: none;
+    }
+}

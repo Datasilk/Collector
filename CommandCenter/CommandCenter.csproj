@@ -21,9 +21,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Collector.Common\Collector.Common.csproj" />
+    <ProjectReference Include="..\Collector.YouTube\Collector.YouTube.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="config.template.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="config.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

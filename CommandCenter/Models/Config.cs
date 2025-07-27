@@ -2,6 +2,7 @@
 {
     public class Config
     {
+        public string PreferredModel { get; set; } = "";
         public ConfigPrivateKey Qwen { get; set; } = new ConfigPrivateKey();
         public ConfigPrivateKey ChatGPT { get; set; } = new ConfigPrivateKey();
         public ConfigPrivateKey Gemini { get; set; } = new ConfigPrivateKey();
@@ -17,5 +18,6 @@
     public class ConfigElevenLabs: ConfigPrivateKey
     {
         public string VoiceId { get; set; } = "";
+        public float VoiceSpeed { get; set; } = 1.0f;
     }
 }

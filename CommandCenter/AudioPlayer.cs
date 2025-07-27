@@ -1,15 +1,6 @@
 //using Ownaudio;
 //using Ownaudio.Engines;
 //using Ownaudio.Sources;
-using NAudio;
-using NAudio.Wasapi;
-using NAudio.FileFormats;
-using NAudio.CoreAudioApi;
-using NAudio.Codecs;
-using NAudio.Dmo;
-using NAudio.Dsp;
-using NAudio.MediaFoundation;
-using NAudio.Mixer;
 using NAudio.Wave;
 
 namespace CommandCenter

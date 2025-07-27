@@ -14,6 +14,7 @@ namespace Collector.Common
         public static string PrivateKey { get; set; } = "";
         public static List<Voice> Voices { get; set; } = new List<Voice>();
         public static string VoiceId { get; set; } = "uhYnkYTBc711oAY590Ea";
+        public static float VoiceSpeed { get; set; } = 1.2f;
 
         /// <summary>
         /// Converts text to speech and saves the audio file with a timestamp
@@ -55,7 +56,11 @@ namespace Collector.Common
                             Model = ElevenLabs.Models.Model.FlashV2_5;
                             break;
                     }
-                    var request = new TextToSpeechRequest(voice, text, model: Model);
+                    var request = new TextToSpeechRequest(voice, text, model: Model, voiceSettings: new VoiceSettings()
+                    {
+                        Speed = VoiceSpeed,
+                        Stability = 0.5f
+                    });
                     var voiceClip = api.TextToSpeechEndpoint.TextToSpeechAsync(request).Result;
                     File.WriteAllBytes(filePath, voiceClip.ClipData.ToArray());
                 }

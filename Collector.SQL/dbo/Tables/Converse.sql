@@ -1,0 +1,9 @@
+﻿CREATE TABLE [dbo].[Converse]
+(
+	[Id] INT NOT NULL PRIMARY KEY,
+	[AppUserId] [UNIQUEIDENTIFIER] NOT NULL,
+	[Text] NVARCHAR(MAX) NOT NULL,
+	[Who] BIT NOT NULL,
+	[Created] DATETIME2(7) DEFAULT GETUTCDATE(), 
+    CONSTRAINT [AK_Converse_User_Date] UNIQUE ([AppUserId], [Created] DESC),
+)

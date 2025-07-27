@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Collector.Plugins\Collector.Plugins.csproj" />
+    <ProjectReference Include="..\Collector.Common\Collector.Common.csproj" />
   </ItemGroup>
 
 </Project>

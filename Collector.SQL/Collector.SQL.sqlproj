@@ -88,6 +88,7 @@
     <Folder Include="dbo\Tables\Languages" />
     <Folder Include="dbo\Tables\Statistics" />
     <Folder Include="dbo\Tables\Words" />
+    <Folder Include="dbo\Tables\Users" />
   </ItemGroup>
   <ItemGroup>
     <Build Include="dbo\Functions\GetPathFromUrl.sql" />
@@ -267,6 +268,13 @@
     <Build Include="dbo\Tables\Dictionary.sql" />
     <Build Include="dbo\Tables\Subjects.sql" />
     <Build Include="dbo\Tables\Whitelist_Domains.sql" />
+    <Build Include="dbo\Tables\Converse.sql" />
+    <Build Include="dbo\Tables\Users\AppRoles.sql" />
+    <Build Include="dbo\Tables\Users\AppUserRoles.sql" />
+    <Build Include="dbo\Tables\Users\AppUsers.sql" />
+    <Build Include="dbo\Tables\Users\AppUserTokens.sql" />
+    <Build Include="dbo\Tables\ConverseSubjects.sql" />
+    <Build Include="dbo\Tables\ConverseResources.sql" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Collector.SQL.publish.xml" />

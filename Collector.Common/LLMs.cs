@@ -5,28 +5,39 @@ namespace Collector.Common
 {
     public static class LLMs
     {
-        public static Dictionary<string, LLMInfo> Available = new Dictionary<string, LLMInfo>()
+        public enum Models
         {
-            {"Qwen", new LLMInfo(){
+            Unknown, Qwen, ChatGPT, Gemini
+        }
+
+        /// <summary>
+        /// The preferred model is set by the user to determine which model should be used in any given situation
+        /// </summary>
+        public static Models PreferredModel { get; set; } = Models.Unknown;
+
+        public static Dictionary<Models, LLMInfo> Available = new Dictionary<Models, LLMInfo>()
+        {
+            {Models.Qwen, new LLMInfo(){
                 Model = "qwen-turbo-latest",
                 Endpoint = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
                 PrivateKey = ""
             }},
-            {"ChatGPT", new LLMInfo(){
+            {Models.ChatGPT, new LLMInfo(){
                 Model = "gpt-4o-mini",
                 Endpoint = "https://api.openai.com/v1",
                 PrivateKey = ""
             }},
-            {"Gemini", new LLMInfo(){
+            {Models.Gemini, new LLMInfo(){
                 Model = "gemini-2.0-flash-lite",
                 Endpoint = "https://generativelanguage.googleapis.com/v1beta/openai/",
                 PrivateKey = ""
             }}
         };
 
-        public static string Prompt(string system, string assistant, string user, string llm)
+        public static async Task<string> Prompt(string system, string assistant, string user, Models llm = Models.Unknown)
         {
-            var myLLM = Available[llm];
+            var preferredModel = llm != Models.Unknown ? llm : PreferredModel != Models.Unknown ? PreferredModel : Models.Qwen;
+            var myLLM = Available[preferredModel];
             if (string.IsNullOrEmpty(myLLM.PrivateKey))
             {
                 throw new Exception("LLM private key is missing");
@@ -42,8 +53,8 @@ namespace Collector.Common
                 new AssistantChatMessage(assistant),
                 new UserChatMessage(user)
             };
-            ChatCompletion completion = client.CompleteChat(prompt);
-            return completion.Content[0].Text;
+            var results = await client.CompleteChatAsync(prompt);
+            return results.Value.Content[0].Text;
         }
     }
 }

@@ -1,0 +1,59 @@
+.color-picker {
+    white-space: nowrap;
+}
+
+.color-picker *{
+    user-select: none;
+}
+
+.color-picker .gradient-box{
+    position:relative;
+    width:10em;
+    height:10em;
+    display:inline-block;
+}
+
+.color-picker .white-gradient{
+    position:absolute;
+    width:100%;
+    height:100%;
+    background:linear-gradient(to right, white 0%, rgba(255,255,255,0) 100%);
+}
+
+.color-picker .black-gradient{
+    position:absolute;
+    width:100%;
+    height:100%;
+    background:linear-gradient(to bottom, rgba(0,0,0,0) 0%, black 100%);
+}
+
+.color-picker .gradient-box .selection{
+    position:absolute;
+    border:2px solid #fff;
+    outline:2px solid #000;
+    box-shadow:2px 2px 15px rgba(0,0,0,0.15);
+    border-radius:100%;
+    width:1em;
+    height:1em;
+    margin-top: calc(-0.5em - 2px);
+    margin-left: calc(-0.5em - 2px);
+}
+
+.color-picker .gradient-slider{
+    position:relative;
+    width:2em;
+    height:10em;
+    display:inline-block;
+    background:linear-gradient(to bottom, red 0%, #ff0 17%, lime 33%, cyan 50%, blue 66%, #f0f 83%, red 100%);
+}
+
+.color-picker .gradient-slider .selection{
+    position:absolute;
+    left:-0.2em;
+    border:2px solid #000;
+    box-shadow:2px 2px 8px rgba(0,0,0,0.15);
+    border-radius:0.5em;
+    width:2.2em;
+    height:0.5em;
+    margin-top: calc(-0.25em - 2px);
+}

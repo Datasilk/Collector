@@ -1,0 +1,133 @@
+.app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: #f5f5f5;
+}
+
+.main-header {
+  background-color: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 0.3334rem 1rem 0 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.bg-lineart{
+  background-image: url(/bg-lineart.jpg);
+  width:100%;
+  min-height:100%;
+}
+
+.main-content {
+  flex: 1;
+  padding: 2rem;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.has-sidebar {
+  display: flex;
+  align-items: stretch;
+}
+
+.has-sidebar>.content {
+  width: 100%;
+}
+
+.empty{
+  padding:5em 2em 0 2em; 
+  width:100%; 
+  max-width:500px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  text-align:center;
+}
+
+.material-symbols-rounded.after{
+  margin-left:0.2em; 
+  margin-right:-0.15em;
+}
+
+/* tool bar -----------------------------------------------------------------*/
+.tool-bar .sub-title{
+  display:inline-block;
+  color:#8b8b8b;
+  position: relative;
+  top: -0.1em;
+  padding: 0 0.5em 0 0;
+}
+
+.tool-bar::after{
+  content:'';
+  clear:both;
+  display:block;
+}
+
+.tool-bar button,
+.tool-bar .button {
+  color: #7763ed;
+  border-color: transparent;
+  background-color: transparent;
+  padding: 0.65em 1.2em 0.55em 1.2em;
+}
+
+.tool-bar button .material-symbols-rounded,
+.tool-bar .button .material-symbols-rounded {
+  margin: -0.15em 0.2em 0 -0.2em;
+}
+.tool-bar button.icon .material-symbols-rounded,
+.tool-bar .button.icon .material-symbols-rounded{
+  margin:-0.15em -0.5em;
+}
+
+.tool-bar button:hover,
+.tool-bar .button:hover {
+  border-color: #7763ed;
+  background-color: transparent;
+}
+
+.tool-bar .tabs-row {
+  position: relative;
+  bottom:-10px;
+  padding:0 0 0 2em;
+}
+
+.tool-bar .tabs-row::after {
+  content: '';
+  display: block;
+  height: 0;
+  clear: both;
+}
+
+.tool-bar .tab-label {
+  background-color: #dcdcdc;
+  color: #444;
+  border-top: 2px solid transparent;
+  border-right: 2px solid transparent;
+  border-bottom: 2px solid #dcdcdc;
+  border-left: 2px solid transparent;
+  padding: 0.5em 1.5em;
+  position: relative;
+  bottom: -1px;
+  float:left;
+  cursor:pointer;
+  margin:0 0.25em;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.tool-bar .tab-label.selected {
+  background-color: #f5f5f5;
+  color: #292929;
+  border-top: 2px solid #dcdcdc;
+  border-right: 2px solid #dcdcdc;
+  border-bottom: 2px solid #f5f5f5;
+  border-left: 2px solid #dcdcdc;
+}
+
+.tool-bar .tab-label .material-symbols-rounded{
+  margin:-0.1em 0.3em 0 0;
+}

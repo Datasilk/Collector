@@ -1,0 +1,152 @@
+.signup-container {
+    max-width:50em !important;
+}
+
+.signup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.signup-button {
+  background: #2c2c2c;
+  color: white;
+  border: none;
+  padding: 1rem;
+  border-radius: 4px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  font-family: Georgia, serif;
+  margin-top: 1rem;
+}
+
+.signup-button:hover {
+  background: #1a1a1a;
+}
+
+.login-link {
+  text-align: center;
+  margin-top: 1.5rem;
+  color: #666;
+}
+
+.login-link a {
+  color: #FF6B00;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.login-link a:hover {
+  color: #ff7b1a;
+}
+
+.invite {
+    margin-bottom: 2rem;
+}
+
+.inviter-name {
+    font-weight: bold;
+}
+
+.plan{
+  display: grid;
+  grid-template-columns: 35% 65%;
+  border-bottom: 2px dashed #cccccc;
+}
+
+.plan-body ul{
+  list-style-type: none;
+} 
+
+.plan-body li{
+  white-space: nowrap;
+}
+
+.plan-body li .material-symbols-rounded{
+  padding: 0 0.5em 0 0;
+}
+
+.plans-header{
+  display:block;
+  width:100%;
+  text-align:center;
+}
+
+.plans-footer{
+  display:block;
+  width:100%;
+  padding:2em 0 0 0;
+  text-align:center;
+}
+
+.plan-actions label{
+  padding:0.5em 1em;
+  border:2px solid #b080fe;
+  border-radius:2em;
+  cursor:pointer;
+  font-size:1.1rem;
+}
+
+.plan-actions label span{
+  display:inline-block;
+  padding:0 0.25em 0 0;
+  fill:#b080fe;
+  color:#b080fe;
+  height:1em;
+  position: relative;
+  top: -0.05em;
+  font-size:1.5em;
+}
+
+.plan-actions label:hover{
+  border-color:#8f4bfc;
+}
+
+.plan-actions .is-checked label{
+  border-color:transparent !important;
+}
+
+.plan-price{
+  font-weight:normal;
+}
+
+.plan-price span{
+  display:block;
+  font-weight:bold;
+}
+
+.plans-footer{
+  width:100%;
+}
+
+.plans-footer button{
+  width:100%;
+}
+
+.signup-container .go-back{
+  
+}
+
+@media (max-width: 768px) {
+  .signup-container {
+    padding: 1rem;
+  }
+
+  .signup-form-container {
+    padding: 1.5rem;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.email-message {
+    text-align: center;
+}
+
+.email-message img{
+    max-width: 10em;
+}

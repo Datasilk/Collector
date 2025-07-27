@@ -1,0 +1,19 @@
+{
+  "PreferredModel": "Qwen",
+  "Qwen": {
+    "PrivateKey": ""
+  },
+  "ChatGPT": {
+    "PrivateKey": ""
+  },
+  "Gemini": {
+    "PrivateKey": ""
+  },
+  "DeepSeek": {
+    "PrivateKey": ""
+  },
+  "ElevenLabs": {
+    "PrivateKey": "",
+    "VoiceId": "uhYnkYTBc711oAY590Ea"
+  }
+}

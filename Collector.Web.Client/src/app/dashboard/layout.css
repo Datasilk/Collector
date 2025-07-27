@@ -1,0 +1,141 @@
+.body {
+    width: 100%;
+    position:relative;
+}
+
+.header {
+    width: 100%;
+    padding: 10px;
+    background-color: #e7e7e7;
+    box-sizing: border-box;
+    border-bottom: 2px solid #dcdcdc;
+}
+
+.dash-form {
+    padding: 2em;
+}
+
+.submitting {
+    text-align: right;
+    padding: 10px 10px 0 0;
+}
+
+.dashboard{
+    position:relative;
+    -webkit-user-select: none; /* Safari */
+    -ms-user-select: none; /* IE 10 and IE 11 */
+    user-select: none; /* Standard syntax */
+}
+
+.dashboard .sidebar {
+    flex-basis: 18em;
+    flex-grow: 0;
+    flex-shrink: 0;
+    background-color: #e0e0e0;
+    color: #333;
+    padding: 0.5em 0 0 0;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    min-height: 0;
+    z-index:10;
+}
+
+.dashboard .sidebar .tool-bar .button {
+    margin:0.25em 0 0 0.6em;
+}
+
+.dashboard .sidebar > div > h4 .material-symbols-rounded{
+    padding:0 0.5em 0 0;
+}
+
+.dashboard .sidebar ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.dashboard .sidebar li {
+    white-space: nowrap;
+    font-size: 0.9em;
+    padding: 0;
+    margin: 0;
+}
+
+.dashboard .sidebar li:hover {
+    background-color: #d1c1ed;
+}
+
+.dashboard .sidebar li a {
+    padding: 0.8em 3em 0.8em 1.5em;
+    display: inline-block;
+    color: #333;
+}
+
+.dashboard .sidebar li .material-symbols-rounded {
+    margin: -0.15em 0.5em 0 0;
+}
+
+.dashboard .sidebar-top {
+    position: fixed;
+    overflow-y: auto;
+    width:18em;
+}
+
+.dashboard .sidebar-bottom {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width:18em;
+    margin: 0;
+    padding-bottom: 1em;
+    background: inherit;
+    z-index: 2;
+    list-style: none;
+}
+
+.sidebar-mobile-toggle{
+    display:none;
+    position:fixed;
+    top:1.4em;
+    left:1.4em;
+    cursor:pointer;
+    z-index:1010;
+}
+
+@media screen and (max-width: 930px) {
+    /*
+    transform dashboard sidebar into floating drop down menu
+    */
+    .dashboard > .sidebar{
+        display:none;
+        position:fixed;
+        max-height:calc(100vh - 8em);
+        overflow-y: auto;
+        overflow-x: hidden;
+        top:4.3em;
+        left:0;
+        z-index:999;
+        box-shadow: 0.1em 0.1em 1em rgba(0,0,0,0.1);
+        background-color:#fff;
+    }
+
+    .dashboard .sidebar-top{
+        position:relative;
+        top:0;
+        left:0;
+        height: auto !important;
+        padding-bottom:1em;
+    }
+
+    .dashboard .sidebar-bottom{
+        position:relative;
+        top:0;
+        left:0;
+    }
+
+    .sidebar-mobile-toggle{
+        display:block;
+    }
+}
