@@ -7,16 +7,6 @@ import './dashboard.css';
  */
 export default function Dashboard() {
 
-    //state
-    const [userId] = useState(session.user?.appUserId);
-    const [hasAccess, setHasAccess] = useState(false);
-
-    //effects
-    useEffect(() => {
-        setHasAccess(session.hasRole('admin'));
-    }, []);
-
-
     return (
         <>
         </>

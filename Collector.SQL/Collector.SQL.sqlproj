@@ -89,6 +89,7 @@
     <Folder Include="dbo\Tables\Statistics" />
     <Folder Include="dbo\Tables\Words" />
     <Folder Include="dbo\Tables\Users" />
+    <Folder Include="deploy" />
   </ItemGroup>
   <ItemGroup>
     <Build Include="dbo\Functions\GetPathFromUrl.sql" />
@@ -275,6 +276,8 @@
     <Build Include="dbo\Tables\Users\AppUserTokens.sql" />
     <Build Include="dbo\Tables\ConverseSubjects.sql" />
     <Build Include="dbo\Tables\ConverseResources.sql" />
+    <PostDeploy Include="deploy\PostDeployment.sql" />
+    <None Include="deploy\DbSetup.sql" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Collector.SQL.publish.xml" />

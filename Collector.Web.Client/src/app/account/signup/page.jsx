@@ -18,14 +18,6 @@ export default function SignUp() {
   const session = useSession();
 
   //state
-  const [selectedFeatures, setSelectedFeatures] = useState(null);
-  const [billingInfo, setBillingInfo] = useState({
-    cardName: '',
-    cardNumber: '',
-    exp: '',
-    ccv: '',
-    address: ''
-  });
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -40,17 +32,9 @@ export default function SignUp() {
   //api
   const { addUser } = Users(session);
 
-  //effect
-  useEffect(() => {
-    if (formState == 'new' && selectedFeatures == null) {
-      setTimeout(() => {
-        document.querySelector('.plan-actions label:first-child').click()
-      }, 1000);
-    }
-  }, [formState])
-
   //actions
   const handleChange = (e) => {
+    e.preventDefault();
     const { name, value } = e.target;
     const data = { ...formData, [name]: value };
 
@@ -133,87 +117,7 @@ export default function SignUp() {
     }
   };
 
-  const SignupForm = () => {
-    return (
-      <form className="signup-form" onSubmit={handleSubmit}>
-        <div className="form-row">
-          <Input
-            label="First Name"
-            name="firstName"
-            value={formData.firstName}
-            onInput={handleChange}
-            required={true}
-            maxLength={32}
-            placeholder="Enter your first name"
-            error={errors.firstName}
-          ></Input>
-          <Input
-            label="Last Name"
-            name="lastName"
-            value={formData.lastName}
-            onInput={handleChange}
-            required={true}
-            maxLength={32}
-            placeholder="Enter your last name"
-            error={errors.lastName}
-          ></Input>
-        </div>
-
-        <Input
-          label="Email"
-          type="email"
-          name="email"
-          value={formData.email}
-          onChange={handleChange}
-          required={true}
-          maxLength={64}
-          placeholder="Enter your email"
-          error={errors.email}
-        ></Input>
-
-        <Input
-          label="Password"
-          type="password"
-          name="password"
-          value={formData.password}
-          onChange={handleChange}
-          required={true}
-          maxLength={16}
-          placeholder="Create a password"
-          error={errors.password}
-        ></Input>
-
-        <Input
-          label="Confirm Password"
-          type="password"
-          name="confirmPassword"
-          value={formData.confirmPassword}
-          onChange={handleChange}
-          required={true}
-          maxLength={16}
-          placeholder="Confirm your password"
-          error={errors.confirmPassword}
-        ></Input>
-        {formState == 'submitting' ?
-          <div className="submitting">Creating Account...</div>
-          :
-          <button type="submit" className="signup-button">
-            Create Account
-          </button>
-        }
-      </form>
-    );
-  }
-
-  const handleFeatureSelect = (features) => {
-    setSelectedFeatures(features);
-  };
-  const handleBillingSubmit = (billingInfo) => {
-    setBillingInfo(billingInfo);
-    setFormState('signup');
-  };
-
-  if(formState == 'success') {
+  if (formState == 'success') {
     return (
       <Container
         title="Account Created!"
@@ -227,7 +131,7 @@ export default function SignUp() {
         <p>Please check your email inbox to activate your account before logging in.</p>
       </Container>
     );
-  }else{
+  } else {
     return (
       <Container
         title="Sign Up for Collector"
@@ -235,7 +139,73 @@ export default function SignUp() {
         error={errors.form}
         className="signup-container"
       >
-          <SignupForm />
+        <form className="signup-form" onSubmit={handleSubmit}>
+          <div className="form-row">
+            <Input
+              label="First Name"
+              name="firstName"
+              value={formData.firstName}
+              onInput={handleChange}
+              required={true}
+              maxLength={32}
+              placeholder="Enter your first name"
+              error={errors.firstName}
+            ></Input>
+            <Input
+              label="Last Name"
+              name="lastName"
+              value={formData.lastName}
+              onInput={handleChange}
+              required={true}
+              maxLength={32}
+              placeholder="Enter your last name"
+              error={errors.lastName}
+            ></Input>
+          </div>
+
+          <Input
+            label="Email"
+            type="email"
+            name="email"
+            value={formData.email}
+            onInput={handleChange}
+            required={true}
+            maxLength={64}
+            placeholder="Enter your email"
+            error={errors.email}
+          ></Input>
+
+          <Input
+            label="Password"
+            type="password"
+            name="password"
+            value={formData.password}
+            onChange={handleChange}
+            required={true}
+            maxLength={16}
+            placeholder="Create a password"
+            error={errors.password}
+          ></Input>
+
+          <Input
+            label="Confirm Password"
+            type="password"
+            name="confirmPassword"
+            value={formData.confirmPassword}
+            onChange={handleChange}
+            required={true}
+            maxLength={16}
+            placeholder="Confirm your password"
+            error={errors.confirmPassword}
+          ></Input>
+          {formState == 'submitting' ?
+            <div className="submitting">Creating Account...</div>
+            :
+            <button type="submit" className="signup-button">
+              Create Account
+            </button>
+          }
+        </form>
       </Container>
     );
   }

@@ -60,7 +60,6 @@ namespace Collector.API.Controllers
                 //check how many users exist
                 ApiAppService.TotalUsers = _userRepository.GetTotalUsers();
             }
-
             if (ApiAppService.TotalUsers == 0)
             {
                 //add admin roles to first user in database

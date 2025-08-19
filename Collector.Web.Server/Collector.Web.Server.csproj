@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <SpaRoot>..\Collector.Web.Client</SpaRoot>
     <SpaProxyLaunchCommand>npm run dev</SpaProxyLaunchCommand>
-    <SpaProxyServerUrl>https://localhost:7773</SpaProxyServerUrl>
+    <SpaProxyServerUrl>https://localhost:7783</SpaProxyServerUrl>
   </PropertyGroup>
 
   <ItemGroup>

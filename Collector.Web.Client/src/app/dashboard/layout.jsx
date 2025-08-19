@@ -24,7 +24,7 @@ export default function DashboardLayout({ children }) {
     const [isAuth, setAuth] = useState(null);
     const [mounted, setMounted] = useState(false);
     const [section, setSection] = useState('');
-    const [conversations, setConversations] = useState('');
+    const [conversations, setConversations] = useState([]);
     const [pathClassName, setPathClassName] = useState('');
     const [showNewMenu, setShowNewMenu] = useState(false);
 
