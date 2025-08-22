@@ -141,7 +141,7 @@ export default function AdminUsers() {
                         type="text"
                         placeholder="Search by Full Name"
                         value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
+                        onInput={(e) => setFullName(e.target.value)}
                         className="fullNameInput"
                     />
                     <Select

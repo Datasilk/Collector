@@ -161,7 +161,7 @@ export default function AdminUserDetails({ user, setUser, onError }) {
                                 type="email"
                                 placeholder="New Email Address"
                                 value={newEmail}
-                                onChange={e => setNewEmail(e.target.value)}
+                                onInput={e => setNewEmail(e.target.value)}
                             />
                             <button onClick={handleSaveEmail}>Save Changes</button>
                         </Modal>

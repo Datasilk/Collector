@@ -3,10 +3,12 @@ import { Routes, Route, useLocation } from 'react-router-dom';
 import appRoutes from './app-routes-lazy';
 import adminRoutes from './admin-routes-lazy';
 import dashRoutes from './dash-routes-lazy';
+import journalRoutes from './journal-routes-lazy';
 
 import RootLayout from '@/layout';
 import AdminLayout from '@/app/admin/layout';
 import DashLayout from '@/app/dashboard/layout';
+import JournalLayout from '@/app/journal/layout';
 
 const RouteElement = ({ path, Element, layout }) => {
   if (!Element) return null;
@@ -29,5 +31,6 @@ export default function BaseRoutes() {
     {appRoutes.map(route => RouteElement({...route, layout: RootLayout}))}
     {adminRoutes.map(route => RouteElement({...route, layout: AdminLayout}))}
     {dashRoutes.map(route => RouteElement({...route, layout: DashLayout}))}
+    {journalRoutes.map(route => RouteElement({...route, layout: JournalLayout}))}
   </Routes>);
 };

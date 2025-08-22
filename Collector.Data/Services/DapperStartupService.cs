@@ -34,6 +34,11 @@ namespace Collector.Data.Services
             builder.Services.AddTransient<ISubjectsRepository, SubjectsRepository>();
             builder.Services.AddTransient<IWhitelistsRepository, WhitelistsRepository>();
             builder.Services.AddTransient<IWordsRepository, WordsRepository>();
+            
+            //Journal Tables
+            builder.Services.AddTransient<IJournalCategoriesRepository, JournalCategoriesRepository>();
+            builder.Services.AddTransient<IJournalsRepository, JournalsRepository>();
+            builder.Services.AddTransient<IJournalEntriesRepository, JournalEntriesRepository>();
         }
     }
 }

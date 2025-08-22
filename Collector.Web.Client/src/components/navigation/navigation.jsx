@@ -62,7 +62,8 @@ const Navigation = () => {
           :
           <>
             {(user.isAdmin) && <Link to="/admin" className={'nav-link' + (section == 'admin' ? ' selected' : '')}>Administration</Link>}
-            {<Link to="/dashboard" className={'nav-link' + (section == 'dashboard' ? ' selected' : '')}>Dashboard</Link>}
+            <Link to="/journal" className={'nav-link' + (section == 'journal' ? ' selected' : '')}>Journal</Link>
+            <Link to="/dashboard" className={'nav-link' + (section == 'dashboard' ? ' selected' : '')}>Dashboard</Link>
             <Link to="/account" title="My Account" className={'account-icon' + (section == 'account' ? ' selected' : '')} onClick={handleUserMenuClick}>
               <Icon name="person" />
             </Link>
@@ -70,10 +71,6 @@ const Navigation = () => {
               {(user.isAdmin) && <li className="user-menu-item">
                 <Link to="/admin"><Icon name="admin_panel_settings" /> Administration</Link>
               </li>}
-              {user?.token && (<>
-                <li className="user-menu-item">
-                <Link to="/dashboard"><Icon name="dashboard" /> Dashboard</Link>
-              </li>
               <li className="user-menu-item">
                 <Link to="/account"><Icon name="person" /> My Account</Link>
               </li>
@@ -82,8 +79,6 @@ const Navigation = () => {
                   <Icon name="logout" /> Log Out
                 </Link>
               </li>
-              </>)
-              }
             </ul>
           </>
         }

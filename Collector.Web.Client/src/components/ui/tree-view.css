@@ -1,0 +1,72 @@
+.tree-view {
+    margin: 0;
+    padding: 0;
+}
+
+.tree-view-item {
+    cursor: pointer;
+    user-select: none;
+}
+
+.tree-view-header {
+    display: flex;
+    align-items: center;
+    position:relative;
+    flex-direction: row;
+}
+
+.tree-view-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin-right: 4px;
+    flex-shrink: 0;
+}
+
+.tree-view-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    font-size: 14px;
+    font-weight: bold;
+    border-radius: 2px;
+    background-color: #f0f0f0;
+    color: #555;
+    transition: background-color 0.2s;
+}
+
+.tree-view-spacer {
+    width: 16px;
+    height: 16px;
+    display: inline-block;
+}
+
+.tree-view-label {
+    flex-grow: 1;
+    padding: 0 4px;
+    font-size:1;
+    display: inline-block;
+}
+
+.tree-view-menu {
+    display: inline-block;
+}
+
+.tree-view-content {
+    margin-left: 24px;
+    margin-bottom: 1em;
+    padding-left: 8px;
+    padding-bottom: 1em;
+    /*border-left: 2px dotted #9b6fff;
+    border-bottom: 2px dotted #9b6fff;*/
+    animation: tree-view-fade-in 0.2s;
+}
+
+@keyframes tree-view-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}

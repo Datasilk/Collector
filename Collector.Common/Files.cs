@@ -1,0 +1,187 @@
+using System;
+using System.IO;
+using System.Threading.Tasks;
+using System.Text.RegularExpressions;
+
+namespace Collector.Common
+{
+    /// <summary>
+    /// Provides file system operations for the application
+    /// </summary>
+    public static class Files
+    {
+        /// <summary>
+        /// Gets the content of a file from the application content directory
+        /// </summary>
+        /// <param name="relativePath">Relative path to the file within the Content directory</param>
+        /// <returns>The file content as a string</returns>
+        public static string GetFile(string relativePath)
+        {
+            try
+            {
+                // Get the application base path
+                var basePath = AppDomain.CurrentDomain.BaseDirectory;
+                
+                // Combine with Content directory and the relative path
+                var fullPath = Path.Combine(basePath, "Content", relativePath);
+                
+                // Ensure the path is valid and within the Content directory
+                var contentDirPath = Path.Combine(basePath, "Content");
+                var normalizedFullPath = Path.GetFullPath(fullPath);
+                var normalizedContentPath = Path.GetFullPath(contentDirPath);
+                
+                if (!normalizedFullPath.StartsWith(normalizedContentPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new UnauthorizedAccessException("Access to the path is denied. Path must be within the Content directory.");
+                }
+                
+                // Check if file exists
+                if (!File.Exists(fullPath))
+                {
+                    return null;
+                }
+                
+                // Read and return the file content
+                return File.ReadAllText(fullPath);
+            }
+            catch (Exception ex)
+            {
+                // Log the exception if needed
+                Console.WriteLine($"Error reading file: {ex.Message}");
+                return null;
+            }
+        }
+        
+        /// <summary>
+        /// Gets the content of a file from the application content directory asynchronously
+        /// </summary>
+        /// <param name="relativePath">Relative path to the file within the Content directory</param>
+        /// <returns>The file content as a string</returns>
+        public static async Task<string> GetFileAsync(string relativePath)
+        {
+            try
+            {
+                // Get the application base path
+                var basePath = AppDomain.CurrentDomain.BaseDirectory;
+                
+                // Combine with Content directory and the relative path
+                var fullPath = Path.Combine(basePath, "Content", relativePath);
+                
+                // Ensure the path is valid and within the Content directory
+                var contentDirPath = Path.Combine(basePath, "Content");
+                var normalizedFullPath = Path.GetFullPath(fullPath);
+                var normalizedContentPath = Path.GetFullPath(contentDirPath);
+                
+                if (!normalizedFullPath.StartsWith(normalizedContentPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new UnauthorizedAccessException("Access to the path is denied. Path must be within the Content directory.");
+                }
+                
+                // Check if file exists
+                if (!File.Exists(fullPath))
+                {
+                    return null;
+                }
+                
+                // Read and return the file content asynchronously
+                return await File.ReadAllTextAsync(fullPath);
+            }
+            catch (Exception ex)
+            {
+                // Log the exception if needed
+                Console.WriteLine($"Error reading file: {ex.Message}");
+                return null;
+            }
+        }
+    
+        /// <summary>
+        /// Saves content to a file in the application content directory
+        /// </summary>
+        /// <param name="relativePath">Relative path to the file within the Content directory</param>
+        /// <param name="content">The content to save to the file</param>
+        /// <returns>True if the file was saved successfully, false otherwise</returns>
+        public static bool SaveFile(string relativePath, string content)
+        {
+            try
+            {
+                // Get the application base path
+                var basePath = AppDomain.CurrentDomain.BaseDirectory;
+                
+                // Combine with Content directory and the relative path
+                var fullPath = Path.Combine(basePath, "Content", relativePath);
+                
+                // Ensure the path is valid and within the Content directory
+                var contentDirPath = Path.Combine(basePath, "Content");
+                var normalizedFullPath = Path.GetFullPath(fullPath);
+                var normalizedContentPath = Path.GetFullPath(contentDirPath);
+                
+                if (!normalizedFullPath.StartsWith(normalizedContentPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new UnauthorizedAccessException("Access to the path is denied. Path must be within the Content directory.");
+                }
+                
+                // Create directory if it doesn't exist
+                var directory = Path.GetDirectoryName(fullPath);
+                if (!Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+                
+                // Write the content to the file
+                File.WriteAllText(fullPath, content);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                // Log the exception if needed
+                Console.WriteLine($"Error saving file: {ex.Message}");
+                return false;
+            }
+        }
+        
+        /// <summary>
+        /// Saves content to a file in the application content directory asynchronously
+        /// </summary>
+        /// <param name="relativePath">Relative path to the file within the Content directory</param>
+        /// <param name="content">The content to save to the file</param>
+        /// <returns>True if the file was saved successfully, false otherwise</returns>
+        public static async Task<bool> SaveFileAsync(string relativePath, string content)
+        {
+            try
+            {
+                // Get the application base path
+                var basePath = AppDomain.CurrentDomain.BaseDirectory;
+                
+                // Combine with Content directory and the relative path
+                var fullPath = Path.Combine(basePath, "Content", relativePath);
+                
+                // Ensure the path is valid and within the Content directory
+                var contentDirPath = Path.Combine(basePath, "Content");
+                var normalizedFullPath = Path.GetFullPath(fullPath);
+                var normalizedContentPath = Path.GetFullPath(contentDirPath);
+                
+                if (!normalizedFullPath.StartsWith(normalizedContentPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new UnauthorizedAccessException("Access to the path is denied. Path must be within the Content directory.");
+                }
+                
+                // Create directory if it doesn't exist
+                var directory = Path.GetDirectoryName(fullPath);
+                if (!Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+                
+                // Write the content to the file asynchronously
+                await File.WriteAllTextAsync(fullPath, content);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                // Log the exception if needed
+                Console.WriteLine($"Error saving file: {ex.Message}");
+                return false;
+            }
+        }
+    }
+}

@@ -52,12 +52,22 @@
 }
 
 /* tool bar -----------------------------------------------------------------*/
+.tool-bar > .title {
+  font-size: 1.4em;
+  display: inline-block;
+  margin: 0.2em 0 0 0.5em;
+}
 .tool-bar .sub-title{
   display:inline-block;
   color:#8b8b8b;
   position: relative;
   top: -0.1em;
   padding: 0 0.5em 0 0;
+}
+
+.tool-bar .right-side {
+    float: right;
+    margin: 0 1em 0 0;
 }
 
 .tool-bar::after{

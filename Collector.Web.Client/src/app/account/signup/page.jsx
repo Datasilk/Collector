@@ -180,7 +180,7 @@ export default function SignUp() {
             type="password"
             name="password"
             value={formData.password}
-            onChange={handleChange}
+            onInput={handleChange}
             required={true}
             maxLength={16}
             placeholder="Create a password"
@@ -192,7 +192,7 @@ export default function SignUp() {
             type="password"
             name="confirmPassword"
             value={formData.confirmPassword}
-            onChange={handleChange}
+            onInput={handleChange}
             required={true}
             maxLength={16}
             placeholder="Confirm your password"

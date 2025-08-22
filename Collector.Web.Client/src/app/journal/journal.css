@@ -1,0 +1,9 @@
+.journal-container {
+    padding: 20px;
+}
+
+.journal-container h1 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 24px;
+}

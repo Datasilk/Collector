@@ -32,9 +32,7 @@ const UseAxios = ({ user, setUser, useToken = false }) => {
 				console.error('Error refreshing token:', error);
 				// Handle error (e.g., logout user if refresh fails)
 				localStorage.removeItem('user');
-				if (window.location.href.indexOf('admin') >= 0 || window.location.href.indexOf('dashboard') >= 0) {
-					if(currentUrl.indexOf('/login') < 0) window.location.href = `/login?returl=${encodeURIComponent(currentUrl)}`;
-				}
+				if(currentUrl.indexOf('/login') < 0) window.location.href = `/login?returl=${encodeURIComponent(currentUrl)}`;
 				throw error;
 			}
 		};
@@ -74,9 +72,7 @@ const UseAxios = ({ user, setUser, useToken = false }) => {
 							// Dispatch logout action to reset state
 							setUser(null);
 							console.error('Session expired');
-							if (window.location.href.indexOf('admin') >= 0 || window.location.href.indexOf('dashboard') >= 0) {
-								if(currentUrl.indexOf('/login') < 0) window.location.href = `/login?returl=${encodeURIComponent(currentUrl)}`;
-							}
+							if(currentUrl.indexOf('/login') < 0) window.location.href = `/login?returl=${encodeURIComponent(currentUrl)}`;
 							return true;
 						default:
 							break;

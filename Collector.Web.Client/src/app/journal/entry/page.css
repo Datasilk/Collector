@@ -1,0 +1,359 @@
+.journal-entry-page {
+    padding: 1.25em;
+    max-width: 62.5em;
+    margin: 0 auto;
+}
+
+/* Header styles */
+.entry-header {
+    margin-bottom: 0.5em;
+}
+
+.back-button {
+    float:left;
+}
+
+.entry-status-badge {
+    display: flex;
+    align-items: center;
+}
+
+.status-indicator {
+    padding: 0.3125em 0.625em;
+    border-radius: 0.9375em;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.status-active {
+    background-color: #e8f5e9;
+    color: #2e7d32;
+}
+
+.status-published {
+    background-color: #e3f2fd;
+    color: #1565c0;
+}
+
+.status-archived {
+    background-color: #f5f5f5;
+    color: #616161;
+}
+
+.save-status-message {
+    padding: 0.625em 0.9375em;
+    margin-bottom: 1.25em;
+    border-radius: 0.25em;
+    text-align: center;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Entry title section */
+.entry-title-section {
+    margin-bottom: 0.5em;
+    height:3.5em;
+}
+
+.entry-title-display {
+    display: flex;
+    align-items: center;
+    gap: 0.625em;
+    padding: 0.5em;
+    cursor:default;
+}
+
+.entry-title-display h1 {
+    font-size: 2rem;
+    margin: 0;
+    flex: 1;
+}
+
+.entry-title-display:hover {
+    background-color: #dedbf4;
+}
+
+.entry-title-section .icon-close {
+    margin-right:1.1em;
+}
+
+/* Input component overrides for title */
+.form-group.input-entry-title {
+    margin-bottom: 0;
+}
+
+.form-group.input-entry-title .form-label {
+    display: none;
+}
+
+.form-group.input-entry-title .form-field {
+    display: flex;
+    align-items: center;
+}
+
+.form-group.input-entry-title input {
+    font-size: 1.5rem;
+    font-weight: 500;
+    padding: 0.5em;
+    border: 1px solid #ddd;
+    border-radius: 0.25em;
+    width: 100%;
+    background-color: #fff;
+    box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+}
+
+.form-group.input-entry-title input:focus {
+    outline: none;
+    border-color: #4a90e2;
+}
+
+.entry-metadata {
+    display: flex;
+    gap: 1.25em;
+    font-size: 0.9rem;
+    margin-bottom: 1.25em;
+    flex-wrap: wrap;
+    opacity:0.6;
+}
+
+.entry-metadata .created-date .material-symbols-rounded,
+.entry-metadata .modified-date .material-symbols-rounded {
+    margin-right: 0.25em;
+}
+
+.entry-description {
+    line-height: 1.6;
+    margin-bottom: 1.875em;
+    white-space: pre-line;
+}
+
+/* Module controls */
+.module-controls {
+    margin: 1.5em 0;
+    display: flex;
+    justify-content: center;
+}
+
+.add-module-container {
+    position: relative;
+}
+
+.add-module-button {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    padding: 0.5em 1em;
+    background-color: #f0f0f0;
+    border: 1px dashed #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.add-module-button:hover {
+    background-color: #e0e0e0;
+}
+
+.module-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 200px;
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    z-index: 10;
+    margin-top: 0.5em;
+}
+
+.module-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    padding: 0.75em 1em;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.module-option:hover {
+    background-color: #f5f5f5;
+}
+
+/* Entry modules */
+.entry-modules {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5em;
+    margin-bottom: 2em;
+}
+
+.entry-modules .entry.element {
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.module-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5em 1em;
+    background-color: #f5f5f5;
+    border-bottom: 1px solid #ddd;
+}
+
+.module-type {
+    font-weight: 500;
+    font-size: 0.9em;
+    color: #555;
+}
+
+.module-actions {
+    display: flex;
+    gap: 0.5em;
+}
+
+.module-actions button.icon {
+    padding: 0.25em;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.module-actions button.icon:hover {
+    background-color: rgba(0,0,0,0.05);
+}
+
+.entry-modules .text {
+    padding: 1em;
+    min-height: 2em;
+    display: none; /* Hide the text div as we're using CKEditor */
+}
+
+.empty-description {
+    font-style: italic;
+}
+
+.entry-actions {
+    display: flex;
+    gap: 0.625em;
+    margin-top: 1.25em;
+}
+
+/* Edit mode */
+.entry-edit-form {
+    width: 100%;
+}
+
+.form-group {
+    margin-bottom: 1.25em;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5em;
+    font-weight: 500;
+}
+
+.form-control {
+    width: 100%;
+    padding: 0.625em;
+    border-radius: 0.25em;
+    font-size: 1rem;
+    font-family: inherit;
+}
+
+textarea.form-control {
+    resize: vertical;
+    min-height: 12.5em;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.625em;
+    margin-top: 1.25em;
+}
+
+button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Loading state */
+.journal-entry-page.loading,
+.journal-entry-page.error,
+.journal-entry-page.not-found {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 25em;
+    text-align: center;
+}
+
+.loading-spinner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.9375em;
+}
+
+.loading-spinner [name="loading"] {
+    animation: spin 1s linear infinite;
+    font-size: 2rem;
+    color: #4a90e2;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.error-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.9375em;
+}
+
+.not-found-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.9375em;
+}
+
+
+@media (max-width: 48em) {
+    .journal-entry-page {
+        padding: 0.9375em;
+    }
+    
+    .entry-content {
+        padding: 0.9375em;
+    }
+    
+    .entry-title {
+        font-size: 1.5rem;
+    }
+    
+    .entry-actions {
+        flex-wrap: wrap;
+    }
+    
+    .entry-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.625em;
+    }
+    
+    .entry-status-badge {
+        align-self: flex-start;
+    }
+}

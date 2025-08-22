@@ -27,14 +27,14 @@ const userContext = (user, setState) => {
     }
 
     const checkUser = (role) => {
-        const api = UseAxios({ user, setUser, useToken: user.isAdmin || user.isManager });
+        const api = UseAxios({ user, setUser, useToken: user?.isAdmin || user?.isManager });
         let hasRole = false;
         switch (role) {
             case 'admin':
-                hasRole = user.isAdmin;
+                hasRole = user?.isAdmin;
                 break;
             case 'manager':
-                hasRole = user.isManager;
+                hasRole = user?.isManager;
                 break;
         }
         return api({ url: `api/auth/check-auth`, method: `GET` }).then(response => {
@@ -46,7 +46,7 @@ const userContext = (user, setState) => {
         });
     }
 
-    const hasRole = (role) =>  role == 'admin' && user.isAdmin || role == 'manager' && user.isManager || role == 'user';
+    const hasRole = (role) =>  role == 'admin' && user?.isAdmin == true || role == 'manager' && user?.isManager == true || role == 'user';
 
     return { user, setUser, checkUser, hasRole };
 }

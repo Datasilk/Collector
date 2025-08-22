@@ -114,8 +114,8 @@ const Account = () => {
             type="email"
             placeholder="New Email Address"
             value={newEmail}
-            onChange={e => setNewEmail(e.target.value)}
-          />
+            onInput={e => setNewEmail(e.target.value)}
+          ></Input>
           <button onClick={handleSaveEmail}>Save Changes</button>
         </Modal>
       )}
@@ -165,7 +165,7 @@ const Account = () => {
               label="Full Name:"
               type="text"
               value={fullName}
-              onChange={e => setFullName(e.target.value)}
+              onInput={e => setFullName(e.target.value)}
             />
           </div>
           

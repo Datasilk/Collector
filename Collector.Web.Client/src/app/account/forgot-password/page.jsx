@@ -95,7 +95,7 @@ export default function ForgotPassword() {
                             type="email"
                             name="email"
                             value={formData.email}
-                            onChange={handleChange}
+                            onInput={handleChange}
                             required={true}
                             placeholder="Enter your email"
                             error={errors.email}

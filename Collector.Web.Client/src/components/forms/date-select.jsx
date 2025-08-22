@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import '@/styles/forms.css';
+import Input from '@/components/forms/input';
 /**
  * <summary>Date select component</summary>
  * <description>Displays a dropdown for selecting preset or custom date ranges.</description>
@@ -68,16 +69,16 @@ export default function DateSelect({ onChange, label, error }) {
             </select>
             {isCustomSelected && (
                 <>
-                    <input
+                    <Input  
                         type="date"
                         value={customDates.startDate}
-                        onChange={(e) => handleCustomDateChange('startDate', e.target.value)}
+                        onInput={(e) => handleCustomDateChange('startDate', e.target.value)}
                         placeholder="Start Date"
                     />
-                    <input
+                    <Input
                         type="date"
                         value={customDates.endDate}
-                        onChange={(e) => handleCustomDateChange('endDate', e.target.value)}
+                        onInput={(e) => handleCustomDateChange('endDate', e.target.value)}
                         placeholder="End Date"
                     />
                     <button onClick={handleCustomDateSubmit}>Submit</button>

@@ -9,25 +9,19 @@ import '@/styles/forms.css';
  * @param {string} name - The name attribute for the input (used in forms).
  * @param {string} type - The HTML input type (e.g., text, email, password, number, date, etc.).
  * @param {string|number} value - The current value of the input field.
- * @param {string} placeholder - Placeholder text shown when the input is empty.
- * @param {number} maxLength - Maximum number of characters allowed.
  * @param {string|boolean} autocomplete - The autocomplete attribute for browser autofill (true for default, or a string value).
  * @param {boolean} required - Whether the input is required for form submission.
  * @param {boolean} isLabel - If true, renders the value as plain text instead of an input field.
- * @param {function} onChange - Callback for the input's onChange event.
- * @param {function} onInput - Callback for the input's onInput event.
  * @param {string} error - Error message to display below the input.
  * @param {string} note - Additional note or helper text below the input.
  * @param {ReactNode} buttons - Button elements to display alongside the input field.
+ * @param {...any} args - Additional properties to pass to the input element.
  */
-export default function Input({ children, label, name, type = 'text', value, placeholder, maxLength = null, autocomplete = null, required = false, isLabel = false, onChange, onInput, error, note, buttons }) {
+export default function Input({ children, label, name, type = 'text', value, autocomplete = null, required = false, isLabel = false, error, note, buttons, ...args }) {
     //set up optional properties
     const optional = {};
     if (autocomplete === true || (['email', 'password'].some(a => a == type) && autocomplete === null)) {
         optional.autoComplete = 'true';
-    }
-    if (maxLength) {
-        optional.maxLength = maxLength;
     }
 
     //render input
@@ -44,10 +38,8 @@ export default function Input({ children, label, name, type = 'text', value, pla
                         id={name}
                         name={name}
                         value={value}
-                        onChange={onChange}
-                        onInput={onInput}
-                        placeholder={placeholder}
                         {...optional}
+                        {...args}
                     />
                     : <span className="input-islabel">{value}</span>}
                 {note && <span className="note">{note}</span>}

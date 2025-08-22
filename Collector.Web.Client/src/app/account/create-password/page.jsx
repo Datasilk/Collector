@@ -116,14 +116,14 @@ export default function CreatePassword() {
                     name="password"
                     label="New Password"
                     value={password}
-                    onChange={e => setPassword(e.target.value)}
+                    onInput={e => setPassword(e.target.value)}
                 />
                 <Input
                     type="password"
                     name="passwordConfirm"
                     label="Confirm Password"
                     value={passwordConfirm}
-                    onChange={e => setPasswordConfirm(e.target.value)}
+                    onInput={e => setPasswordConfirm(e.target.value)}
                 />
                 <button
                     type="button"

@@ -90,6 +90,7 @@
     <Folder Include="dbo\Tables\Words" />
     <Folder Include="dbo\Tables\Users" />
     <Folder Include="deploy" />
+    <Folder Include="dbo\Tables\Journal" />
   </ItemGroup>
   <ItemGroup>
     <Build Include="dbo\Functions\GetPathFromUrl.sql" />
@@ -278,8 +279,14 @@
     <Build Include="dbo\Tables\ConverseResources.sql" />
     <PostDeploy Include="deploy\PostDeployment.sql" />
     <None Include="deploy\DbSetup.sql" />
+    <Build Include="dbo\Tables\Journal\JournalEntries.sql" />
+    <Build Include="dbo\Tables\Journal\Journals.sql" />
+    <Build Include="dbo\Tables\Journal\JournalCategories.sql" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Collector.SQL.publish.xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <RefactorLog Include="Collector.SQL.refactorlog" />
   </ItemGroup>
 </Project>

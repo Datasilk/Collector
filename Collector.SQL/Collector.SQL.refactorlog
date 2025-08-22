@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Operations Version="1.0" xmlns="http://schemas.microsoft.com/sqlserver/dac/Serialization/2012/02">
+  <Operation Name="Rename Refactor" Key="00f2a40a-3761-4558-a4a2-cc3d943fae1c" ChangeDateTime="08/19/2025 23:03:52">
+    <Property Name="ElementName" Value="[dbo].[Journal].[JournalId]" />
+    <Property Name="ElementType" Value="SqlSimpleColumn" />
+    <Property Name="ParentElementName" Value="[dbo].[Journal]" />
+    <Property Name="ParentElementType" Value="SqlTable" />
+    <Property Name="NewName" Value="journalId" />
+  </Operation>
+  <Operation Name="Rename Refactor" Key="6fc56382-51dd-483c-bcec-c8c74ecbce22" ChangeDateTime="08/19/2025 23:04:02">
+    <Property Name="ElementName" Value="[dbo].[Journal].[journalId]" />
+    <Property Name="ElementType" Value="SqlSimpleColumn" />
+    <Property Name="ParentElementName" Value="[dbo].[Journal]" />
+    <Property Name="ParentElementType" Value="SqlTable" />
+    <Property Name="NewName" Value="JournalId" />
+  </Operation>
+</Operations>
