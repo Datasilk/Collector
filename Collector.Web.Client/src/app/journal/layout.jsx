@@ -212,10 +212,7 @@ export default function JournalLayout({ children }) {
 
     const handleCategoryClick = (categoryId) => {
         // Find the category to edit
-        console.log('category id: ' + categoryId);
         const categoryToEdit = categories.find(cat => cat.id === categoryId);
-        console.log('category to edit: ' + categoryToEdit);
-        console.log(categories);
         if (categoryToEdit) {
             setEditingCategoryId(categoryId);
             setEditingCategoryTitle(categoryToEdit.title);

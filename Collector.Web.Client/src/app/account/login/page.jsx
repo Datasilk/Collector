@@ -29,8 +29,6 @@ export default function Login () {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    console.log(e.target);
-    console.log(name, value);
     const data = { ...formData, [name]: value };
 
     const errs = errors;
@@ -52,7 +50,6 @@ export default function Login () {
     if (changed == true) {
       setErrors(errs);
     }
-    console.log(data);
     setFormData(data);
   };
 

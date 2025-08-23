@@ -53,26 +53,112 @@ import { LineHeight } from '@rickx/ckeditor5-line-height'
 //helpers
 import { fonts } from '@/helpers/fonts';
 
-export default function CKEditorModule({ id, onLoad, onUpdate }) {
+export default function CKEditorModule({ module, onUpdate }) {
     //state
-    const [editor, setEditor] = useState();
     const [mounted, setMounted] = useState(false);
 
-    //ref
-    const dataRef = useRef();
+    //refs
+    const htmlRef = useRef(null);
+    const editorRef = useRef(null);
+    const timerSave = useRef(null);
+
+    //effect
+    useEffect(() => {
+        if (mounted) return;
+        setMounted(true);
+    }, []);
+
+    useEffect(() => {
+        if(!module?.html || module.html.length == 0){
+            const newhtml = '<p>Write your content here...</p>';
+            onUpdate({...module, html: newhtml});
+            htmlRef.current = newhtml;
+            loadHtml(newhtml);
+        } else if(module.html != htmlRef.current) {
+            htmlRef.current = module.html;
+            loadHtml(module.html);
+        }
+    }, [module]);
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (editorRef.current) {
+                editorRef.current.destroy();
+            }
+        };
+    }, [editorRef]);
+
+    const loadHtml = (newhtml) => {
+        if(!newhtml) newhtml = htmlRef.current;
+        const elem = document.querySelector(`.module-id-${module.id} .text-editor > .text`);
+        if(!elem) return;
+        elem.innerHTML = newhtml;
+        elem.removeEventListener('mouseup', showEditor);
+        elem.addEventListener('mouseup', showEditor);
+    };
+
+    const handleDataChange = () => {
+        let newhtml = editorRef.current.getData();
+        
+        // Strip all style attributes from the HTML
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = newhtml;
+        
+        // Find all elements with style attributes and remove them
+        const elementsWithStyle = tempDiv.querySelectorAll('[style]');
+        elementsWithStyle.forEach(element => {
+            element.removeAttribute('style');
+        });
+        const elementsWidthData= tempDiv.querySelectorAll('[data-placeholder]');
+        elementsWidthData.forEach(element => {
+            element.removeAttribute('data-placeholder');
+        });
+        
+        // Get the cleaned HTML
+        newhtml = tempDiv.innerHTML;
+        
+        htmlRef.current = newhtml;
+        if(timerSave.current) clearTimeout(timerSave.current);
+        timerSave.current = setTimeout(() => {
+            console.log('handleDataChange', newhtml);
+            onUpdate({...module, html: newhtml});
+        }, 3000);
+    };
+
+    const handleClickOutside = (event) => {
+        const editorContainer = document.querySelector(`.module-id-${module.id}`);
+        const toolbar = document.querySelector('.ck-toolbar');
+        const balloon = document.querySelector('.ck-balloon-panel');
+        let elem = event.target;
+        while(elem && elem != null){
+            if(editorContainer.contains(elem) ||
+                toolbar.contains(elem) ||
+                balloon.contains(elem)){
+                return;
+            }
+            elem = elem.parentNode;
+        }
+        hideEditor();
+    };
 
     //initialize WYSIWYG Editor (CKEditor)
-    useEffect(() => {
-        if (!mounted) { setMounted(true); return; }
-        const elem = document.querySelector(`.entry .element.id-${id} > .text`);
+    const showEditor = () => {
+        const elem = document.querySelector(`.module-id-${module.id} .text-editor > .text`);
         if(!elem) return;
+        elem.removeEventListener('mouseup', showEditor);
+        document.removeEventListener('mousedown', handleClickOutside);
         const initialData = elem.innerHTML;
-        const containerHtml = `<div class="editor-textelement-${id} main-container">
+        setTimeout(() => {
+            document.addEventListener('mousedown', handleClickOutside);
+        }, 100);
+
+        const containerHtml = `<div class="main-container">
 			<div
 				class="editor-container editor-container_inline-editor editor-container_include-style"
 				id="editor-container"
 			>
-				<div class="editor-container__editor"><div id="editor_textelem_${id}"></div></div>
+				<div class="editor-container__editor"><div id="editor_textelem_${module.id}"></div></div>
 			</div>
 		</div>`;
 
@@ -256,26 +342,29 @@ export default function CKEditorModule({ id, onLoad, onUpdate }) {
         [...document.querySelectorAll('.ck-body')].forEach(a => a.remove());
         const container = document.createElement('div');
         container.innerHTML = containerHtml;
-        let myEditor;
-        InlineEditor.create(container.querySelector('#editor_textelem_' + id), editorConfig)
+        elem.appendChild(container);
+
+        InlineEditor.create(container.querySelector('#editor_textelem_' + module.id), editorConfig)
             .then(editor => {
-                myEditor = editor;
                 elem.innerHTML = '';
                 elem.appendChild(container);
                 
-                if (typeof onLoad == 'function') onLoad();
                 if (typeof onUpdate == 'function') {
-                    myEditor.model.document.on('change:data', () => onUpdate(myEditor.getData()));
+                    editor.model.document.on('change:data', handleDataChange);
                 }
-                myEditor.editing.view.document.on('click', () => {
-                    myEditor.ui.view.toolbar.element.parentNode.style.opacity = 1;
-                });
-                myEditor.focus();
-                dataRef.current = myEditor.getData();
-                setEditor(myEditor);
+                editor.focus();
+                editorRef.current = editor;
             });
-        window.slide.draggable = false;
-    }, [mounted, id]);
+    };
 
-    return <></>;
+    //destroy WYSIWYG Editor
+    const hideEditor = () => {
+        if (editorRef.current) {
+            loadHtml();
+            editorRef.current.destroy();
+            editorRef.current = null;
+        }
+    };
+
+    return <div className="text-editor"><div className="text"></div></div>;
 }

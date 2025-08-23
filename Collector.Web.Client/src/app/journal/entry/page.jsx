@@ -1,11 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+//css
+import './page.css';
+//components
 import Icon from '@/components/ui/icon';
 import Input from '@/components/forms/input';
+//context
 import { useSession } from '@/context/session';
+//api
 import { Journals } from '@/api/user/journals';
+//modules
+import modules from './modules';
 import CKEditorModule from './modules/ckeditor';
-import './page.css';
 
 /**
  * <summary>Journal Entry Page</summary>
@@ -28,44 +34,59 @@ export default function JournalEntryPage() {
     const [saveStatus, setSaveStatus] = useState(null);
     const [entryJson, setEntryJson] = useState({ modules: [] });
     const [showModuleDropdown, setShowModuleDropdown] = useState(false);
-    const [entryContent, setEntryContent] = useState(null);
-    
+
     // refs
+    const dropdownRef = useRef(null);
+    const dropdownButtonRef = useRef(null);
     const titleInputRef = useRef(null);
 
     //effect
     useEffect(() => {
         fetchEntryDetails();
     }, [journalId, entryId, navigate, session]);
-    
-    // Focus the title input when edit mode is activated
+
     useEffect(() => {
         if (isTitleEditing && titleInputRef.current) {
             titleInputRef.current.focus();
         }
     }, [isTitleEditing]);
 
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (showModuleDropdown &&
+                dropdownRef.current &&
+                !dropdownRef.current.contains(event.target) &&
+                dropdownButtonRef.current &&
+                !dropdownButtonRef.current.contains(event.target)) {
+                setShowModuleDropdown(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [showModuleDropdown]);
+
     //actions
     const fetchEntryDetails = async () => {
         try {
             setLoading(true);
             const api = Journals(session);
-            
-            // First, get the journal information
             const journalResponse = await api.getJournal(journalId);
-            
+
             if (!journalResponse.data.success) {
                 setError(journalResponse.data.message || 'Failed to load journal details');
                 setLoading(false);
                 return;
             }
-            
+
             const journalData = journalResponse.data.data;
             setJournal(journalData);
-            
-            // Check if this is a "new" entry
+
             const isNewEntry = entryId === 'new';
-            
+
             if (isNewEntry) {
                 // Create a new entry template
                 const newEntry = {
@@ -76,50 +97,47 @@ export default function JournalEntryPage() {
                     created: new Date().toISOString(),
                     status: 0
                 };
-                
+
                 setEntry(newEntry);
                 setEditedTitle(newEntry.title);
                 setEditedDescription(newEntry.description);
                 setIsTitleEditing(true); // Automatically show title editor for new entries
-                setEntryJson({ modules: [] }); // Initialize empty modules array
+                setEntryJson({ modules: [] });
             } else {
                 // Get existing entry data
                 const entryResponse = await api.getEntry(entryId);
-                
+
                 if (!entryResponse.data.success) {
                     setError(entryResponse.data.message || 'Failed to load entry details');
                     setLoading(false);
                     return;
                 }
-                
+
                 const entryData = entryResponse.data.data;
-                console.log(entryData);
                 setEntry(entryData);
                 setEditedTitle(entryData.title);
                 setEditedDescription(entryData.description);
-                
+
                 // Fetch entry content (JSON data)
                 try {
                     const contentResponse = await api.getEntryContent(entryId);
                     if (contentResponse.data.success && contentResponse.data.data) {
-                        // Parse the JSON content
                         try {
                             const contentJson = JSON.parse(contentResponse.data.data);
                             setEntryJson(contentJson || { modules: [] });
-                            setEntryContent(contentResponse.data.data);
                         } catch (parseErr) {
                             console.error('Error parsing entry content JSON:', parseErr);
-                            setEntryJson({ modules: [] }); // Initialize with empty modules if parsing fails
+                            setEntryJson({ modules: [] });
                         }
                     } else {
-                        setEntryJson({ modules: [] }); // Initialize with empty modules if no content
+                        setEntryJson({ modules: [] });
                     }
                 } catch (contentErr) {
                     console.error('Error fetching entry content:', contentErr);
-                    setEntryJson({ modules: [] }); // Initialize with empty modules on error
+                    setEntryJson({ modules: [] });
                 }
             }
-            
+
             setLoading(false);
         } catch (err) {
             console.error('Error fetching entry details:', err);
@@ -131,7 +149,7 @@ export default function JournalEntryPage() {
     const handleTitleEdit = () => {
         setIsTitleEditing(true);
     };
-    
+
     const handleTitleKeyDown = (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -142,24 +160,22 @@ export default function JournalEntryPage() {
             setEditedTitle(entry.title);
         }
     };
-    
+
     const handleTitleBlur = () => {
         updateEntryTitle();
     };
-    
+
     const updateEntryTitle = async () => {
         if (editedTitle.trim() === '') return;
-        
-        // Check if title has changed for existing entries
+
         if (entryId !== 'new' && entry.title === editedTitle.trim()) {
-            // Title hasn't changed, just exit edit mode
             setIsTitleEditing(false);
             return;
         }
-        
+
         setSaveStatus('saving');
         const api = Journals(session);
-        
+
         try {
             if (entryId === 'new') {
                 // For new entries, create the entry first
@@ -168,31 +184,28 @@ export default function JournalEntryPage() {
                     title: editedTitle.trim(),
                     description: editedDescription
                 };
-                
+
                 const response = await api.addEntry(newEntry);
-                
+
                 if (!response.data.success) {
                     throw new Error(response.data.message || 'Failed to create entry');
                 }
-                
-                // Navigate to the newly created entry
+
                 const createdEntry = response.data.data;
                 navigate(`/journal/${journalId}/entry/${createdEntry.id}`, { replace: true });
-                return; // Exit early as we're navigating away
+                return;
             } else {
                 // Update the entry title for existing entries
                 await api.renameEntry(entry.id, editedTitle.trim());
-                
-                // Update local state
                 const updatedEntry = {
                     ...entry,
                     title: editedTitle.trim(),
                     modified: new Date().toISOString()
                 };
-                
+
                 setEntry(updatedEntry);
                 setSaveStatus('saved');
-                
+
                 // Clear the "saved" status after a few seconds
                 setTimeout(() => {
                     setSaveStatus(null);
@@ -210,7 +223,16 @@ export default function JournalEntryPage() {
         navigate(`/journal/${journalId}`);
     };
 
-    // Format date for display
+    const handleUpdatedModule = (module) => {
+        const modules = entryJson.modules;
+        const index = modules.findIndex(a => a.id == module.id);
+        if (index > -1) {
+            modules[index] = module;
+            setEntryJson({ ...entryJson, modules });
+            saveEntryContent({ ...entryJson, modules });
+        }
+    };
+
     const formatDate = (dateString) => {
         const date = new Date(dateString);
         return date.toLocaleDateString('en-US', {
@@ -220,6 +242,92 @@ export default function JournalEntryPage() {
             hour: '2-digit',
             minute: '2-digit'
         });
+    };
+
+    const getStatusText = (status) => {
+        switch (status) {
+            case 0: return 'Active';
+            case 1: return 'Published';
+            case 2: return 'Archived';
+            default: return 'Unknown';
+        }
+    };
+
+    const getStatusClass = (status) => {
+        switch (status) {
+            case 0: return 'status-active';
+            case 1: return 'status-published';
+            case 2: return 'status-archived';
+            default: return '';
+        }
+    };
+
+    const getSaveStatusMessage = () => {
+        switch (saveStatus) {
+            case 'saving': return 'Saving...';
+            case 'saved': return 'Saved successfully';
+            case 'archived': return 'Entry archived';
+            case 'unarchived': return 'Entry unarchived';
+            case 'published': return 'Entry published';
+            case 'error': return 'Error saving changes';
+            default: return null;
+        }
+    };
+
+    const generateRandomId = () => {
+        return Math.floor(Math.random() * 1000000);
+    };
+
+    const addModule = (type) => {
+
+        const newModule = {
+            id: generateRandomId(),
+            type: type
+        };
+
+        setEntryJson(prev => ({
+            ...prev,
+            modules: [...prev.modules, newModule]
+        }));
+
+        setShowModuleDropdown(false);
+    };
+
+    const removeModule = (moduleId) => {
+        const updatedEntryJson = {
+            ...entryJson,
+            modules: entryJson.modules.filter(module => module.id !== moduleId)
+        };
+        setEntryJson(updatedEntryJson);
+        saveEntryContent(updatedEntryJson);
+    };
+
+    // Save entry content to the server
+    const saveEntryContent = async (json) => {
+        if (!entry || !entry.id || entry.id === 0) return;
+
+        setSaveStatus('saving');
+        try {
+            const api = Journals(session);
+            const contentString = JSON.stringify(json);
+
+            const response = await api.updateEntryContent(entry.id, contentString);
+
+            if (!response.data.success) {
+                throw new Error(response.data.message || 'Failed to save entry content');
+            }
+
+            setSaveStatus('saved');
+
+            // Clear the "saved" status after a few seconds
+            setTimeout(() => {
+                setSaveStatus(null);
+            }, 3000);
+
+        } catch (err) {
+            console.error('Error saving entry content:', err);
+            setSaveStatus('error');
+        }
     };
 
     // Render loading state
@@ -261,126 +369,26 @@ export default function JournalEntryPage() {
         );
     }
 
-    // Get status text
-    const getStatusText = (status) => {
-        switch (status) {
-            case 0: return 'Active';
-            case 1: return 'Published';
-            case 2: return 'Archived';
-            default: return 'Unknown';
-        }
-    };
-
-    // Get status class
-    const getStatusClass = (status) => {
-        switch (status) {
-            case 0: return 'status-active';
-            case 1: return 'status-published';
-            case 2: return 'status-archived';
-            default: return '';
-        }
-    };
-
-    // Get save status message
-    const getSaveStatusMessage = () => {
-        switch (saveStatus) {
-            case 'saving': return 'Saving...';
-            case 'saved': return 'Saved successfully';
-            case 'archived': return 'Entry archived';
-            case 'unarchived': return 'Entry unarchived';
-            case 'published': return 'Entry published';
-            case 'error': return 'Error saving changes';
-            default: return null;
-        }
-    };
-    
-    // Generate a random integer ID for new modules
-    const generateRandomId = () => {
-        return Math.floor(Math.random() * 1000000);
-    };
-    
-    // Add a new module to the entry
-    const addModule = (type) => {
-        if (type === 'text-editor') {
-            const newModule = {
-                id: generateRandomId(),
-                html: ''
-            };
-            
-            setEntryJson(prev => ({
-                ...prev,
-                modules: [...prev.modules, newModule]
-            }));
-            
-            setShowModuleDropdown(false);
-        }
-    };
-    
-    // Remove a module from the entry
-    const removeModule = (moduleId) => {
-        setEntryJson(prev => ({
-            ...prev,
-            modules: prev.modules.filter(module => module.id !== moduleId)
-        }));
-    };
-    
-    // Update module content
-    const updateModuleContent = (moduleId, content) => {
-        setEntryJson(prev => ({
-            ...prev,
-            modules: prev.modules.map(module => 
-                module.id === moduleId ? { ...module, html: content } : module
-            )
-        }));
-    };
-    
-    // Save entry content to the server
-    const saveEntryContent = async () => {
-        if (!entry || !entry.id || entry.id === 0) return;
-        
-        setSaveStatus('saving');
-        try {
-            const api = Journals(session);
-            const contentString = JSON.stringify(entryJson);
-            
-            const response = await api.updateEntryContent(entry.id, contentString);
-            
-            if (!response.data.success) {
-                throw new Error(response.data.message || 'Failed to save entry content');
-            }
-            
-            setSaveStatus('saved');
-            
-            // Clear the "saved" status after a few seconds
-            setTimeout(() => {
-                setSaveStatus(null);
-            }, 3000);
-            
-        } catch (err) {
-            console.error('Error saving entry content:', err);
-            setSaveStatus('error');
-        }
-    };
-
+    // Render entry
     return (
         <div className="journal-entry-page">
             <div className="entry-header tool-bar">
                 <button className="back-button" onClick={handleBackToJournal}>
                     <Icon name="arrow_back" /> Back to {journal?.title || 'Journal'}
                 </button>
-                
+
                 <div className="right-side entry-status-badge">
                     <span className={`status-indicator ${getStatusClass(entry.status)}`}>
                         {getStatusText(entry.status)}
                     </span>
                 </div>
-            </div>
 
-            {saveStatus && (
-                <div className={`save-status-message ${saveStatus === 'error' ? 'error' : 'success'}`}>
-                    {getSaveStatusMessage()}
-                </div>
-            )}
+                {saveStatus && (
+                    <div className={`right-side save-status-message ${saveStatus === 'error' ? 'error' : 'success'}`}>
+                        {getSaveStatusMessage()}
+                    </div>
+                )}
+            </div>
 
             <div className="entry-content">
                 <div className="entry-title-section">
@@ -416,7 +424,7 @@ export default function JournalEntryPage() {
                         </div>
                     )}
                 </div>
-                
+
                 <div className="entry-metadata">
                     <div className="created-date">
                         <Icon name="calendar_today" />
@@ -429,53 +437,64 @@ export default function JournalEntryPage() {
                         </div>
                     )}
                 </div>
-                
-                <div className="entry-description">
-                    <p>{entry.description || 'No description'}</p>
-                </div>
-                
-                <div className="module-controls">
-                    <div className="add-module-container">
-                        <button 
-                            className="add-module-button" 
+                {entry.description && (
+                    <div className="entry-description">
+                        <p>{entry.description}</p>
+                    </div>
+                )}
+
+                <div className="tool-bar add-module-container">
+                    <div className="right-side">
+                        <button
+                            ref={dropdownButtonRef}
                             onClick={() => setShowModuleDropdown(!showModuleDropdown)}
                         >
-                            <Icon name="add" /> Add Module
+                            <Icon name="add" /> Add Content
                         </button>
-                        
+
                         {showModuleDropdown && (
-                            <div className="module-dropdown">
-                                <div 
-                                    className="module-option"
-                                    onClick={() => addModule('text-editor')}
-                                >
-                                    <Icon name="text_fields" />
-                                    <span>Text Editor</span>
-                                </div>
+                            <div
+                                className="module-dropdown"
+                                ref={dropdownRef}
+                            >
+                                {modules.map(module => (
+                                    <div
+                                        key={module.id}
+                                        className="module-option"
+                                        onClick={() => addModule(module.type)}
+                                    >
+                                        <Icon name={module.icon} />
+                                        <span>{module.name}</span>
+                                    </div>
+                                ))}
                             </div>
                         )}
                     </div>
                 </div>
-                
+
                 <div className="entry-modules">
-                    {entryJson.modules.map((module) => (
-                        <div key={module.id} className={`entry element id-${module.id}`}>
-                            <div className="module-header">
-                                <div className="module-type">Text Editor</div>
-                                <div className="module-actions">
-                                    <button className="icon" onClick={() => removeModule(module.id)}>
-                                        <Icon name="delete" />
-                                    </button>
+                    {entryJson.modules.map((module) => {
+                        if (!module.type) return;
+                        const moduleType = modules.find(m => m.type === module.type);
+                        const ModuleComponent = moduleType?.module;
+                        return (
+                            <div key={'module-' + module.id} className={`entry module-${module.type?.replace(' ', '-') ?? ''} module-id-${module.id}`}>
+                                <div className="module-tab-container">
+                                    <div className="module-tab">
+                                        <div className="module-type">{moduleType?.name}</div>
+                                        <div className="box">
+                                            <div className="tool-bar vertical">
+                                                <button className="icon" onClick={() => removeModule(module.id)}>
+                                                    <Icon name="delete" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
+                                <ModuleComponent module={module} onUpdate={handleUpdatedModule} />
                             </div>
-                            <div className="text">{module.html || ''}</div>
-                            <CKEditorModule 
-                                id={module.id} 
-                                onLoad={() => console.log(`CKEditor ${module.id} loaded`)} 
-                                onUpdate={(content) => updateModuleContent(module.id, content)} 
-                            />
-                        </div>
-                    ))}
+                        )
+                    })}
                 </div>
             </div>
         </div>

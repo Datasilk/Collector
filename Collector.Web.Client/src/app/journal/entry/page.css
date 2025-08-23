@@ -41,11 +41,23 @@
 }
 
 .save-status-message {
-    padding: 0.625em 0.9375em;
-    margin-bottom: 1.25em;
-    border-radius: 0.25em;
-    text-align: center;
+    padding: 0.3125em 0.625em;
+    border-radius: 0.9375em;
+    font-size: 0.85rem;
+    font-weight: 500;
     animation: fadeIn 0.3s ease;
+    display: inline-block;
+    margin-right: 1em;
+}
+
+.save-status-message.success {
+    background-color: #e8f5e9;
+    color: #2e7d32;
+}
+
+.save-status-message.error {
+    background-color: #ffebee;
+    color: #c62828;
 }
 
 @keyframes fadeIn {
@@ -159,10 +171,8 @@
 }
 
 .module-dropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    width: 200px;
+    position:absolute;
+    right:2em;
     background-color: white;
     border: 1px solid #ddd;
     border-radius: 4px;
@@ -185,6 +195,12 @@
 }
 
 /* Entry modules */
+.entry{
+    position:relative;
+}
+.entry:hover{
+    outline:1px dashed #a6bfff;
+}
 .entry-modules {
     display: flex;
     flex-direction: column;
@@ -198,92 +214,61 @@
     overflow: hidden;
 }
 
-.module-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.5em 1em;
-    background-color: #f5f5f5;
-    border-bottom: 1px solid #ddd;
+.module-tab-container {
+    position:absolute;
+    left:0;
+    top:0;
+    bottom:0;
+}
+
+.module-tab{
+    position:absolute;
+    top:0;
+    right:0;
+    bottom:0;
+    text-align:right;
+}
+
+.module-tab .box{
+    margin-right:1em;
+    background-color: #fff;
+    border-radius: 0.5em;
+    box-shadow: -2px 2px 8px rgba(0,0,0,0.1);
+    display:none;
+    text-align:left;
+    line-height:1;
+}
+
+.entry:hover .module-tab .box{
+    display:inline-block;
+}
+
+.module-tab .box:after{
+    content:"";
+    display:block;
+    clear:both;
 }
 
 .module-type {
     font-weight: 500;
     font-size: 0.9em;
-    color: #555;
+    opacity:0.5;
+    padding:0 0 0.5em 0;
+    white-space: nowrap;
+    margin-right:1em;
 }
 
-.module-actions {
-    display: flex;
-    gap: 0.5em;
+.module-tab button.icon{
+    margin:0;
 }
 
-.module-actions button.icon {
-    padding: 0.25em;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+/* text editor styling */
+.entry-modules p{
+    margin:0;
 }
 
-.module-actions button.icon:hover {
-    background-color: rgba(0,0,0,0.05);
-}
-
-.entry-modules .text {
-    padding: 1em;
-    min-height: 2em;
-    display: none; /* Hide the text div as we're using CKEditor */
-}
-
-.empty-description {
-    font-style: italic;
-}
-
-.entry-actions {
-    display: flex;
-    gap: 0.625em;
-    margin-top: 1.25em;
-}
-
-/* Edit mode */
-.entry-edit-form {
-    width: 100%;
-}
-
-.form-group {
-    margin-bottom: 1.25em;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 0.5em;
-    font-weight: 500;
-}
-
-.form-control {
-    width: 100%;
-    padding: 0.625em;
-    border-radius: 0.25em;
-    font-size: 1rem;
-    font-family: inherit;
-}
-
-textarea.form-control {
-    resize: vertical;
-    min-height: 12.5em;
-}
-
-.form-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.625em;
-    margin-top: 1.25em;
-}
-
-button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
+.ck.ck-editor__editable.ck-focused:not(.ck-editor__nested-editable){
+    box-shadow: none !important;
 }
 
 /* Loading state */
@@ -327,33 +312,4 @@ button:disabled {
     flex-direction: column;
     align-items: center;
     gap: 0.9375em;
-}
-
-
-@media (max-width: 48em) {
-    .journal-entry-page {
-        padding: 0.9375em;
-    }
-    
-    .entry-content {
-        padding: 0.9375em;
-    }
-    
-    .entry-title {
-        font-size: 1.5rem;
-    }
-    
-    .entry-actions {
-        flex-wrap: wrap;
-    }
-    
-    .entry-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.625em;
-    }
-    
-    .entry-status-badge {
-        align-self: flex-start;
-    }
 }
