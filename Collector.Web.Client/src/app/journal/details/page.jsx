@@ -4,6 +4,7 @@ import Icon from '@/components/ui/icon';
 import { useSession } from '@/context/session';
 import { Journals } from '@/api/user/journals';
 import './page.css';
+import '@/styles/forms.css';
 
 /**
  * <summary>Journal Details Page</summary>

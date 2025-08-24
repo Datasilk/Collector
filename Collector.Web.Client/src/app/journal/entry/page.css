@@ -16,6 +16,7 @@
 .entry-status-badge {
     display: flex;
     align-items: center;
+    gap: 0.5em;
 }
 
 .status-indicator {
@@ -38,6 +39,13 @@
 .status-archived {
     background-color: #f5f5f5;
     color: #616161;
+}
+
+.toggle-switch-edit-entry{
+    background-color:#ede3fa;
+    border-radius:1em;
+    padding:0.5em;
+    color:#7037de;
 }
 
 .save-status-message {
@@ -68,7 +76,7 @@
 /* Entry title section */
 .entry-title-section {
     margin-bottom: 0.5em;
-    height:3.5em;
+    min-height:3.5em;
 }
 
 .entry-title-display {
@@ -181,6 +189,27 @@
     margin-top: 0.5em;
 }
 
+/* Bottom Add Content button styles */
+.bottom-add-module {
+    margin-top: 1.5em;
+    margin-bottom: 2em;
+}
+
+/* When the dropdown is shown from the bottom button, position it above the button */
+.bottom-add-module .module-dropdown {
+    bottom: 100%;
+    margin-top: 0;
+    margin-bottom: 0.5em;
+    top: auto;
+}
+
+.module-dropdown-left {
+    right: auto;
+    left: 3em;
+    top:-0.5em;
+    white-space: nowrap;
+}
+
 .module-option {
     display: flex;
     align-items: center;
@@ -198,7 +227,7 @@
 .entry{
     position:relative;
 }
-.entry:hover{
+.entry.editable:hover{
     outline:1px dashed #a6bfff;
 }
 .entry-modules {
@@ -230,13 +259,18 @@
 }
 
 .module-tab .box{
-    margin-right:1em;
+    margin-right:2em;
     background-color: #fff;
     border-radius: 0.5em;
     box-shadow: -2px 2px 8px rgba(0,0,0,0.1);
     display:none;
     text-align:left;
     line-height:1;
+    position: absolute;
+    top: 0;
+    right:0;
+    z-index:1000;
+    transition: top 0.1s ease-out;
 }
 
 .entry:hover .module-tab .box{
@@ -247,6 +281,21 @@
     content:"";
     display:block;
     clear:both;
+}
+
+/* Right-pointing arrow */
+.module-tab .box:before {
+    content: "";
+    position: absolute;
+    right: -16px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0;
+    height: 0;
+    border-top: 16px solid transparent;
+    border-bottom: 16px solid transparent;
+    border-left: 16px solid #fff;
+    filter: drop-shadow(2px 0px 2px rgba(0,0,0,0.1));
 }
 
 .module-type {
@@ -265,10 +314,36 @@
 /* text editor styling */
 .entry-modules p{
     margin:0;
+    padding:0 0 1em 0;
+    min-height:1em;
+}
+
+.entry-modules ul{
+    margin:0;
+    padding:0;
+    padding-inline-start:1em;
 }
 
 .ck.ck-editor__editable.ck-focused:not(.ck-editor__nested-editable){
     box-shadow: none !important;
+}
+
+.entry-modules pre{    
+    padding: 1em;
+    color: hsl(0, 0%, 20.8%);
+    background: hsla(0, 0%, 78%, 0.3);
+    border: 1px solid hsl(0, 0%, 77%);
+    border-radius: 2px;
+    text-align: left;
+    direction: ltr;
+    tab-size: 4;
+    white-space: pre-wrap;
+    font-style: normal;
+    min-width: 200px;
+}
+
+.entry-modules .ai-generated{
+    display:block;
 }
 
 /* Loading state */
@@ -313,3 +388,10 @@
     align-items: center;
     gap: 0.9375em;
 }
+
+@media screen and (max-width: 770px) {
+    .back-button{
+        margin-left:3em;
+    }
+}
+    

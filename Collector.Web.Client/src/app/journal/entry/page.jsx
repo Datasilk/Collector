@@ -5,6 +5,7 @@ import './page.css';
 //components
 import Icon from '@/components/ui/icon';
 import Input from '@/components/forms/input';
+import ToggleSwitch from '@/components/ui/toggle-switch';
 //context
 import { useSession } from '@/context/session';
 //api
@@ -34,16 +35,63 @@ export default function JournalEntryPage() {
     const [saveStatus, setSaveStatus] = useState(null);
     const [entryJson, setEntryJson] = useState({ modules: [] });
     const [showModuleDropdown, setShowModuleDropdown] = useState(false);
+    const [showModuleAboveDropdown, setShowModuleAboveDropdown] = useState(false);
+    const [currentModuleId, setCurrentModuleId] = useState(null);
+    const [isEditing, setIsEditing] = useState(false);
 
     // refs
     const dropdownRef = useRef(null);
     const dropdownButtonRef = useRef(null);
+    const bottomDropdownButtonRef = useRef(null);
+    const moduleDropdownRef = useRef(null);
+    const moduleDropdownButtonRef = useRef(null);
     const titleInputRef = useRef(null);
 
     //effect
     useEffect(() => {
         fetchEntryDetails();
     }, [journalId, entryId, navigate, session]);
+    
+    // Effect for handling module tab box positioning when scrolling
+    useEffect(() => {
+        const handleScroll = () => {
+            const moduleBoxes = document.querySelectorAll('.module-tab .box');
+            
+            moduleBoxes.forEach(box => {
+                // Only process boxes that are currently displayed
+                const computedStyle = window.getComputedStyle(box);
+                if (computedStyle.display !== 'block') return;
+                
+                const entry = box.closest('.entry');
+                if (!entry) return;
+                
+                const entryRect = entry.getBoundingClientRect();
+                const entryTop = entryRect.top;
+                const entryBottom = entryRect.bottom;
+                
+                // If entry is in viewport
+                if (entryBottom > 0 && entryTop < window.innerHeight) {
+                    // Calculate position relative to entry
+                    if (entryTop < 150) {
+                        // Entry top is above the 150px mark, stick the box
+                        const newTop = Math.min(150 - entryTop, entryRect.height - box.offsetHeight);
+                        box.style.top = `${newTop}px`;
+                    } else {
+                        // Entry is below the 150px mark, reset position
+                        box.style.top = '0';
+                    }
+                }
+            });
+        };
+        
+        window.addEventListener('scroll', handleScroll);
+        // Run once on mount to set initial positions
+        handleScroll();
+        
+        return () => {
+            window.removeEventListener('scroll', handleScroll);
+        };
+    }, []);
 
     useEffect(() => {
         if (isTitleEditing && titleInputRef.current) {
@@ -53,12 +101,25 @@ export default function JournalEntryPage() {
 
     useEffect(() => {
         const handleClickOutside = (event) => {
-            if (showModuleDropdown &&
-                dropdownRef.current &&
-                !dropdownRef.current.contains(event.target) &&
-                dropdownButtonRef.current &&
-                !dropdownButtonRef.current.contains(event.target)) {
-                setShowModuleDropdown(false);
+            // Check if click is outside both the dropdown and both buttons
+            if (showModuleDropdown && dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                // Check if click is outside the top button (if it exists)
+                const isOutsideTopButton = !dropdownButtonRef.current || !dropdownButtonRef.current.contains(event.target);
+                // Check if click is outside the bottom button (if it exists)
+                const isOutsideBottomButton = !bottomDropdownButtonRef.current || !bottomDropdownButtonRef.current.contains(event.target);
+                
+                // If click is outside both buttons, close the dropdown
+                if (isOutsideTopButton && isOutsideBottomButton) {
+                    setShowModuleDropdown(false);
+                }
+            }
+            
+            if (showModuleAboveDropdown &&
+                moduleDropdownRef.current &&
+                !moduleDropdownRef.current.contains(event.target) &&
+                moduleDropdownButtonRef.current &&
+                !moduleDropdownButtonRef.current.contains(event.target)) {
+                setShowModuleAboveDropdown(false);
             }
         };
 
@@ -67,7 +128,7 @@ export default function JournalEntryPage() {
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [showModuleDropdown]);
+    }, [showModuleDropdown, showModuleAboveDropdown]);
 
     //actions
     const fetchEntryDetails = async () => {
@@ -293,7 +354,40 @@ export default function JournalEntryPage() {
         setShowModuleDropdown(false);
     };
 
+    const addModuleAbove = (type) => {
+        if (!currentModuleId) return;
+        
+        const newModule = {
+            id: generateRandomId(),
+            type: type
+        };
+        
+        const moduleIndex = entryJson.modules.findIndex(module => module.id === currentModuleId);
+        if (moduleIndex === -1) return;
+        
+        const updatedModules = [...entryJson.modules];
+        updatedModules.splice(moduleIndex, 0, newModule);
+        
+        const updatedEntryJson = {
+            ...entryJson,
+            modules: updatedModules
+        };
+        
+        setEntryJson(updatedEntryJson);
+        saveEntryContent(updatedEntryJson);
+        setShowModuleAboveDropdown(false);
+    };
+
     const removeModule = (moduleId) => {
+        const updatedEntryJson = {
+            ...entryJson,
+            modules: entryJson.modules.filter(module => module.id !== moduleId)
+        };
+        setEntryJson(updatedEntryJson);
+        saveEntryContent(updatedEntryJson);
+    };
+
+    const addModuleBelow = (moduleId) => {
         const updatedEntryJson = {
             ...entryJson,
             modules: entryJson.modules.filter(module => module.id !== moduleId)
@@ -381,6 +475,12 @@ export default function JournalEntryPage() {
                     <span className={`status-indicator ${getStatusClass(entry.status)}`}>
                         {getStatusText(entry.status)}
                     </span>
+                    <ToggleSwitch 
+                        name="edit-entry"
+                        checked={isEditing} 
+                        onChange={setIsEditing} 
+                        label="Edit" 
+                    />
                 </div>
 
                 {saveStatus && (
@@ -444,32 +544,34 @@ export default function JournalEntryPage() {
                 )}
 
                 <div className="tool-bar add-module-container">
-                    <div className="right-side">
-                        <button
-                            ref={dropdownButtonRef}
-                            onClick={() => setShowModuleDropdown(!showModuleDropdown)}
-                        >
-                            <Icon name="add" /> Add Content
-                        </button>
-
-                        {showModuleDropdown && (
-                            <div
-                                className="module-dropdown"
-                                ref={dropdownRef}
+                    {isEditing && (
+                        <div className="right-side">
+                            <button
+                                ref={dropdownButtonRef}
+                                onClick={() => setShowModuleDropdown(!showModuleDropdown)}
                             >
-                                {modules.map(module => (
-                                    <div
-                                        key={module.id}
-                                        className="module-option"
-                                        onClick={() => addModule(module.type)}
-                                    >
-                                        <Icon name={module.icon} />
-                                        <span>{module.name}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                                <Icon name="add" /> Add Content
+                            </button>
+
+                            {showModuleDropdown && (
+                                <div
+                                    className="module-dropdown"
+                                    ref={dropdownRef}
+                                >
+                                    {modules.map(module => (
+                                        <div
+                                            key={module.id}
+                                            className="module-option"
+                                            onClick={() => addModule(module.type)}
+                                        >
+                                            <Icon name={module.icon} />
+                                            <span>{module.name}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 <div className="entry-modules">
@@ -478,24 +580,84 @@ export default function JournalEntryPage() {
                         const moduleType = modules.find(m => m.type === module.type);
                         const ModuleComponent = moduleType?.module;
                         return (
-                            <div key={'module-' + module.id} className={`entry module-${module.type?.replace(' ', '-') ?? ''} module-id-${module.id}`}>
-                                <div className="module-tab-container">
-                                    <div className="module-tab">
-                                        <div className="module-type">{moduleType?.name}</div>
-                                        <div className="box">
-                                            <div className="tool-bar vertical">
-                                                <button className="icon" onClick={() => removeModule(module.id)}>
-                                                    <Icon name="delete" />
-                                                </button>
+                            <div key={'module-' + module.id} className={`entry module-${module.type?.replace(' ', '-') ?? ''} module-id-${module.id} ${isEditing ? 'editable' : ''}`}>
+                                {isEditing && (
+                                    <div className="module-tab-container">
+                                        <div className="module-tab">
+                                            <div className="module-type">{moduleType?.name}</div>
+                                            <div className="box">
+                                                <div className="tool-bar vertical">
+                                                    <button 
+                                                        className="icon" 
+                                                        ref={module.id === currentModuleId ? moduleDropdownButtonRef : null}
+                                                        onClick={() => {
+                                                            setCurrentModuleId(module.id);
+                                                            setShowModuleAboveDropdown(!showModuleAboveDropdown || currentModuleId !== module.id);
+                                                        }}
+                                                    >
+                                                        <Icon name="add" />
+                                                    </button>
+                                                    {showModuleAboveDropdown && currentModuleId === module.id && (
+                                                        <div
+                                                            className="module-dropdown module-dropdown-left"
+                                                            ref={moduleDropdownRef}
+                                                        >
+                                                            {modules.map(moduleOption => (
+                                                                <div
+                                                                    key={moduleOption.id}
+                                                                    className="module-option"
+                                                                    onClick={() => addModuleAbove(moduleOption.type)}
+                                                                >
+                                                                    <Icon name={moduleOption.icon} />
+                                                                    <span>{moduleOption.name}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    <button className="icon" onClick={() => removeModule(module.id)}>
+                                                        <Icon name="delete" />
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                                <ModuleComponent module={module} onUpdate={handleUpdatedModule} />
+                                )}
+                                <ModuleComponent module={module} onUpdate={handleUpdatedModule} isEditable={isEditing} />
                             </div>
                         )
                     })}
                 </div>
+                
+                {/* Bottom Add Content button - only shows if there are modules and editing is enabled */}
+                {entryJson.modules.length > 0 && isEditing && (
+                    <div className="tool-bar add-module-container bottom-add-module">
+                        <div className="right-side">
+                            <button
+                                ref={bottomDropdownButtonRef}
+                                onClick={() => setShowModuleDropdown(!showModuleDropdown)}
+                            >
+                                <Icon name="add" /> Add Content
+                            </button>
+                            {showModuleDropdown && (
+                                <div
+                                    className="module-dropdown"
+                                    ref={dropdownRef}
+                                >
+                                    {modules.map(module => (
+                                        <div
+                                            key={module.id}
+                                            className="module-option"
+                                            onClick={() => addModule(module.type)}
+                                        >
+                                            <Icon name={module.icon} />
+                                            <span>{module.name}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

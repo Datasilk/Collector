@@ -3,6 +3,7 @@ using Serilog;
 using Collector.Auth.Services;
 using Collector.API.Services;
 using Microsoft.AspNetCore.Http.Features;
+using Collector.Web.Server.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,15 +17,26 @@ builder.Services.AddCors(options =>
     options.AddDefaultPolicy(
         policy =>
         {
-            policy.AllowAnyOrigin();
-            policy.AllowAnyHeader();
-            policy.AllowAnyMethod();
+            // For SignalR, we need to allow credentials and specify allowed origins
+            // instead of AllowAnyOrigin (which doesn't work with AllowCredentials)
+            policy.WithOrigins(
+                "http://localhost:3000",
+                "http://localhost:5173",
+                "https://localhost:7126",
+                "https://localhost:7783"
+                )
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials();
         });
 });
 
 builder.Services.AddHttpClient();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHealthChecks();
+
+// Add SignalR services
+builder.Services.AddSignalR();
 
 builder.Services.AddControllers()
     .AddApplicationPart(Assembly.Load("Collector.API"))
@@ -61,6 +73,12 @@ builder.Services.AddSwaggerGen(e =>
     e.SchemaFilter<Collector.API.Swagger.EnumSchemaFilter>();
 });
 
+//load LLM keys
+foreach(var llm in Collector.Common.LLMs.Available)
+{
+    llm.Value.PrivateKey = builder.Configuration.GetSection("LLM:" + llm.Key + ":PrivateKey").Value ?? "";
+}
+
 var app = builder.Build();
 
 //Response Headers
@@ -92,13 +110,12 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors();
 app.UseHttpsRedirection();
-app.UseDefaultFiles();
-app.UseStaticFiles();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-app.MapFallbackToFile("/index.html");
 
+// Map SignalR hubs
+app.MapHub<TextEditorHub>("/text-editor");
 
 app.Run();

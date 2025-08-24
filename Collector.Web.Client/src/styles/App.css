@@ -60,6 +60,11 @@ body {
   overflow-x:hidden;
 }
 
+.body {
+  width: 100%;
+  position:relative;
+}
+
 h1 {
   font-size: 3.2em;
   line-height: 1.1;

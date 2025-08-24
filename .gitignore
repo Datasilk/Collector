@@ -9,6 +9,8 @@ config.json
 config.*.json
 !config.template.json
 .config/
+.windsurf/
+RECOVER_*
 
 
 # Build results

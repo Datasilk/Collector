@@ -57,3 +57,6 @@
 .ck.ck-dropdown.ck-style-dropdown{
     width:8em !important
 }
+
+.text-editor > .text{
+    min-height:1em;}

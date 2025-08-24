@@ -63,7 +63,6 @@ const Navigation = () => {
           <>
             {(user.isAdmin) && <Link to="/admin" className={'nav-link' + (section == 'admin' ? ' selected' : '')}>Administration</Link>}
             <Link to="/journal" className={'nav-link' + (section == 'journal' ? ' selected' : '')}>Journal</Link>
-            <Link to="/dashboard" className={'nav-link' + (section == 'dashboard' ? ' selected' : '')}>Dashboard</Link>
             <Link to="/account" title="My Account" className={'account-icon' + (section == 'account' ? ' selected' : '')} onClick={handleUserMenuClick}>
               <Icon name="person" />
             </Link>

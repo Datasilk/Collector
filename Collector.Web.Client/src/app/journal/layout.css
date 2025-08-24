@@ -1,6 +1,4 @@
 .journal-layout {
-    display: flex;
-    height: calc(100vh - 60px);
     position: relative;
 }
 
@@ -48,11 +46,6 @@
 
 .journal-layout .sidebar-bottom .label {
     margin-left: 10px;
-}
-
-.journal-layout .body {
-    flex: 1;
-    overflow-y: auto;
 }
 
 .journal-layout .tool-bar .button i {
