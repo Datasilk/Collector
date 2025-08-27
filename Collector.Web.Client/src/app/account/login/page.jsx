@@ -3,7 +3,7 @@
  * <description>Allows users to log in to their account by entering their email and password. Handles authentication and session creation.</description>
  */
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import './page.css';
 //components
 import Input from '@/components/forms/input';
@@ -16,6 +16,7 @@ import { Auth } from '@/api/account/auth';
 
 export default function Login () {
   const navigate = useNavigate();
+  const location = useLocation();
   //state
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [errors, setErrors] = useState({});
@@ -78,10 +79,17 @@ export default function Login () {
         if (response.data.success == true) {
           const data = response.data.data;
           setUser(data);
-          if(data.roles?.some(a => a == 'admin')){
+          
+          // Check for returl query parameter
+          const searchParams = new URLSearchParams(location.search);
+          const returnUrl = searchParams.get('returl');
+          
+          if (returnUrl) {
+            navigate(returnUrl);
+          } else if (data.roles?.some(a => a == 'admin')) {
             navigate('/admin');
-          }else{
-            navigate('/dashboard');
+          } else {
+            navigate('/journal');
           }
         } else {
           setErrors({ ...errors, form: response.data.message });

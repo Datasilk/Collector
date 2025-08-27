@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -32,15 +32,22 @@ namespace Collector.API.Controllers.Admin
         [AllowAnonymous]
         public async Task<IActionResult> GetUserRolesByEmail([FromBody] AppUser user, IFormCollection form)
         {
-            var users = await _userRepo.GetRolesByUserEmailAsync(user.Email);
-            var claims = HttpContext.User.Claims;
-            var roles = claims.Where(a => a.Type == ClaimTypes.Role);
-            var len = roles.Count();
-            if (users != null && users.UserRoles.Count > 0)
+            try
             {
-                return Ok(new ApiResponse { success = true, data = users.UserRoles });
+                var users = await _userRepo.GetRolesByUserEmailAsync(user.Email);
+                var claims = HttpContext.User.Claims;
+                var roles = claims.Where(a => a.Type == ClaimTypes.Role);
+                var len = roles.Count();
+                if (users != null && users.UserRoles.Count > 0)
+                {
+                    return Ok(new ApiResponse { success = true, data = users.UserRoles });
+                }
+                return Ok(new ApiResponse { success = false });
             }
-            return Ok(new ApiResponse { success = false });
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
     }

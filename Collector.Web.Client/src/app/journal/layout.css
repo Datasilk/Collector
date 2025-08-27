@@ -8,12 +8,22 @@
     flex-direction: column;
     justify-content: space-between;
     height: 100%;
-    overflow: hidden;
+}
+
+.is-mobile .journal-layout .sidebar{
+    display:none;
 }
 
 .journal-layout .sidebar-top {
-    overflow-y: auto;
     padding: 15px;
+}
+
+.journal-layout .tree-view-content{
+    margin-left:0;
+}
+
+.journal-layout .treeview-journal .tree-view-label{
+    font-size:0.9em;
 }
 
 .journal-layout .sidebar-bottom {
@@ -148,39 +158,6 @@
 .journal-layout .category-actions .button.add-category {
     width: 100%;
     justify-content: center;
-}
-
-/* Mobile responsive styles */
-@media (max-width: 768px) {
-    .journal-layout .sidebar {
-        position: absolute;
-        left: 0;
-        top: 0;
-        height: 100%;
-        z-index: 100;
-        display: none;
-    }
-
-    .journal-layout .sidebar-mobile-toggle {
-        display: block;
-        position: absolute;
-        left: 15px;
-        top: 15px;
-        z-index: 50;
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-    }
-}
-
-@media (min-width: 769px) {
-    .journal-layout .sidebar-mobile-toggle {
-        display: none;
-    }
 }
 
 /* Modal Form Styles */

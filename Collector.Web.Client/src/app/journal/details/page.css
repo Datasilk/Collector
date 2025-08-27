@@ -161,3 +161,7 @@
     opacity: 0.8;
     font-style: italic;
 }
+
+.is-mobile .journal-details-page .tool-bar{
+    margin-left:2em;
+}

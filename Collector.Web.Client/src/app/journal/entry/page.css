@@ -7,6 +7,17 @@
 /* Header styles */
 .entry-header {
     margin-bottom: 0.5em;
+    position: sticky;
+    top: 3.25em;
+    z-index: 40;
+    transition: all 0.3s ease;
+    padding: 0 0 1em 0;
+}
+
+body.scrolled .entry-header {
+    background: linear-gradient(to bottom, rgba(245, 245, 245, 1) 70%, rgba(245, 245, 245, 0));
+    padding: 1em 0 3em 0;
+    margin-bottom:-3em;
 }
 
 .back-button {
@@ -76,7 +87,13 @@
 /* Entry title section */
 .entry-title-section {
     margin-bottom: 0.5em;
-    min-height:3.5em;
+    min-height:3.6em;
+    transition: all 0.3s ease;
+}
+
+body.scrolled .entry-title-section {
+    margin-bottom: 0;
+    min-height: 2.5em;
 }
 
 .entry-title-display {
@@ -85,20 +102,43 @@
     gap: 0.625em;
     padding: 0.5em;
     cursor:default;
+    transition: all 0.3s ease;
+}
+
+body.scrolled .entry-title-display {
+    padding: 0 0.5em;
 }
 
 .entry-title-display h1 {
     font-size: 2rem;
     margin: 0;
     flex: 1;
+    transition: all 0.3s ease;
+}
+
+body.scrolled .entry-title-display h1 {
+    font-size: 1.4rem;
 }
 
 .entry-title-display:hover {
     background-color: #dedbf4;
 }
 
+.entry-title-section input[type="text"]{
+    font-family:inherit !important;
+}
+
 .entry-title-section .icon-close {
     margin-right:1.1em;
+}
+
+.entry-title-display > button{
+    opacity:0;
+    transition: all 0.3s ease;
+}
+
+.entry-title-display:hover > button{
+    opacity:1;
 }
 
 /* Input component overrides for title */
@@ -132,17 +172,65 @@
 }
 
 .entry-metadata {
+    float:left;
     display: flex;
     gap: 1.25em;
     font-size: 0.9rem;
-    margin-bottom: 1.25em;
+    margin: 0.75em 0;
     flex-wrap: wrap;
     opacity:0.6;
+    transition: all 0.3s ease;
 }
 
 .entry-metadata .created-date .material-symbols-rounded,
 .entry-metadata .modified-date .material-symbols-rounded {
     margin-right: 0.25em;
+}
+
+body.scrolled .entry-metadata {
+    margin: 0.5em 0 0.5em 0;
+    font-size:0.8em;
+}
+
+body.scrolled .entry-metadata .created-date .material-symbols-rounded,
+body.scrolled .entry-metadata .modified-date .material-symbols-rounded {
+    font-size:1.5em;
+}
+
+.add-module-container *, 
+.entry-navigation *{
+    transition: all 0.3s ease;
+}
+
+.is-mobile .entry-navigation{
+    margin-left:2em;
+}
+
+body.scrolled .add-module-container button,
+body.scrolled .entry-navigation button.back-button {
+    padding: 0.4em 1em 0.4em 1em;
+    font-size:0.9em;
+}
+
+body.scrolled .add-module-container button .material-symbols-rounded,
+body.scrolled .entry-navigation button.back-button .material-symbols-rounded {
+    font-size:1.3em;
+    margin:-0.1em 0.1em 0 -0.2em;
+}
+
+body.scrolled .toggle-switch-container{
+    padding:0.3em 1em 0.3em 1em;
+    border-radius: 0.5em;
+}
+
+body.scrolled .toggle-switch-container .toggle-switch{
+    height: 18px;
+    width: 40px;
+}
+
+body.scrolled .toggle-switch-container .toggle-switch .slider:before{
+    height: 12px;
+    width: 12px;
 }
 
 .entry-description {
@@ -185,7 +273,7 @@
     border: 1px solid #ddd;
     border-radius: 4px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    z-index: 10;
+    z-index: 100;
     margin-top: 0.5em;
 }
 
@@ -245,14 +333,15 @@
 
 .module-tab-container {
     position:absolute;
-    left:0;
+    left:-7em;
     top:0;
     bottom:0;
+    width:7em;
 }
 
 .module-tab{
-    position:absolute;
-    top:0;
+    position:sticky;
+    top:11.25em;
     right:0;
     bottom:0;
     text-align:right;
@@ -266,11 +355,15 @@
     display:none;
     text-align:left;
     line-height:1;
-    position: absolute;
-    top: 0;
+    position: sticky;
+    top: 7em;
     right:0;
-    z-index:1000;
+    z-index:100;
     transition: top 0.1s ease-out;
+}
+
+.module-tab .tool-bar.vertical{
+    width:2.75em;
 }
 
 .entry:hover .module-tab .box{
@@ -346,6 +439,12 @@
     display:block;
 }
 
+
+.text-editor > .text > *:last-child{margin-bottom:0 !important}
+.text-editor > .text > *:first-child{margin-top:0 !important}
+.text-editor > .text > p:last-child{margin-bottom:0 !important}
+.text-editor > .text > p:first-child{margin-top:0 !important}
+
 /* Loading state */
 .journal-entry-page.loading,
 .journal-entry-page.error,
@@ -389,9 +488,16 @@
     gap: 0.9375em;
 }
 
-@media screen and (max-width: 770px) {
-    .back-button{
+@media screen and (max-width: 900px) {
+    .entry-navigation{
         margin-left:3em;
+    }
+}
+
+@media screen and (max-width: 680px) {
+    .entry-header .created-date,
+    .entry-header .modified-date{
+        display:none;
     }
 }
     

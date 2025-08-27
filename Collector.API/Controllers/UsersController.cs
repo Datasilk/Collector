@@ -42,46 +42,53 @@ namespace Collector.API.Controllers
             if (!emailRegex.IsMatch(user.Email)) return BadRequest("Email is invalid.");
             if (string.IsNullOrEmpty(user.Password)) user.Password = Guid.NewGuid().ToString();
 
-            var userExists = await _userRepository.FindByUserEmailAsync(user.Email);
-            if (userExists != null && userExists.Email == user.Email)
-            {
-                return Json(new ApiResponse { success = false, message = "An account with this email address already exists" });
-            }
-            AppUser newUser = new AppUser();
-            newUser.Email = user.Email;
-            newUser.FullName = user.FullName;
-            newUser.Status = AppUserStatus.Active;
-            newUser.EmailConfirmed = false;
-            _authService.GenerateResetPasswordHash(newUser, 24);
-            newUser.PasswordHash = new PasswordHasher<object>().HashPassword(new object(), user.Password);
-
-            if(ApiAppService.TotalUsers == 0)
-            {
-                //check how many users exist
-                ApiAppService.TotalUsers = _userRepository.GetTotalUsers();
-            }
-            if (ApiAppService.TotalUsers == 0)
-            {
-                //add admin roles to first user in database
-                newUser.UserRoles = _roleRepository.GetAll().Result.Where(a => a.Name == "admin").Select(a => new AppUserRole() { AppRoleId = a.Id }).ToList();
-            }
-
             try
             {
-                //send user email before creating account
-                _emailService.SendNewUserEmail(newUser);
+                var userExists = await _userRepository.FindByUserEmailAsync(user.Email);
+                if (userExists != null && userExists.Email == user.Email)
+                {
+                    return Json(new ApiResponse { success = false, message = "An account with this email address already exists" });
+                }
+                AppUser newUser = new AppUser();
+                newUser.Email = user.Email;
+                newUser.FullName = user.FullName;
+                newUser.Status = AppUserStatus.Active;
+                newUser.EmailConfirmed = false;
+                _authService.GenerateResetPasswordHash(newUser, 24);
+                newUser.PasswordHash = new PasswordHasher<object>().HashPassword(new object(), user.Password);
+
+                if(ApiAppService.TotalUsers == 0)
+                {
+                    //check how many users exist
+                    ApiAppService.TotalUsers = _userRepository.GetTotalUsers();
+                }
+                if (ApiAppService.TotalUsers == 0)
+                {
+                    //add admin roles to first user in database
+                    newUser.UserRoles = _roleRepository.GetAll().Result.Where(a => a.Name == "admin").Select(a => new AppUserRole() { AppRoleId = a.Id }).ToList();
+                }
+
+                try
+                {
+                    //send user email before creating account
+                    _emailService.SendNewUserEmail(newUser);
+                }
+                catch (Exception ex)
+                {
+                    //do not create account if we can't send email to user
+                    return Problem(ex.Message);
+                }
+
+                newUser = await _userRepository.Add(newUser);
+
+                ApiAppService.TotalUsers++;
+
+                return Ok(new ApiResponse { success = true, data = newUser });
             }
             catch (Exception ex)
             {
-                //do not create account if we can't send email to user
-                return Problem(ex.Message);
+                return Json(new ApiResponse { success = false, message = ex.Message });
             }
-
-            newUser = await _userRepository.Add(newUser);
-
-            ApiAppService.TotalUsers++;
-
-            return Ok(new ApiResponse { success = true, data = newUser });
         }
 
         [HttpGet("get/{id}")]
@@ -91,10 +98,17 @@ namespace Collector.API.Controllers
             Guid userGuid;
             if (Guid.TryParse(id, out userGuid))
             {
-                var user = await _userRepository.FindByGuidAsync(userGuid);
-                if (user == null) return Json(new ApiResponse { success = false, data = null });
-                user.PasswordHash = null;
-                return Json(new ApiResponse { success = true, data = user });
+                try
+                {
+                    var user = await _userRepository.FindByGuidAsync(userGuid);
+                    if (user == null) return Json(new ApiResponse { success = false, data = null });
+                    user.PasswordHash = null;
+                    return Json(new ApiResponse { success = true, data = user });
+                }
+                catch (Exception ex)
+                {
+                    return Json(new ApiResponse { success = false, message = ex.Message });
+                }
             }
             else return Json(new ApiResponse { success = false, message = "User not found" });
         }
@@ -106,11 +120,19 @@ namespace Collector.API.Controllers
             var userId = GetUserId();
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "Could not find user" });
-            var user = await _userRepository.FindByGuidAsync(userId);
-            if (user == null)
-                return Json(new ApiResponse { success = false, message = "User not found" });
-            user.PasswordHash = null;
-            return Json(new ApiResponse { success = true, data = user });
+            
+            try
+            {
+                var user = await _userRepository.FindByGuidAsync(userId);
+                if (user == null)
+                    return Json(new ApiResponse { success = false, message = "User not found" });
+                user.PasswordHash = null;
+                return Json(new ApiResponse { success = true, data = user });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpPost("update-email")]
@@ -121,28 +143,35 @@ namespace Collector.API.Controllers
             var emailRegex = new Regex("^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,10}$");
             if (!emailRegex.IsMatch(user.Email)) return Json(new ApiResponse { success = false, message = "Email is invalid." });
 
-            var userExists = await _userRepository.FindByUserEmailAsync(user.Email);
-            if (userExists != null && userExists.Email == user.Email)
-            {
-                return Json(new ApiResponse { success = false, message = "An account with this email address already exists" });
-            }
-
-            _authService.GenerateResetPasswordHash(user, 24);
-            user.EmailConfirmed = false;
-
             try
             {
-                //send user email before creating account
-                _emailService.SendResetPasswordEmail(user);
+                var userExists = await _userRepository.FindByUserEmailAsync(user.Email);
+                if (userExists != null && userExists.Email == user.Email)
+                {
+                    return Json(new ApiResponse { success = false, message = "An account with this email address already exists" });
+                }
+
+                _authService.GenerateResetPasswordHash(user, 24);
+                user.EmailConfirmed = false;
+
+                try
+                {
+                    //send user email before creating account
+                    _emailService.SendResetPasswordEmail(user);
+                }
+                catch (Exception ex)
+                {
+                    //do not create account if we can't send email to user
+                    return Problem(ex.Message);
+                }
+                
+                await _userRepository.UpdatePasswordResetHash(user);
+                return Ok(new ApiResponse { success = true, data = user });
             }
             catch (Exception ex)
             {
-                //do not create account if we can't send email to user
-                return Problem(ex.Message);
+                return Json(new ApiResponse { success = false, message = ex.Message });
             }
-            await _userRepository.UpdatePasswordResetHash(user);
-
-            return Ok(new ApiResponse { success = true, data = user });
         }
 
         [HttpPost("reset-password")]
@@ -152,32 +181,46 @@ namespace Collector.API.Controllers
             var emailRegex = new Regex("^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,10}$");
             if (!emailRegex.IsMatch(user.Email)) return BadRequest("Email is invalid.");
 
-            _authService.GenerateResetPasswordHash(user, 24);
-
             try
             {
-                //send user email before creating account
-                _emailService.SendResetPasswordEmail(user);
+                _authService.GenerateResetPasswordHash(user, 24);
+
+                try
+                {
+                    //send user email before creating account
+                    _emailService.SendResetPasswordEmail(user);
+                }
+                catch (Exception ex)
+                {
+                    //do not create account if we can't send email to user
+                    return Problem(ex.Message);
+                }
+
+                await _userRepository.UpdatePasswordResetHash(user);
+                return Ok(new ApiResponse { success = true, data = user });
             }
             catch (Exception ex)
             {
-                //do not create account if we can't send email to user
-                return Problem(ex.Message);
+                return Json(new ApiResponse { success = false, message = ex.Message });
             }
-
-            await _userRepository.UpdatePasswordResetHash(user);
-
-            return Ok(new ApiResponse { success = true, data = user });
         }
 
         [HttpPost("edit")]
         [Authorize(Policy = nameof(AuthConstants.Policy.ManageUsers))]
         public async Task<IActionResult> Edit([FromBody] AppUser user)
         {
-            if (!string.IsNullOrEmpty(user.password))
-                user.PasswordHash = new PasswordHasher<object>().HashPassword(new object(), user.password);
-            _userRepository.UpdateInfo(user);
-            return Json(new ApiResponse { success = true });
+            try
+            {
+                if (!string.IsNullOrEmpty(user.password))
+                    user.PasswordHash = new PasswordHasher<object>().HashPassword(new object(), user.password);
+                
+                _userRepository.UpdateInfo(user);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
     }
 }

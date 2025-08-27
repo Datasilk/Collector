@@ -12,8 +12,8 @@ table.spreadsheet {
 
 table.spreadsheet thead td,
 table.spreadsheet thead th {
-    background-color: #dfd4ec;
-    color: #3e0c7c;
+    background-color: #dedbf4;
+    color: #5200b9;
     text-align: left;
 }
 
@@ -68,11 +68,11 @@ table.spreadsheet tbody tr:nth-child(even) {
 }
 
 table.spreadsheet tbody tr:nth-child(odd):hover {
-    background-color: #dfd4ec;
+    background-color: #dedbf4;
 }
 
 table.spreadsheet tbody tr:nth-child(even):hover {
-    background-color: #dfd4ec;
+    background-color: #dedbf4;
 }
 
 table.spreadsheet tbody td.buttons {

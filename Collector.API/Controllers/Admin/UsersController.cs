@@ -34,22 +34,43 @@ namespace Collector.API.Controllers.Admin
         [HttpGet("get-all")]
         public async Task<IActionResult> GetAll()
         {
-            var users = (await _userRepo.GetAll()).Select(a => new { a.Email, a.FullName, a.Id, a.LastLogin, a.Status, a.Created });
-            return Json(new ApiResponse { success = true, data = users });
+            try
+            {
+                var users = (await _userRepo.GetAll()).Select(a => new { a.Email, a.FullName, a.Id, a.LastLogin, a.Status, a.Created });
+                return Json(new ApiResponse { success = true, data = users });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpGet("get-all-filtered")]
         public async Task<IActionResult> GetAllFiltered(string fullName, int role, int? radioStationId, string sort)
         {
-            var users = await _userRepo.GetAllFiltered(fullName, role, radioStationId ?? -1, sort);
-            return Json(new ApiResponse { success = true, data = users });
+            try
+            {
+                var users = await _userRepo.GetAllFiltered(fullName, role, radioStationId ?? -1, sort);
+                return Json(new ApiResponse { success = true, data = users });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpGet("get-roles")]
         public async Task<IActionResult> GetRoles()
         {
-            var roles = await _roleRepo.GetAll();
-            return Json(new ApiResponse { success = true, data = roles });
+            try
+            {
+                var roles = await _roleRepo.GetAll();
+                return Json(new ApiResponse { success = true, data = roles });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpGet("get/{id}")]
@@ -58,10 +79,17 @@ namespace Collector.API.Controllers.Admin
             Guid userGuid;
             if (Guid.TryParse(id, out userGuid))
             {
-                var user = await _userRepo.FindByGuidAsync(userGuid);
-                if (user == null) return Json(new ApiResponse { success = false, data = null });
-                user.PasswordHash = null;
-                return Json(new ApiResponse { success = true, data = user });
+                try
+                {
+                    var user = await _userRepo.FindByGuidAsync(userGuid);
+                    if (user == null) return Json(new ApiResponse { success = false, data = null });
+                    user.PasswordHash = null;
+                    return Json(new ApiResponse { success = true, data = user });
+                }
+                catch (Exception ex)
+                {
+                    return Json(new ApiResponse { success = false, message = ex.Message });
+                }
             }
             else return Json(new ApiResponse { success = false, message = "User not found" });
         }
@@ -74,40 +102,47 @@ namespace Collector.API.Controllers.Admin
             if (!emailRegex.IsMatch(user.Email)) return BadRequest("Email is invalid.");
             if (!user.Role.HasValue) { user.Role = 2; } //2 = user role
 
-            var userExists = await _userRepo.FindByUserEmailAsync(user.Email);
-            if (userExists != null && userExists.Email == user.Email)
-            {
-                return Json(new ApiResponse { success = false, message = "An account with this email address already exists" });
-            }
-            AppUser newUser = new AppUser();
-            newUser.Email = user.Email;
-            newUser.FullName = user.FullName;
-            newUser.Status = AppUserStatus.Active;
-            newUser.EmailConfirmed = false;
-            if (user.IsAdmin)
-            {
-                newUser.UserRoles = _roleRepo.GetAll().Result.Where(a => a.Name == "admin").Select(a => new AppUserRole() { AppRoleId = a.Id }).ToList();
-            }
-
-            _authRepo.GenerateResetPasswordHash(newUser, 24);
-
             try
             {
-                //send user email before creating account
-                _emailService.SendNewUserEmail(newUser);
+                var userExists = await _userRepo.FindByUserEmailAsync(user.Email);
+                if (userExists != null && userExists.Email == user.Email)
+                {
+                    return Json(new ApiResponse { success = false, message = "An account with this email address already exists" });
+                }
+                AppUser newUser = new AppUser();
+                newUser.Email = user.Email;
+                newUser.FullName = user.FullName;
+                newUser.Status = AppUserStatus.Active;
+                newUser.EmailConfirmed = false;
+                if (user.IsAdmin)
+                {
+                    newUser.UserRoles = _roleRepo.GetAll().Result.Where(a => a.Name == "admin").Select(a => new AppUserRole() { AppRoleId = a.Id }).ToList();
+                }
+
+                _authRepo.GenerateResetPasswordHash(newUser, 24);
+
+                try
+                {
+                    //send user email before creating account
+                    _emailService.SendNewUserEmail(newUser);
+                }
+                catch (Exception ex)
+                {
+                    //do not create account if we can't send email to user
+                    return Problem(ex.Message);
+                }
+
+                //create new user in database
+                newUser = await _userRepo.Add(newUser);
+
+                ApiAppService.TotalUsers++;
+
+                return Ok(new ApiResponse { success = true, data = newUser });
             }
             catch (Exception ex)
             {
-                //do not create account if we can't send email to user
-                return Problem(ex.Message);
+                return Json(new ApiResponse { success = false, message = ex.Message });
             }
-
-            //create new user in database
-            newUser = await _userRepo.Add(newUser);
-
-            ApiAppService.TotalUsers++;
-
-            return Ok(new ApiResponse { success = true, data = newUser });
         }
 
         [HttpPost("update-email")]
@@ -117,28 +152,35 @@ namespace Collector.API.Controllers.Admin
             var emailRegex = new Regex("^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,10}$");
             if (!emailRegex.IsMatch(user.Email)) return Json(new ApiResponse { success = false, message = "Email is invalid." });
 
-            var userExists = await _userRepo.FindByUserEmailAsync(user.Email);
-            if (userExists != null && userExists.Email == user.Email)
-            {
-                return Json(new ApiResponse { success = false, message = "An account with this email address already exists" });
-            }
-
-            _authRepo.GenerateResetPasswordHash(user, 24);
-            user.EmailConfirmed = false;
-
             try
             {
-                //send user email before creating account
-                _emailService.SendResetPasswordEmail(user);
+                var userExists = await _userRepo.FindByUserEmailAsync(user.Email);
+                if (userExists != null && userExists.Email == user.Email)
+                {
+                    return Json(new ApiResponse { success = false, message = "An account with this email address already exists" });
+                }
+
+                _authRepo.GenerateResetPasswordHash(user, 24);
+                user.EmailConfirmed = false;
+
+                try
+                {
+                    //send user email before creating account
+                    _emailService.SendResetPasswordEmail(user);
+                }
+                catch (Exception ex)
+                {
+                    //do not create account if we can't send email to user
+                    return Problem(ex.Message);
+                }
+                
+                await _userRepo.UpdatePasswordResetHash(user);
+                return Ok(new ApiResponse { success = true, data = user });
             }
             catch (Exception ex)
             {
-                //do not create account if we can't send email to user
-                return Problem(ex.Message);
+                return Json(new ApiResponse { success = false, message = ex.Message });
             }
-            await _userRepo.UpdatePasswordResetHash(user);
-
-            return Ok(new ApiResponse { success = true, data = user });
         }
 
         [HttpPost("reset-password")]
@@ -148,40 +190,63 @@ namespace Collector.API.Controllers.Admin
             var emailRegex = new Regex("^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,10}$");
             if (!emailRegex.IsMatch(user.Email)) return BadRequest("Email is invalid.");
 
-            _authRepo.GenerateResetPasswordHash(user, 24);
-
             try
             {
-                //send user email before creating account
-                _emailService.SendResetPasswordEmail(user);
+                _authRepo.GenerateResetPasswordHash(user, 24);
+
+                try
+                {
+                    //send user email before creating account
+                    _emailService.SendResetPasswordEmail(user);
+                }
+                catch (Exception ex)
+                {
+                    //do not create account if we can't send email to user
+                    return Problem(ex.Message);
+                }
+
+                await _userRepo.UpdatePasswordResetHash(user);
+                return Ok(new ApiResponse { success = true, data = user });
             }
             catch (Exception ex)
             {
-                //do not create account if we can't send email to user
-                return Problem(ex.Message);
+                return Json(new ApiResponse { success = false, message = ex.Message });
             }
-
-            await _userRepo.UpdatePasswordResetHash(user);
-
-            return Ok(new ApiResponse { success = true, data = user });
         }
 
         [HttpPost("edit")]
         public async Task<IActionResult> Edit([FromBody] UpdateAdminUser user)
         {
-            var saveduser = await _userRepo.FindByGuidAsync(user.Id);
-            saveduser.FullName = user.FullName;
-            saveduser.Status = user.Status;
-            _userRepo.UpdateInfo(saveduser);
+            try
+            {
+                var saveduser = await _userRepo.FindByGuidAsync(user.Id);
+                if (saveduser == null)
+                    return Json(new ApiResponse { success = false, message = "User not found" });
+                    
+                saveduser.FullName = user.FullName;
+                saveduser.Status = user.Status;
+                _userRepo.UpdateInfo(saveduser);
 
-            return Json(new ApiResponse { success = true });
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpPost("update-lock")]
         public async Task<IActionResult> UpdateLock([FromBody] UpdateLockRequest request)
         {
-            var success = await _userRepo.UpdateLock(request.UserId, request.lockUser);
-            return Json(new ApiResponse { success = success });
+            try
+            {
+                var success = await _userRepo.UpdateLock(request.UserId, request.lockUser);
+                return Json(new ApiResponse { success = success });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpDelete("delete/{id}")]

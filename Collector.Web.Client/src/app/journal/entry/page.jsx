@@ -51,47 +51,6 @@ export default function JournalEntryPage() {
     useEffect(() => {
         fetchEntryDetails();
     }, [journalId, entryId, navigate, session]);
-    
-    // Effect for handling module tab box positioning when scrolling
-    useEffect(() => {
-        const handleScroll = () => {
-            const moduleBoxes = document.querySelectorAll('.module-tab .box');
-            
-            moduleBoxes.forEach(box => {
-                // Only process boxes that are currently displayed
-                const computedStyle = window.getComputedStyle(box);
-                if (computedStyle.display !== 'block') return;
-                
-                const entry = box.closest('.entry');
-                if (!entry) return;
-                
-                const entryRect = entry.getBoundingClientRect();
-                const entryTop = entryRect.top;
-                const entryBottom = entryRect.bottom;
-                
-                // If entry is in viewport
-                if (entryBottom > 0 && entryTop < window.innerHeight) {
-                    // Calculate position relative to entry
-                    if (entryTop < 150) {
-                        // Entry top is above the 150px mark, stick the box
-                        const newTop = Math.min(150 - entryTop, entryRect.height - box.offsetHeight);
-                        box.style.top = `${newTop}px`;
-                    } else {
-                        // Entry is below the 150px mark, reset position
-                        box.style.top = '0';
-                    }
-                }
-            });
-        };
-        
-        window.addEventListener('scroll', handleScroll);
-        // Run once on mount to set initial positions
-        handleScroll();
-        
-        return () => {
-            window.removeEventListener('scroll', handleScroll);
-        };
-    }, []);
 
     useEffect(() => {
         if (isTitleEditing && titleInputRef.current) {
@@ -107,13 +66,13 @@ export default function JournalEntryPage() {
                 const isOutsideTopButton = !dropdownButtonRef.current || !dropdownButtonRef.current.contains(event.target);
                 // Check if click is outside the bottom button (if it exists)
                 const isOutsideBottomButton = !bottomDropdownButtonRef.current || !bottomDropdownButtonRef.current.contains(event.target);
-                
+
                 // If click is outside both buttons, close the dropdown
                 if (isOutsideTopButton && isOutsideBottomButton) {
                     setShowModuleDropdown(false);
                 }
             }
-            
+
             if (showModuleAboveDropdown &&
                 moduleDropdownRef.current &&
                 !moduleDropdownRef.current.contains(event.target) &&
@@ -356,23 +315,23 @@ export default function JournalEntryPage() {
 
     const addModuleAbove = (type) => {
         if (!currentModuleId) return;
-        
+
         const newModule = {
             id: generateRandomId(),
             type: type
         };
-        
+
         const moduleIndex = entryJson.modules.findIndex(module => module.id === currentModuleId);
         if (moduleIndex === -1) return;
-        
+
         const updatedModules = [...entryJson.modules];
         updatedModules.splice(moduleIndex, 0, newModule);
-        
+
         const updatedEntryJson = {
             ...entryJson,
             modules: updatedModules
         };
-        
+
         setEntryJson(updatedEntryJson);
         saveEntryContent(updatedEntryJson);
         setShowModuleAboveDropdown(false);
@@ -466,31 +425,31 @@ export default function JournalEntryPage() {
     // Render entry
     return (
         <div className="journal-entry-page">
-            <div className="entry-header tool-bar">
-                <button className="back-button" onClick={handleBackToJournal}>
-                    <Icon name="arrow_back" /> Back to {journal?.title || 'Journal'}
-                </button>
+            <div className="entry-header">
+                <div className="entry-navigation tool-bar">
+                    <button className="back-button" onClick={handleBackToJournal}>
+                        <Icon name="arrow_back" /> Back to {journal?.title || 'Journal'}
+                    </button>
 
-                <div className="right-side entry-status-badge">
-                    <span className={`status-indicator ${getStatusClass(entry.status)}`}>
-                        {getStatusText(entry.status)}
-                    </span>
-                    <ToggleSwitch 
-                        name="edit-entry"
-                        checked={isEditing} 
-                        onChange={setIsEditing} 
-                        label="Edit" 
-                    />
+                    <div className="right-side entry-status-badge">
+                        {saveStatus && (
+                            <div className={`right-side save-status-message ${saveStatus === 'error' ? 'error' : 'success'}`}>
+                                {getSaveStatusMessage()}
+                            </div>
+                        )}
+                        <span className={`status-indicator ${getStatusClass(entry.status)}`}>
+                            {getStatusText(entry.status)}
+                        </span>
+                        <ToggleSwitch
+                            name="edit-entry"
+                            checked={isEditing}
+                            onChange={setIsEditing}
+                            label="Edit"
+                        />
+                    </div>
                 </div>
 
-                {saveStatus && (
-                    <div className={`right-side save-status-message ${saveStatus === 'error' ? 'error' : 'success'}`}>
-                        {getSaveStatusMessage()}
-                    </div>
-                )}
-            </div>
 
-            <div className="entry-content">
                 <div className="entry-title-section">
                     {isTitleEditing ? (
                         <Input
@@ -516,63 +475,68 @@ export default function JournalEntryPage() {
                             }
                         />
                     ) : (
-                        <div className="entry-title-display tool-bar">
+                        <div className="entry-title-display tool-bar" onClick={handleTitleEdit}>
                             <h1>{entry.title || 'Untitled Entry'}</h1>
-                            <button className="icon" onClick={handleTitleEdit}>
+                            <button className="icon">
                                 <Icon name="edit" />
                             </button>
                         </div>
                     )}
                 </div>
-
-                <div className="entry-metadata">
-                    <div className="created-date">
-                        <Icon name="calendar_today" />
-                        <span>Created: {formatDate(entry.created)}</span>
+                <div className="tool-bar">
+                    <div className="entry-metadata">
+                        <div className="created-date">
+                            <Icon name="calendar_today" />
+                            <span>Created: {formatDate(entry.created)}</span>
+                        </div>
+                        {entry.modified && entry.modified !== entry.created && (
+                            <div className="modified-date">
+                                <Icon name="update" />
+                                <span>Modified: {formatDate(entry.modified)}</span>
+                            </div>
+                        )}
                     </div>
-                    {entry.modified && entry.modified !== entry.created && (
-                        <div className="modified-date">
-                            <Icon name="update" />
-                            <span>Modified: {formatDate(entry.modified)}</span>
+
+                    {isEditing && (
+                        <div className="tool-bar add-module-container">
+                            <div className="right-side">
+                                <button
+                                    ref={dropdownButtonRef}
+                                    onClick={() => setShowModuleDropdown(!showModuleDropdown)}
+                                >
+                                    <Icon name="add" /> Add Content
+                                </button>
+
+                                {showModuleDropdown && (
+                                    <div
+                                        className="module-dropdown"
+                                        ref={dropdownRef}
+                                    >
+                                        {modules.map(module => (
+                                            <div
+                                                key={module.id}
+                                                className="module-option"
+                                                onClick={() => addModule(module.type)}
+                                            >
+                                                <Icon name={module.icon} />
+                                                <span>{module.name}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>
+            </div>
+
+            <div className="entry-content">
                 {entry.description && (
                     <div className="entry-description">
                         <p>{entry.description}</p>
                     </div>
                 )}
 
-                <div className="tool-bar add-module-container">
-                    {isEditing && (
-                        <div className="right-side">
-                            <button
-                                ref={dropdownButtonRef}
-                                onClick={() => setShowModuleDropdown(!showModuleDropdown)}
-                            >
-                                <Icon name="add" /> Add Content
-                            </button>
-
-                            {showModuleDropdown && (
-                                <div
-                                    className="module-dropdown"
-                                    ref={dropdownRef}
-                                >
-                                    {modules.map(module => (
-                                        <div
-                                            key={module.id}
-                                            className="module-option"
-                                            onClick={() => addModule(module.type)}
-                                        >
-                                            <Icon name={module.icon} />
-                                            <span>{module.name}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
 
                 <div className="entry-modules">
                     {entryJson.modules.map((module) => {
@@ -587,8 +551,8 @@ export default function JournalEntryPage() {
                                             <div className="module-type">{moduleType?.name}</div>
                                             <div className="box">
                                                 <div className="tool-bar vertical">
-                                                    <button 
-                                                        className="icon" 
+                                                    <button
+                                                        className="icon"
                                                         ref={module.id === currentModuleId ? moduleDropdownButtonRef : null}
                                                         onClick={() => {
                                                             setCurrentModuleId(module.id);
@@ -627,7 +591,7 @@ export default function JournalEntryPage() {
                         )
                     })}
                 </div>
-                
+
                 {/* Bottom Add Content button - only shows if there are modules and editing is enabled */}
                 {entryJson.modules.length > 0 && isEditing && (
                     <div className="tool-bar add-module-container bottom-add-module">

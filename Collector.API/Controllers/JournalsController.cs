@@ -34,8 +34,15 @@ namespace Collector.API.Controllers
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "User not found" });
 
-            var categories = _categoriesRepository.GetAllWithJournalsByUserId(userId, filter?.Sort, filter?.Search);
-            return Json(new ApiResponse { success = true, data = categories });
+            try
+            {
+                var categories = _categoriesRepository.GetAllWithJournalsByUserId(userId, filter?.Sort, filter?.Search);
+                return Json(new ApiResponse { success = true, data = categories });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpPost("categories/filter")]
@@ -45,8 +52,15 @@ namespace Collector.API.Controllers
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "User not found" });
 
-            var categories = _categoriesRepository.GetAllWithJournalsByUserId(userId, filter.Sort, filter.Search);
-            return Json(new ApiResponse { success = true, data = categories });
+            try
+            {
+                var categories = _categoriesRepository.GetAllWithJournalsByUserId(userId, filter.Sort, filter.Search);
+                return Json(new ApiResponse { success = true, data = categories });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpPost("categories/add")]
@@ -60,10 +74,17 @@ namespace Collector.API.Controllers
             category.Created = DateTime.UtcNow;
             category.Status = 0; // Active
 
-            var id = _categoriesRepository.Add(category);
-            category.Id = id;
+            try
+            {
+                var id = _categoriesRepository.Add(category);
+                category.Id = id;
 
-            return Json(new ApiResponse { success = true, data = category });
+                return Json(new ApiResponse { success = true, data = category });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpPost("categories/rename")]
@@ -73,12 +94,19 @@ namespace Collector.API.Controllers
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "User not found" });
 
-            var category = _categoriesRepository.GetById(request.Id.Value);
-            if (category == null || category.AppUserId != userId)
-                return Json(new ApiResponse { success = false, message = "Category not found or not authorized" });
+            try
+            {
+                var category = _categoriesRepository.GetById(request.Id.Value);
+                if (category == null || category.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Category not found or not authorized" });
 
-            _categoriesRepository.Rename(request.Id.Value, request.Title);
-            return Json(new ApiResponse { success = true });
+                _categoriesRepository.Rename(request.Id.Value, request.Title);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpPost("categories/change-color")]
@@ -88,12 +116,19 @@ namespace Collector.API.Controllers
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "User not found" });
 
-            var category = _categoriesRepository.GetById(request.Id.Value);
-            if (category == null || category.AppUserId != userId)
-                return Json(new ApiResponse { success = false, message = "Category not found or not authorized" });
+            try
+            {
+                var category = _categoriesRepository.GetById(request.Id.Value);
+                if (category == null || category.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Category not found or not authorized" });
 
-            _categoriesRepository.ChangeColor(request.Id.Value, request.Color);
-            return Json(new ApiResponse { success = true });
+                _categoriesRepository.ChangeColor(request.Id.Value, request.Color);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpGet("categories/archive/{id}")]
@@ -103,12 +138,19 @@ namespace Collector.API.Controllers
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "User not found" });
 
-            var category = _categoriesRepository.GetById(id);
-            if (category == null || category.AppUserId != userId)
-                return Json(new ApiResponse { success = false, message = "Category not found or not authorized" });
+            try
+            {
+                var category = _categoriesRepository.GetById(id);
+                if (category == null || category.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Category not found or not authorized" });
 
-            _categoriesRepository.Archive(id);
-            return Json(new ApiResponse { success = true });
+                _categoriesRepository.Archive(id);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpGet("categories/unarchive/{id}")]
@@ -118,12 +160,19 @@ namespace Collector.API.Controllers
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "User not found" });
 
-            var category = _categoriesRepository.GetById(id);
-            if (category == null || category.AppUserId != userId)
-                return Json(new ApiResponse { success = false, message = "Category not found or not authorized" });
+            try
+            {
+                var category = _categoriesRepository.GetById(id);
+                if (category == null || category.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Category not found or not authorized" });
 
-            _categoriesRepository.Unarchive(id);
-            return Json(new ApiResponse { success = true });
+                _categoriesRepository.Unarchive(id);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         #endregion
@@ -137,8 +186,15 @@ namespace Collector.API.Controllers
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "User not found" });
 
-            var journals = _journalsRepository.GetAllByUserId(userId);
-            return Json(new ApiResponse { success = true, data = journals });
+            try
+            {
+                var journals = _journalsRepository.GetAllByUserId(userId);
+                return Json(new ApiResponse { success = true, data = journals });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpGet("{id}")]
@@ -148,11 +204,18 @@ namespace Collector.API.Controllers
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "User not found" });
 
-            var journal = _journalsRepository.GetById(id);
-            if (journal == null || journal.AppUserId != userId)
-                return Json(new ApiResponse { success = false, message = "Journal not found" });
+            try
+            {
+                var journal = _journalsRepository.GetById(id);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found" });
 
-            return Json(new ApiResponse { success = true, data = journal });
+                return Json(new ApiResponse { success = true, data = journal });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpPost("add")]
@@ -166,10 +229,17 @@ namespace Collector.API.Controllers
             journal.Created = DateTime.UtcNow;
             journal.Status = 0; // Active
 
-            var id = _journalsRepository.Add(journal);
-            journal.Id = id;
+            try
+            {
+                var id = _journalsRepository.Add(journal);
+                journal.Id = id;
 
-            return Json(new ApiResponse { success = true, data = journal });
+                return Json(new ApiResponse { success = true, data = journal });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpPost("rename")]
@@ -179,12 +249,19 @@ namespace Collector.API.Controllers
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "User not found" });
 
-            var journal = _journalsRepository.GetById(request.Id);
-            if (journal == null || journal.AppUserId != userId)
-                return Json(new ApiResponse { success = false, message = "Journal not found" });
+            try
+            {
+                var journal = _journalsRepository.GetById(request.Id);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found" });
 
-            _journalsRepository.Rename(request.Id, request.Title);
-            return Json(new ApiResponse { success = true });
+                _journalsRepository.Rename(request.Id, request.Title);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpPost("change-color")]
@@ -194,12 +271,19 @@ namespace Collector.API.Controllers
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "User not found" });
 
-            var journal = _journalsRepository.GetById(request.Id);
-            if (journal == null || journal.AppUserId != userId)
-                return Json(new ApiResponse { success = false, message = "Journal not found" });
+            try
+            {
+                var journal = _journalsRepository.GetById(request.Id);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found" });
 
-            _journalsRepository.ChangeColor(request.Id, request.Color);
-            return Json(new ApiResponse { success = true });
+                _journalsRepository.ChangeColor(request.Id, request.Color);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpGet("archive/{id}")]
@@ -209,12 +293,19 @@ namespace Collector.API.Controllers
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "User not found" });
 
-            var journal = _journalsRepository.GetById(id);
-            if (journal == null || journal.AppUserId != userId)
-                return Json(new ApiResponse { success = false, message = "Journal not found or not authorized" });
+            try
+            {
+                var journal = _journalsRepository.GetById(id);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found or not authorized" });
 
-            _journalsRepository.Archive(id);
-            return Json(new ApiResponse { success = true });
+                _journalsRepository.Archive(id);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpGet("unarchive/{id}")]
@@ -224,12 +315,19 @@ namespace Collector.API.Controllers
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "User not found" });
 
-            var journal = _journalsRepository.GetById(id);
-            if (journal == null || journal.AppUserId != userId)
-                return Json(new ApiResponse { success = false, message = "Journal not found or not authorized" });
+            try
+            {
+                var journal = _journalsRepository.GetById(id);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found or not authorized" });
 
-            _journalsRepository.Unarchive(id);
-            return Json(new ApiResponse { success = true });
+                _journalsRepository.Unarchive(id);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         #endregion
@@ -243,12 +341,19 @@ namespace Collector.API.Controllers
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "User not found" });
 
-            var journal = _journalsRepository.GetById(journalId);
-            if (journal == null || journal.AppUserId != userId)
-                return Json(new ApiResponse { success = false, message = "Journal not found" });
+            try
+            {
+                var journal = _journalsRepository.GetById(journalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found" });
 
-            var entries = _entriesRepository.GetAllByJournalId(journalId);
-            return Json(new ApiResponse { success = true, data = entries });
+                var entries = _entriesRepository.GetAllByJournalId(journalId);
+                return Json(new ApiResponse { success = true, data = entries });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpGet("entries/{id}")]
@@ -258,15 +363,22 @@ namespace Collector.API.Controllers
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "User not found" });
 
-            var entry = _entriesRepository.GetById(id);
-            if (entry == null)
-                return Json(new ApiResponse { success = false, message = "Entry not found" });
+            try
+            {
+                var entry = _entriesRepository.GetById(id);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
 
-            var journal = _journalsRepository.GetById(entry.JournalId);
-            if (journal == null || journal.AppUserId != userId)
-                return Json(new ApiResponse { success = false, message = "Not authorized to access this entry" });
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized to access this entry" });
 
-            return Json(new ApiResponse { success = true, data = entry });
+                return Json(new ApiResponse { success = true, data = entry });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpPost("entries/add")]
@@ -276,16 +388,23 @@ namespace Collector.API.Controllers
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "User not found" });
 
-            var journal = _journalsRepository.GetById(entry.JournalId);
-            if (journal == null || journal.AppUserId != userId)
-                return Json(new ApiResponse { success = false, message = "Journal not found" });
+            try
+            {
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found" });
 
-            entry.Created = DateTime.UtcNow;
+                entry.Created = DateTime.UtcNow;
 
-            var id = _entriesRepository.Add(entry);
-            entry.Id = id;
+                var id = _entriesRepository.Add(entry);
+                entry.Id = id;
 
-            return Json(new ApiResponse { success = true, data = entry });
+                return Json(new ApiResponse { success = true, data = entry });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpPost("entries/rename")]
@@ -295,16 +414,23 @@ namespace Collector.API.Controllers
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "User not found" });
 
-            var entry = _entriesRepository.GetById(request.Id);
-            if (entry == null)
-                return Json(new ApiResponse { success = false, message = "Entry not found" });
+            try
+            {
+                var entry = _entriesRepository.GetById(request.Id);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
 
-            var journal = _journalsRepository.GetById(entry.JournalId);
-            if (journal == null || journal.AppUserId != userId)
-                return Json(new ApiResponse { success = false, message = "Not authorized to rename this entry" });
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized to rename this entry" });
 
-            _entriesRepository.Rename(request.Id, request.Title);
-            return Json(new ApiResponse { success = true });
+                _entriesRepository.Rename(request.Id, request.Title);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpPost("entries/update-description")]
@@ -314,16 +440,23 @@ namespace Collector.API.Controllers
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "User not found" });
 
-            var entry = _entriesRepository.GetById(request.Id);
-            if (entry == null)
-                return Json(new ApiResponse { success = false, message = "Entry not found" });
+            try
+            {
+                var entry = _entriesRepository.GetById(request.Id);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
 
-            var journal = _journalsRepository.GetById(entry.JournalId);
-            if (journal == null || journal.AppUserId != userId)
-                return Json(new ApiResponse { success = false, message = "Not authorized to update this entry" });
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized to update this entry" });
 
-            _entriesRepository.UpdateDescription(request.Id, request.Description);
-            return Json(new ApiResponse { success = true });
+                _entriesRepository.UpdateDescription(request.Id, request.Description);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpGet("entries/archive/{id}")]
@@ -333,16 +466,23 @@ namespace Collector.API.Controllers
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "User not found" });
 
-            var entry = _entriesRepository.GetById(id);
-            if (entry == null)
-                return Json(new ApiResponse { success = false, message = "Entry not found" });
+            try
+            {
+                var entry = _entriesRepository.GetById(id);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
 
-            var journal = _journalsRepository.GetById(entry.JournalId);
-            if (journal == null || journal.AppUserId != userId)
-                return Json(new ApiResponse { success = false, message = "Not authorized to archive this entry" });
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized to archive this entry" });
 
-            _entriesRepository.Archive(id);
-            return Json(new ApiResponse { success = true });
+                _entriesRepository.Archive(id);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpGet("entries/unarchive/{id}")]
@@ -352,16 +492,23 @@ namespace Collector.API.Controllers
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "User not found" });
 
-            var entry = _entriesRepository.GetById(id);
-            if (entry == null)
-                return Json(new ApiResponse { success = false, message = "Entry not found" });
+            try
+            {
+                var entry = _entriesRepository.GetById(id);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
 
-            var journal = _journalsRepository.GetById(entry.JournalId);
-            if (journal == null || journal.AppUserId != userId)
-                return Json(new ApiResponse { success = false, message = "Not authorized to unarchive this entry" });
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized to unarchive this entry" });
 
-            _entriesRepository.Unarchive(id);
-            return Json(new ApiResponse { success = true });
+                _entriesRepository.Unarchive(id);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpGet("entries/publish/{id}")]
@@ -371,16 +518,23 @@ namespace Collector.API.Controllers
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "User not found" });
 
-            var entry = _entriesRepository.GetById(id);
-            if (entry == null)
-                return Json(new ApiResponse { success = false, message = "Entry not found" });
+            try
+            {
+                var entry = _entriesRepository.GetById(id);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
 
-            var journal = _journalsRepository.GetById(entry.JournalId);
-            if (journal == null || journal.AppUserId != userId)
-                return Json(new ApiResponse { success = false, message = "Not authorized to publish this entry" });
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized to publish this entry" });
 
-            _entriesRepository.Publish(id);
-            return Json(new ApiResponse { success = true });
+                _entriesRepository.Publish(id);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpGet("entries/modify/{id}")]
@@ -390,16 +544,23 @@ namespace Collector.API.Controllers
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "User not found" });
 
-            var entry = _entriesRepository.GetById(id);
-            if (entry == null)
-                return Json(new ApiResponse { success = false, message = "Entry not found" });
+            try
+            {
+                var entry = _entriesRepository.GetById(id);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
 
-            var journal = _journalsRepository.GetById(entry.JournalId);
-            if (journal == null || journal.AppUserId != userId)
-                return Json(new ApiResponse { success = false, message = "Not authorized to modify this entry" });
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized to modify this entry" });
 
-            _entriesRepository.Modify(id);
-            return Json(new ApiResponse { success = true });
+                _entriesRepository.Modify(id);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpPost("entry/move")]
@@ -409,22 +570,29 @@ namespace Collector.API.Controllers
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "User not found" });
 
-            var entry = _entriesRepository.GetById(request.EntryId);
-            if (entry == null)
-                return Json(new ApiResponse { success = false, message = "Entry not found" });
+            try
+            {
+                var entry = _entriesRepository.GetById(request.EntryId);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
 
-            // Check if user owns the source journal
-            var sourceJournal = _journalsRepository.GetById(entry.JournalId);
-            if (sourceJournal == null || sourceJournal.AppUserId != userId)
-                return Json(new ApiResponse { success = false, message = "Not authorized to move this entry" });
+                // Check if user owns the source journal
+                var sourceJournal = _journalsRepository.GetById(entry.JournalId);
+                if (sourceJournal == null || sourceJournal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized to move this entry" });
 
-            // Check if user owns the target journal
-            var targetJournal = _journalsRepository.GetById(request.TargetJournalId);
-            if (targetJournal == null || targetJournal.AppUserId != userId)
-                return Json(new ApiResponse { success = false, message = "Not authorized to move to the target journal" });
+                // Check if user owns the target journal
+                var targetJournal = _journalsRepository.GetById(request.TargetJournalId);
+                if (targetJournal == null || targetJournal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized to move to the target journal" });
 
-            _entriesRepository.UpdateJournalId(request.EntryId, request.TargetJournalId);
-            return Json(new ApiResponse { success = true });
+                _entriesRepository.UpdateJournalId(request.EntryId, request.TargetJournalId);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         #endregion
@@ -438,22 +606,29 @@ namespace Collector.API.Controllers
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "User not found" });
 
-            var entry = _entriesRepository.GetById(id);
-            if (entry == null)
-                return Json(new ApiResponse { success = false, message = "Entry not found" });
+            try
+            {
+                var entry = _entriesRepository.GetById(id);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
 
-            var journal = _journalsRepository.GetById(entry.JournalId);
-            if (journal == null || journal.AppUserId != userId)
-                return Json(new ApiResponse { success = false, message = "Not authorized to access this entry content" });
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized to access this entry content" });
 
-            // Get the content from the file system
-            var filePath = $"journal-entries/{id:N}.json";
-            var content = Files.GetFile(filePath);
+                // Get the content from the file system
+                var filePath = $"journal-entries/{id:N}.json";
+                var content = Files.GetFile(filePath);
 
-            if (content == null)
-                return Json(new ApiResponse { success = false, message = "Entry content not found" });
+                if (content == null)
+                    return Json(new ApiResponse { success = false, message = "Entry content not found" });
 
-            return Json(new ApiResponse { success = true, data = content });
+                return Json(new ApiResponse { success = true, data = content });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [HttpPost("entries/update-entry")]
@@ -463,26 +638,34 @@ namespace Collector.API.Controllers
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "User not found" });
 
-            var entry = _entriesRepository.GetById(request.Id);
-            if (entry == null)
-                return Json(new ApiResponse { success = false, message = "Entry not found" });
+            try
+            {
+                var entry = _entriesRepository.GetById(request.Id);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
 
-            var journal = _journalsRepository.GetById(entry.JournalId);
-            if (journal == null || journal.AppUserId != userId)
-                return Json(new ApiResponse { success = false, message = "Not authorized to update this entry content" });
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized to update this entry content" });
 
-            // Save the content to the file system
-            var filePath = $"journal-entries/{request.Id:N}.json";
-            var success = Files.SaveFile(filePath, request.Content);
+                // Save the content to the file system
+                var filePath = $"journal-entries/{request.Id:N}.json";
+                var success = Files.SaveFile(filePath, request.Content);
 
-            if (!success)
-                return Json(new ApiResponse { success = false, message = "Failed to save entry content" });
+                if (!success)
+                    return Json(new ApiResponse { success = false, message = "Failed to save entry content" });
 
-            // Update the last modified date in the database
-            _entriesRepository.UpdateLastModified(request.Id);
+                // Update the last modified date in the database
+                _entriesRepository.UpdateLastModified(request.Id);
 
-            return Json(new ApiResponse { success = true });
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
+
 
         #endregion
     }

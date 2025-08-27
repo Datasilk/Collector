@@ -463,7 +463,12 @@ export default function JournalLayout({ children }) {
                                                             </button>
                                                         </span>}
                                                         url={`/journal/${journal.id}`}
-                                                        onClick={() => saveSelectedJournal(journal.id)}
+                                                        onClick={() => {
+                                                            if(document.body.classList.contains('is-mobile')){
+                                                                document.querySelector('.sidebar').style.display = 'none';
+                                                            }
+                                                            saveSelectedJournal(journal.id);
+                                                        }}
                                                     />
                                                 ))
                                             )}

@@ -125,11 +125,7 @@
   width:100%;
 }
 
-.signup-container .go-back{
-  
-}
-
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .signup-container {
     padding: 1rem;
   }

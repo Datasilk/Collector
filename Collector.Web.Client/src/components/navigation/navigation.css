@@ -7,20 +7,33 @@
   -webkit-user-select: none; /* Safari */
   -ms-user-select: none; /* IE 10 and IE 11 */
   user-select: none; /* Standard syntax */
+  transition: all 0.3s ease;
 }
 
 .nav-left, .nav-right {
   display: flex;
   gap: 2rem;
   align-items: center;
+  transition: all 0.3s ease;
 }
 .nav-left{
   padding:0 0 0 3em;
   height:2.8em;
+  transition: all 0.3s ease;
 }
 .nav-right{
   padding:1em 3em 1em 0;
   position: relative;
+  transition: all 0.3s ease;
+}
+
+/* Scrolled state */
+body.scrolled .nav-container .nav-left {
+  padding: 0 0 0 2em;
+  height: 2em;
+}
+body.scrolled .nav-container .nav-right {
+  padding: 0.5em 2em 0.5em 0;
 }
 
 .nav-link {
@@ -28,8 +41,13 @@
   text-decoration: none;
   font-weight: 500;
   padding: 0.5rem;
-  transition: color 0.2s ease;
+  transition: all 0.3s ease;
   border-bottom:3px solid transparent;
+}
+
+body.scrolled .nav-container .nav-link {
+  padding: 0.3rem;
+  font-size: 0.9em;
 }
 
 .nav-link:hover {
@@ -45,6 +63,11 @@
   font-size:1em;
   cursor:default;
   position:relative;
+  transition: all 0.3s ease;
+}
+
+body.scrolled .nav-container .nav-left .logo {
+  font-size: 0.85em;
 }
 
 /* Sidebar Account Icon Styles */
@@ -59,11 +82,23 @@
   border: 4px solid #e0e0e0;
   margin: 0 auto;
   box-sizing: border-box;
-  transition: border 0.2s;
+  transition: all 0.3s ease;
+}
+
+body.scrolled .nav-container .account-icon {
+  width: 38px;
+  height: 38px;
+  border-width: 3px;
 }
 .account-icon .material-icons, .account-icon svg {
   font-size: 2rem;
   color: #757575;
+  transition: all 0.3s ease;
+}
+
+body.scrolled .nav-container .account-icon .material-icons,
+body.scrolled .nav-container .account-icon svg {
+  font-size: 1.6rem;
 }
 .account-icon:hover {
   border-color: #bdbdbd;
