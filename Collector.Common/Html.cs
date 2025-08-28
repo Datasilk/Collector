@@ -9,7 +9,7 @@ using Collector.Common.Models.Articles;
 using Collector.Common.Models.DOM;
 using Collector.Common.Extensions.Strings;
 
-namespace Saber.Vendors.Collector
+namespace Collector.Common
 {
     public static class Html
     {

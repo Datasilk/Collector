@@ -61,6 +61,12 @@ export default function AdminLayout({ children }) {
                 <main className="admin has-sidebar">
                     <div className='sidebar'>
                         <ul>
+                            <MenuItem label="Domains" path="domains" url="/admin/domains" icon="domain"></MenuItem>
+                            <MenuItem label="Downloads" path="downloads" url="/admin/downloads" icon="download"></MenuItem>
+                            <MenuItem label="Articles" path="articles" url="/admin/articles" icon="article"></MenuItem>
+                            <MenuItem label="Subjects" path="subjects" url="/admin/subjects" icon="graph_2"></MenuItem>
+                            <MenuItem label="Blacklists" path="blacklists" url="/admin/blacklists" icon="block"></MenuItem>
+                            <MenuItem label="Whitelists" path="whitelists" url="/admin/whitelists" icon="beenhere"></MenuItem>
                             <MenuItem label="Users" path="users" url="/admin/users" icon="group"></MenuItem>
                             <MenuItem label="Logout" path="logout" url="/login" onClick={handleLogOut} icon="logout"></MenuItem>
                         </ul>

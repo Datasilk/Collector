@@ -1,8 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Collector.API.Models;
-using Collector.Data.Entities;
 using Collector.Data.Interfaces;
+using Collector.Common.Extensions.Strings;
+using Collector.Common;
 
 namespace Collector.API.Controllers
 {
@@ -11,10 +12,12 @@ namespace Collector.API.Controllers
     public class DomainsController : ApiController
     {
         private readonly IDomainsRepository _domainsRepository;
+        private readonly IArticlesRepository _articlesRepository;
 
-        public DomainsController(IDomainsRepository domainsRepository)
+        public DomainsController(IDomainsRepository domainsRepository, IArticlesRepository articlesRepository)
         {
             _domainsRepository = domainsRepository;
+            _articlesRepository = articlesRepository;
         }
 
         #region Domain Management
@@ -376,24 +379,6 @@ namespace Collector.API.Controllers
             }
         }
 
-        [HttpGet("delete-articles/{id}")]
-        public IActionResult DeleteAllArticles(int id)
-        {
-            try
-            {
-                var domain = _domainsRepository.GetById(id);
-                if (domain == null)
-                    return Json(new ApiResponse { success = false, message = "Domain not found" });
-
-                _domainsRepository.DeleteAllArticles(id);
-                return Json(new ApiResponse { success = true });
-            }
-            catch (Exception ex)
-            {
-                return Json(new ApiResponse { success = false, message = ex.Message });
-            }
-        }
-
         #endregion
 
         #region Analyzer Rules
@@ -571,9 +556,14 @@ namespace Collector.API.Controllers
             try
             {
                 var domain = _domainsRepository.GetById(domainId);
-                if (domain == null)
-                    return Json(new ApiResponse { success = false, message = "Domain not found" });
+                if (domain == null) return Json(new ApiResponse { success = false, message = "Domain not found" });
 
+                var clean = _domainsRepository.GetDownloadsToClean(domainId);
+                foreach (var article in clean.articles)
+                {
+                    var domainName = article.url.GetDomainName();
+                    Files.DeleteFile(domainName.Substring(0, 2) + "\\" + domain + "\\" + article.articleId + ".html");
+                }
                 _domainsRepository.CleanDownloads(domainId);
                 return Json(new ApiResponse { success = true });
             }
@@ -584,6 +574,53 @@ namespace Collector.API.Controllers
         }
 
         #endregion
+
+        [HttpGet("delete-all-articles/{domainId}")]
+        public IActionResult DeleteAllArticles(int domainId)
+        {
+            try
+            {
+                var domain = _domainsRepository.GetById(domainId);
+                if (domain == null) return Json(new ApiResponse { success = false, message = "Domain not found" });
+
+                if (!string.IsNullOrEmpty(domain.domain))
+                {
+                    // Get all articles for this domain from the articles repository
+                    // Using null for subjectId array to get all subjects
+                    var articles = _articlesRepository.GetList(
+                        subjectId: null,
+                        domainId: domainId,
+                        isActive: Data.Enums.ArticleIsActive.Both,  // Get both active and inactive articles
+                        isDeleted: false,               // Don't include already deleted articles
+                        length: 10000                   // Get a large number to ensure we get all articles
+                    );
+                    
+                    // Delete each article file
+                    foreach (var article in articles)
+                    {
+                        try
+                        {
+                            var domainName = article.url.GetDomainName();
+                            Files.DeleteFile(domainName.Substring(0, 2) + "\\" + domain.domain + "\\" + article.articleId + ".html");
+                        }
+                        catch (Exception ex)
+                        {
+                            // Log error but continue with database deletion
+                            Console.WriteLine($"Error deleting article file: {ex.Message}");
+                        }
+                    }
+                }
+                
+                // Delete all articles from database
+                _domainsRepository.DeleteAllArticles(domainId);
+                
+                return Json(new ApiResponse { success = true, message = "All articles deleted successfully" });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
 
         #region Collections
 

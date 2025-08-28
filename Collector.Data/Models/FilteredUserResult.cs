@@ -10,9 +10,6 @@ namespace Collector.Data.Models
         public DateTime? LastLogin { get; set; }
         public string RoleName { get; set; }
         public int RoleId { get; set; }
-        public string RadioStation { get; set; }
-        public string RadioStations { get; set; }
-        public string Owner { get; set; }
         public bool IsAdmin { get; set; }
     }
 }

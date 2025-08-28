@@ -33,6 +33,8 @@ Project("{54A90642-561A-4BB1-A94E-469ADEE60C69}") = "Collector.Web.Client", "Col
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Collector.Web.Server", "Collector.Web.Server\Collector.Web.Server.csproj", "{9EEF0FB5-B176-0B73-5DEE-7077583E2450}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Collector.CyberScout", "Collector.CyberScout\Collector.CyberScout.csproj", "{29CCD481-BFB2-4BCC-B6FA-D9E96BBC1928}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -87,6 +89,10 @@ Global
 		{9EEF0FB5-B176-0B73-5DEE-7077583E2450}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9EEF0FB5-B176-0B73-5DEE-7077583E2450}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9EEF0FB5-B176-0B73-5DEE-7077583E2450}.Release|Any CPU.Build.0 = Release|Any CPU
+		{29CCD481-BFB2-4BCC-B6FA-D9E96BBC1928}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{29CCD481-BFB2-4BCC-B6FA-D9E96BBC1928}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{29CCD481-BFB2-4BCC-B6FA-D9E96BBC1928}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{29CCD481-BFB2-4BCC-B6FA-D9E96BBC1928}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

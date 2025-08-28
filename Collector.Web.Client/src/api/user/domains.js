@@ -21,7 +21,7 @@ const Domains = (args) => Api({...args, useToken:true}).endpoints(({api}) => {
         findDescription: (id) => api.get(`${apiPath}/find-description/${id}`),
         getLinks: (id) => api.get(`${apiPath}/links/${id}`),
         deleteDomain: (id) => api.get(`${apiPath}/delete/${id}`),
-        deleteAllArticles: (id) => api.get(`${apiPath}/delete-articles/${id}`),
+        deleteAllArticles: (id) => api.get(`${apiPath}/delete-all-articles/${id}`),
         
         // Analyzer Rules
         getAnalyzerRules: (domainId) => api.get(`${apiPath}/analyzer-rules/${domainId}`),

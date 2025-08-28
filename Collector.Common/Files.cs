@@ -53,45 +53,13 @@ namespace Collector.Common
         }
         
         /// <summary>
-        /// Gets the content of a file from the application content directory asynchronously
+        /// Asynchronously gets the content of a file from the application content directory
         /// </summary>
         /// <param name="relativePath">Relative path to the file within the Content directory</param>
         /// <returns>The file content as a string</returns>
         public static async Task<string> GetFileAsync(string relativePath)
         {
-            try
-            {
-                // Get the application base path
-                var basePath = AppDomain.CurrentDomain.BaseDirectory;
-                
-                // Combine with Content directory and the relative path
-                var fullPath = Path.Combine(basePath, "Content", relativePath);
-                
-                // Ensure the path is valid and within the Content directory
-                var contentDirPath = Path.Combine(basePath, "Content");
-                var normalizedFullPath = Path.GetFullPath(fullPath);
-                var normalizedContentPath = Path.GetFullPath(contentDirPath);
-                
-                if (!normalizedFullPath.StartsWith(normalizedContentPath, StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new UnauthorizedAccessException("Access to the path is denied. Path must be within the Content directory.");
-                }
-                
-                // Check if file exists
-                if (!File.Exists(fullPath))
-                {
-                    return null;
-                }
-                
-                // Read and return the file content asynchronously
-                return await File.ReadAllTextAsync(fullPath);
-            }
-            catch (Exception ex)
-            {
-                // Log the exception if needed
-                Console.WriteLine($"Error reading file: {ex.Message}");
-                return null;
-            }
+            return await Task.Run(() => GetFile(relativePath));
         }
     
         /// <summary>
@@ -140,12 +108,23 @@ namespace Collector.Common
         }
         
         /// <summary>
-        /// Saves content to a file in the application content directory asynchronously
+        /// Asynchronously saves content to a file in the application content directory
         /// </summary>
         /// <param name="relativePath">Relative path to the file within the Content directory</param>
         /// <param name="content">The content to save to the file</param>
         /// <returns>True if the file was saved successfully, false otherwise</returns>
         public static async Task<bool> SaveFileAsync(string relativePath, string content)
+        {
+            return await Task.Run(() => SaveFile(relativePath, content));
+        }
+
+        
+        /// <summary>
+        /// Deletes a file from the application content directory
+        /// </summary>
+        /// <param name="relativePath">Relative path to the file within the Content directory</param>
+        /// <returns>True if the file was deleted successfully, false otherwise</returns>
+        public static bool DeleteFile(string relativePath)
         {
             try
             {
@@ -165,23 +144,32 @@ namespace Collector.Common
                     throw new UnauthorizedAccessException("Access to the path is denied. Path must be within the Content directory.");
                 }
                 
-                // Create directory if it doesn't exist
-                var directory = Path.GetDirectoryName(fullPath);
-                if (!Directory.Exists(directory))
+                // Check if file exists
+                if (!File.Exists(fullPath))
                 {
-                    Directory.CreateDirectory(directory);
+                    return false;
                 }
                 
-                // Write the content to the file asynchronously
-                await File.WriteAllTextAsync(fullPath, content);
+                // Delete the file
+                File.Delete(fullPath);
                 return true;
             }
             catch (Exception ex)
             {
                 // Log the exception if needed
-                Console.WriteLine($"Error saving file: {ex.Message}");
+                Console.WriteLine($"Error deleting file: {ex.Message}");
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Asynchronously deletes a file from the application content directory
+        /// </summary>
+        /// <param name="relativePath">Relative path to the file within the Content directory</param>
+        /// <returns>True if the file was deleted successfully, false otherwise</returns>
+        public static async Task<bool> DeleteFileAsync(string relativePath)
+        {
+            return await Task.Run(() => DeleteFile(relativePath));
         }
     }
 }

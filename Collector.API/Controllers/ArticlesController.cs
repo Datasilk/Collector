@@ -138,7 +138,7 @@ namespace Collector.API.Controllers
 
             try
             {
-                var article = new Article
+                var article = new Data.Entities.Article
                 {
                     feedId = model.FeedId,
                     subjects = model.Subjects,

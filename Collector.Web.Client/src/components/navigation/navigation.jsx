@@ -61,15 +61,19 @@ const Navigation = () => {
         </>
           :
           <>
-            {(user.isAdmin) && <Link to="/admin" className={'nav-link' + (section == 'admin' ? ' selected' : '')}>Administration</Link>}
+            {(user.isAdmin) && <>
+              <Link to="/admin" className={'nav-link' + (section == 'admin' ? ' selected' : '')}>Administration</Link>
+            </>}
             <Link to="/journal" className={'nav-link' + (section == 'journal' ? ' selected' : '')}>Journal</Link>
             <Link to="/account" title="My Account" className={'account-icon' + (section == 'account' ? ' selected' : '')} onClick={handleUserMenuClick}>
               <Icon name="person" />
             </Link>
             <ul className="user-menu-popup" style={{ display: showUserMenu ? 'block' : 'none' }}>
-              {(user.isAdmin) && <li className="user-menu-item">
-                <Link to="/admin"><Icon name="admin_panel_settings" /> Administration</Link>
-              </li>}
+              {(user.isAdmin) && <>
+                <li className="user-menu-item">
+                  <Link to="/admin"><Icon name="admin_panel_settings" /> Administration</Link>
+                </li>
+              </>}
               <li className="user-menu-item">
                 <Link to="/account"><Icon name="person" /> My Account</Link>
               </li>

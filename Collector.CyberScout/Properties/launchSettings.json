@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Collector.CyberScout": {
+      "commandName": "Project"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
+    }
+  }
+}

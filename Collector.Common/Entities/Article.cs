@@ -1,4 +1,4 @@
-﻿namespace Collector.Data.Entities
+namespace Collector.Data.Entities
 {
     public class Article
     {
