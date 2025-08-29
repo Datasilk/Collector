@@ -51,16 +51,16 @@ namespace Collector.CyberScout
             return domain.Contains(".") && !domain.Contains(" ");
         }
 
-        public static void ValidateURLs(string domain, List<DownloadRule> downloadRules, out List<string> urlsChecked)
+        public static void ValidateURLs(string domain, List<DownloadRule> downloadRules, Dictionary<string, List<KeyValuePair<string, string>>> cache, out List<string> urlsChecked)
         {
             urlsChecked = new List<string>();
 
-            if (!App.UrlCache.ContainsKey(domain) || App.UrlCache[domain] == null)
+            if (!cache.ContainsKey(domain) || cache[domain] == null)
             {
                 return;
             }
 
-            foreach (var urlPair in App.UrlCache[domain])
+            foreach (var urlPair in cache[domain])
             {
                 string url = urlPair.Key + urlPair.Value;
                 bool shouldAdd = true;

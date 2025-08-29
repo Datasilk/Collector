@@ -79,7 +79,7 @@ namespace Collector.CyberScout
                     var response = client.DownloadString(feed.url);
                     var content = Syndication.Read(response);
                     var links = content.items.Select(a => a.link);
-                    App.UrlCache.Clear();
+                    var urls = new Dictionary<string, List<KeyValuePair<string, string>>>();
 
                     // Separate links by domain
                     foreach (var url in links)
@@ -90,24 +90,24 @@ namespace Collector.CyberScout
                         if (!App.ValidateURL(uri) || !App.ValidateDomain(uri.GetDomainName())) continue;
 
                         var domain = uri.GetDomainName();
-                        if (!App.UrlCache.ContainsKey(domain))
+                        if (!urls.ContainsKey(domain))
                         {
-                            App.UrlCache.Add(domain, new List<KeyValuePair<string, string>>());
+                            urls.Add(domain, new List<KeyValuePair<string, string>>());
                         }
 
                         var querystring = url.CleanUrl(onlyKeepQueries: new string[] { "id=", "item" }).Replace(uri, "");
-                        App.UrlCache[domain].Add(new KeyValuePair<string, string>(uri, querystring));
+                        urls[domain].Add(new KeyValuePair<string, string>(uri, querystring));
                     }
 
                     // Process URLs for each domain
                     int totalAdded = 0;
-                    foreach (var domain in App.UrlCache.Keys)
+                    foreach (var domain in urls.Keys)
                     {
                         if (App.BlacklistsRepository.CheckDomain(domain)) continue;
 
                         var domainInfo = App.DomainsRepository.GetInfo(domain);
                         var downloadRules = App.DomainsRepository.GetDownloadRules(domainInfo.domainId);
-                        App.ValidateURLs(domain, downloadRules, out var urlsChecked);
+                        App.ValidateURLs(domain, downloadRules, urls, out var urlsChecked);
 
                         if (urlsChecked.Count > 0)
                         {
@@ -169,7 +169,7 @@ namespace Collector.CyberScout
                     .Where(a => a.tagName == "a" && a.attribute.ContainsKey("href"))
                     .Select(a => a.attribute["href"]);
 
-                App.UrlCache.Clear();
+                var urls = new Dictionary<string, List<KeyValuePair<string, string>>>();
 
                 // Process links
                 foreach (var url in links)
@@ -180,18 +180,18 @@ namespace Collector.CyberScout
                     if (!App.ValidateURL(uri) || !App.ValidateDomain(uri.GetDomainName())) continue;
 
                     var domain = uri.GetDomainName();
-                    if (!App.UrlCache.ContainsKey(domain))
+                    if (!urls.ContainsKey(domain))
                     {
-                        App.UrlCache.Add(domain, new List<KeyValuePair<string, string>>());
+                        urls.Add(domain, new List<KeyValuePair<string, string>>());
                     }
 
                     var querystring = url.CleanUrl(onlyKeepQueries: new string[] { "id=", "item" }).Replace(uri, "");
-                    App.UrlCache[domain].Add(new KeyValuePair<string, string>(uri, querystring));
+                    urls[domain].Add(new KeyValuePair<string, string>(uri, querystring));
                 }
 
                 // Process URLs for each domain
                 int totalAdded = 0;
-                foreach (var domain in App.UrlCache.Keys)
+                foreach (var domain in urls.Keys)
                 {
                     //skip if domain is in blacklist
                     if (App.BlacklistsRepository.CheckDomain(domain)) continue;
@@ -200,7 +200,7 @@ namespace Collector.CyberScout
                     if (domainInfo != null)
                     {
                         var downloadRules = App.DomainsRepository.GetDownloadRules(domainInfo.domainId);
-                        App.ValidateURLs(domain, downloadRules, out var urlsChecked);
+                        App.ValidateURLs(domain, downloadRules, urls, out var urlsChecked);
 
                         if (urlsChecked.Count > 0)
                         {
@@ -213,7 +213,7 @@ namespace Collector.CyberScout
                         //domain doesn't exist in the database yet
                         App.Logger.LogInformation("Domain (" + domain + ") doesn't exist yet");
                         var domainId = App.DomainsRepository.Add(domain, "", feed.domainId);
-                        App.ValidateURLs(domain, null, out var urlsChecked);
+                        App.ValidateURLs(domain, null, urls, out var urlsChecked);
                         if (urlsChecked.Count > 0)
                         {
                             int added = App.DownloadsRepository.AddQueueItems(urlsChecked.ToArray(), domain, feed.domainId, feed.feedId);

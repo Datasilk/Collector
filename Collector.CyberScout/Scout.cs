@@ -276,9 +276,9 @@ namespace Collector.CyberScout
                     }
 
                     // Save article HTML content to disk using Files utility
-                    var domain = Web.GetDomainName(queue.url);
+                    var domain = queue.url.GetDomainName();
                     var firstTwoLetters = domain.Length >= 2 ? domain.Substring(0, 2) : domain;
-                    var relpath = $"Content/Articles/{firstTwoLetters}/{domain}/{articleInfo.articleId}.html";
+                    var relpath = $"articles/{firstTwoLetters}/{domain}/{articleInfo.articleId}.html";
                     Files.SaveFile(relpath, result);
                 }
                 //get URLs from all anchor links on page //////////////////////////////////
@@ -305,22 +305,25 @@ namespace Collector.CyberScout
 
                 foreach (var link in links)
                 {
-                    var url = link.attribute.ContainsKey("href") ? link.attribute["href"] : "";
-                    if (IsCanceledByUser()) { return; }
-
-                    //validate link url
-                    if (string.IsNullOrEmpty(url)) { continue; }
-                    var uri = Web.CleanUrl(url, false);
-                    if (!App.ValidateURL(uri)) { continue; }
-                    if (!Domains.ValidateURL(uri)) { continue; }
-                    var domain = uri.GetDomainName();
-
-                    if (!urls.ContainsKey(domain))
+                    try
                     {
-                        urls.Add(domain, new List<KeyValuePair<string, string>>());
+                        var url = link.attribute.ContainsKey("href") ? link.attribute["href"] : "";
+                        if (IsCanceledByUser()) { return; }
+
+                        //validate link url
+                        if (string.IsNullOrEmpty(url)) { continue; }
+                        string uri = Web.CleanUrl(url, false);
+                        if (!App.ValidateURL(uri)) { continue; }
+                        if (!Domains.ValidateURL(uri)) { continue; }
+                        var domain = uri.GetDomainName();
+                        if (!urls.ContainsKey(domain))
+                        {
+                            urls.Add(domain, new List<KeyValuePair<string, string>>());
+                        }
+                        var querystring = Web.CleanUrl(url, onlyKeepQueries: new string[] { "id=", "item" }).Replace(uri, "");
+                        urls[domain].Add(new KeyValuePair<string, string>(uri, querystring));
                     }
-                    var querystring = Web.CleanUrl(url, onlyKeepQueries: new string[] { "id=", "item" }).Replace(uri, "");
-                    urls[domain].Add(new KeyValuePair<string, string>(uri, querystring));
+                    catch (Exception ex) { }
                 }
 
                 //get all download rules for all domains found on the page
@@ -344,7 +347,7 @@ namespace Collector.CyberScout
                         if (urls[domain] == null || urls[domain].Count == 0) { continue; }
 
                         //filter URLs that pass the download rules
-                        App.ValidateURLs(domain, downloadRules.Where(b => b.domain == domain).ToList(), out var urlsChecked);
+                        App.ValidateURLs(domain, downloadRules.Where(b => b.domain == domain).ToList(), urls, out var urlsChecked);
 
                         //add filtered URLs to download queue
                         if (urlsChecked != null && urlsChecked.Count > 0)
@@ -389,6 +392,7 @@ namespace Collector.CyberScout
             {
                 App.Logger.LogError(ex, "Error processing article download for {Url}", queue.url);
                 App.Logger.LogError("Error: {Message}", ex.Message);
+                App.Logger.LogError("Stack: {Stack}", ex.StackTrace);
             }
         }
 
