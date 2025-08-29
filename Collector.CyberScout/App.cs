@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using Collector.Common;
 using Collector.Common.Extensions.Strings;
+using Collector.Common.Enums;
 using Collector.Data.Entities;
 using Collector.Data.Interfaces;
 using Collector.Data.Enums;
@@ -64,13 +65,16 @@ namespace Collector.CyberScout
                 string url = urlPair.Key + urlPair.Value;
                 bool shouldAdd = true;
 
-                // Check against download rules
-                foreach (var rule in downloadRules)
+                if(downloadRules != null)
                 {
-                    if (!rule.rule && CheckDownloadRule(rule.url, rule.title, rule.summary, url, "", ""))
+                    // Check against download rules
+                    foreach (var rule in downloadRules)
                     {
-                        shouldAdd = false;
-                        break;
+                        if (!rule.rule && CheckDownloadRule(rule.url, rule.title, rule.summary, url, "", ""))
+                        {
+                            shouldAdd = false;
+                            break;
+                        }
                     }
                 }
 

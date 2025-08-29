@@ -3,6 +3,7 @@
 	[qid] BIGINT NOT NULL,
     [feedId] INT NULL, 
     [domainId] INT NULL, 
+    [type] TINYINT NULL, 
     [status] INT NOT NULL DEFAULT 0, 
     [tries] INT NOT NULL DEFAULT 0, 
 	[url] NVARCHAR(255) NOT NULL,

@@ -146,6 +146,23 @@ namespace Collector.API.Controllers
         }
 
         /// <summary>
+        /// Update the type of a queue item
+        /// </summary>
+        [HttpPut("update-type")]
+        public IActionResult UpdateQueueType([FromBody] UpdateQueueTypeModel model)
+        {
+            try
+            {
+                _downloadsRepository.UpdateQueueType(model.QueueId, model.Type);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// Delete a queue item
         /// </summary>
         [HttpDelete("{queueId}")]

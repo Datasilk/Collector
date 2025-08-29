@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -148,6 +148,24 @@ namespace Collector.Common.Extensions.Strings
             if (str.Length > max)
             {
                 return str.Substring(0, max) + trail;
+            }
+            return str;
+        }
+
+        public static string Fill(this string str, int length, char fillChar = ' ')
+        {
+            if (str.Length < length)
+            {
+                return str.PadRight(length, fillChar);
+            }
+            return str;
+        }
+
+        public static string FillLeft(this string str, int length, char fillChar = ' ')
+        {
+            if (str.Length < length)
+            {
+                return str.PadLeft(length, fillChar);
             }
             return str;
         }

@@ -10,6 +10,7 @@ namespace Collector.Common
     /// </summary>
     public static class Files
     {
+        public static string ContentPath {get;set; } = "";
         /// <summary>
         /// Gets the content of a file from the application content directory
         /// </summary>
@@ -19,16 +20,13 @@ namespace Collector.Common
         {
             try
             {
-                // Get the application base path
-                var basePath = AppDomain.CurrentDomain.BaseDirectory;
-                
                 // Combine with Content directory and the relative path
-                var fullPath = Path.Combine(basePath, "Content", relativePath);
+                if(string.IsNullOrEmpty(ContentPath)) ContentPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content");
+                var fullPath = Path.Combine(ContentPath, relativePath);
                 
                 // Ensure the path is valid and within the Content directory
-                var contentDirPath = Path.Combine(basePath, "Content");
                 var normalizedFullPath = Path.GetFullPath(fullPath);
-                var normalizedContentPath = Path.GetFullPath(contentDirPath);
+                var normalizedContentPath = Path.GetFullPath(ContentPath);
                 
                 if (!normalizedFullPath.StartsWith(normalizedContentPath, StringComparison.OrdinalIgnoreCase))
                 {

@@ -25,6 +25,11 @@ namespace Collector.Data.Repositories
             _dbConnection.Execute("EXEC Download_UpdateUrl @qId=@qId, @url=@url, @domain=@domain", new { qId, url, domain });
         }
 
+        public void UpdateQueueType(long qId, Collector.Common.Enums.QueueFileType type)
+        {
+            _dbConnection.Execute("EXEC Download_UpdateType @qId=@qId, @type=@type", new { qId, type = (int)type });
+        }
+
         public int AddQueueItems(string[] urls, string domain, int parentId = 0, int feedId = 0)
         {
             var count = _dbConnection.ExecuteScalar<int>("EXEC DownloadQueue_BulkAdd @urls=@urls, @domain=@domain, @parentId=@parentId, @feedId=@feedId", 

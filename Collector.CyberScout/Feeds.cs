@@ -3,9 +3,9 @@ using System.Data;
 using Microsoft.Extensions.Logging;
 using Collector.Common;
 using Collector.Common.Extensions.Strings;
+using Collector.Common.Models.Articles;
 using Collector.Data.Entities;
 using Collector.Data.Enums;
-using Collector.Common.Models.Articles;
 
 namespace Collector.CyberScout
 {
@@ -116,7 +116,7 @@ namespace Collector.CyberScout
                         }
                     }
 
-                    App.Logger.LogInformation("({Index} of {Total}) Found {Added} new link{Plural} from {Title}: {Url}", 
+                    App.Logger.LogInformation("({Index} of {Total}) Found {Added} new link{Plural} from {Title}: {Url}",
                         index, totalFeeds, totalAdded, totalAdded != 1 ? "s" : "", feed.title, feed.url);
                 }
             }
@@ -135,6 +135,7 @@ namespace Collector.CyberScout
 
                 try
                 {
+                    //TODO: make Charlotte download the feed url instead
                     result = Common.Article.Download(feed.url, out newurl);
                     if (!string.IsNullOrEmpty(newurl))
                     {
@@ -148,6 +149,11 @@ namespace Collector.CyberScout
                 }
 
                 AnalyzedArticle article;
+                if (result.StartsWith("Error calling Charlotte Web Router") || result.StartsWith("log: "))
+                {
+                    App.Logger.LogError(result);
+                    return;
+                }
                 try
                 {
                     article = Html.DeserializeArticle(result);
@@ -187,21 +193,40 @@ namespace Collector.CyberScout
                 int totalAdded = 0;
                 foreach (var domain in App.UrlCache.Keys)
                 {
+                    //skip if domain is in blacklist
                     if (App.BlacklistsRepository.CheckDomain(domain)) continue;
 
                     var domainInfo = App.DomainsRepository.GetInfo(domain);
-                    var downloadRules = App.DomainsRepository.GetDownloadRules(domainInfo.domainId);
-                    App.ValidateURLs(domain, downloadRules, out var urlsChecked);
-
-                    if (urlsChecked.Count > 0)
+                    if (domainInfo != null)
                     {
-                        int added = App.DownloadsRepository.AddQueueItems(urlsChecked.ToArray(), domain, feed.domainId, feed.feedId);
-                        totalAdded += added;
+                        var downloadRules = App.DomainsRepository.GetDownloadRules(domainInfo.domainId);
+                        App.ValidateURLs(domain, downloadRules, out var urlsChecked);
+
+                        if (urlsChecked.Count > 0)
+                        {
+                            int added = App.DownloadsRepository.AddQueueItems(urlsChecked.ToArray(), domain, feed.domainId, feed.feedId);
+                            totalAdded += added;
+                        }
+                    }
+                    else
+                    {
+                        //domain doesn't exist in the database yet
+                        App.Logger.LogInformation("Domain (" + domain + ") doesn't exist yet");
+                        var domainId = App.DomainsRepository.Add(domain, "", feed.domainId);
+                        App.ValidateURLs(domain, null, out var urlsChecked);
+                        if (urlsChecked.Count > 0)
+                        {
+                            int added = App.DownloadsRepository.AddQueueItems(urlsChecked.ToArray(), domain, feed.domainId, feed.feedId);
+                            totalAdded += added;
+                        }
                     }
                 }
 
-                App.Logger.LogInformation("({Index} of {Total}) Found {Added} new link{Plural} from {Title}: {Url}", 
-                    index, totalFeeds, totalAdded, totalAdded != 1 ? "s" : "", feed.title, feed.url);
+                App.Logger.LogInformation("({Index} of {Total}) {Added} {Url}",
+                    index.ToString().Fill(totalFeeds.ToString().Length, ' '), 
+                    totalFeeds,
+                    ("Found " + totalAdded.ToString().FillLeft(4, ' ') + " new link" + (totalAdded != 1 ? "s" : " ") + " from " + (feed.title + " : ").Fill(28, ' ')).Fill(20 + 28, ' '),
+                    feed.url);
             }
             catch (Exception ex)
             {
