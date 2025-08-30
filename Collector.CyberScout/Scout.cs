@@ -208,12 +208,6 @@ namespace Collector.CyberScout
                 //process article /////////////////////////////////////////////////////
                 if (IsCanceledByUser()) { return; }
 
-                if (isHomePage)
-                {
-                    //found home page, ask AI to analyze home page content to generate metadata about the website
-
-                }
-
                 //check all download rules against article info
                 if (downloadOnly == false)
                 {
@@ -251,14 +245,12 @@ namespace Collector.CyberScout
                 {
                     // Calculate page score based on content quality
                     var pageScore = 0;
-                    if (article != null)
-                    {
-                        pageScore += !string.IsNullOrEmpty(article.title) ? 20 : 0;
-                        pageScore += !string.IsNullOrEmpty(article.summary) ? 20 : 0;
-                        pageScore += article.elements != null && article.elements.Count > 20 ? 20 : 0;
-                        pageScore += article.totalWords > 200 ? 20 : 0;
-                        pageScore += article.totalSentences > 10 ? 20 : 0;
-                    }
+                    pageScore += !string.IsNullOrEmpty(article.title) ? 20 : 0;
+                    pageScore += !string.IsNullOrEmpty(article.summary) ? 20 : 0;
+                    pageScore += article.elements != null && article.elements.Count > 20 ? 20 : 0;
+                    pageScore += article.totalWords > 200 ? 20 : 0;
+                    pageScore += article.totalSentences > 10 ? 20 : 0;
+
                     if (pageScore <= 40)
                     {
                         //do not save such a low-scoring download as an article
@@ -281,12 +273,11 @@ namespace Collector.CyberScout
                     var relpath = $"articles/{firstTwoLetters}/{domain}/{articleInfo.articleId}.html";
                     Files.SaveFile(relpath, result);
                 }
-                //get URLs from all anchor links on page //////////////////////////////////
+
+                //get URLs from all anchor links on page
                 App.Logger.LogInformation("Collecting links from article...");
-                var urls = new Dictionary<string, List<KeyValuePair<string, string>>>();
-                // Extract links from article
-                var links = new List<dynamic>();
-                if (article != null && article.elements != null)
+                var links = new List<string>();
+                if (article.elements != null)
                 {
                     foreach (var element in article.elements.Where(e => e.tagName.ToLower() == "a"))
                     {
@@ -295,19 +286,19 @@ namespace Collector.CyberScout
                             var href = element.attribute["href"];
                             if (!string.IsNullOrEmpty(href) && href.StartsWith("http"))
                             {
-                                links.Add(new { attribute = new Dictionary<string, string> { { "href", href } } });
+                                links.Add(href);
                             }
                         }
                     }
                 }
                 var addedLinks = 0;
                 var addedDomains = 0;
+                var urls = new Dictionary<string, List<KeyValuePair<string, string>>>();
 
-                foreach (var link in links)
+                foreach (var url in links)
                 {
                     try
                     {
-                        var url = link.attribute.ContainsKey("href") ? link.attribute["href"] : "";
                         if (IsCanceledByUser()) { return; }
 
                         //validate link url
@@ -320,14 +311,15 @@ namespace Collector.CyberScout
                         {
                             urls.Add(domain, new List<KeyValuePair<string, string>>());
                         }
-                        var querystring = Web.CleanUrl(url, onlyKeepQueries: new string[] { "id=", "item" }).Replace(uri, "");
+                        var querystring = Web.CleanUrl(url, onlyKeepQueries: ["id=", "item"]).Replace(uri, "");
                         urls[domain].Add(new KeyValuePair<string, string>(uri, querystring));
                     }
                     catch (Exception ex) { }
                 }
+                article.urls = urls;
 
                 //get all download rules for all domains found on the page
-                var downloadRules = new List<Data.Entities.DownloadRule>();
+                var downloadRules = new List<DownloadRule>();
                 if (urls.Keys.Count > 0)
                 {
                     downloadRules = App.DomainsRepository.GetDownloadRulesForDomains(urls.Keys.ToArray());
@@ -353,6 +345,7 @@ namespace Collector.CyberScout
                         if (urlsChecked != null && urlsChecked.Count > 0)
                         {
                             var count = App.DownloadsRepository.AddQueueItems(urlsChecked.ToArray(), domain, queue.domainId, queue.feedId);
+                            article.urlLinks = urlsChecked;
                             if (count > 0)
                             {
                                 addedLinks += count;
@@ -368,6 +361,13 @@ namespace Collector.CyberScout
                             App.DownloadsRepository.UpdateQueueType(queue.qid, Common.Enums.QueueFileType.Timeout);
                         }
                     }
+                }
+
+                
+
+                if (isHomePage && article != null)
+                {
+                    Domain.Analyze(article, queue.domainId);
                 }
 
                 App.Logger.LogInformation("Found {0} link{1} on {2} domain{3}...",

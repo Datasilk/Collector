@@ -151,6 +151,19 @@ namespace Collector.Data.Repositories
             _dbConnection.Execute("EXEC Domain_UpdateInfo @domainId=@domainId, @title=@title, @description=@description, @lang=@lang", new { domainId, title, description, lang });
         }
 
+        public void UpdateCompany(int domainId, string company)
+        {
+            try
+            {
+                _dbConnection.Execute("UPDATE [dbo].[Domains] SET [company] = @company, [dateupdated] = GETUTCDATE() WHERE [domainId] = @domainId", 
+                    new { domainId, company });
+            }
+            catch (Exception ex)
+            {
+                // Log exception if needed
+            }
+        }
+
         public void UpdateDomainType(int domainId, DomainType type)
         {
             _dbConnection.Execute("EXEC Domain_UpdateType @domainId=@domainId, @type=@type", new { domainId, type = (int)type });
@@ -159,6 +172,19 @@ namespace Collector.Data.Repositories
         public void UpdateDomainType2(int domainId, DomainType type)
         {
             _dbConnection.Execute("EXEC Domain_UpdateType2 @domainId=@domainId, @type=@type", new { domainId, type = (int)type });
+        }
+
+        public void UpdateDomainTypes(int domainId, DomainType type, DomainType type2)
+        {
+            try
+            {
+                _dbConnection.Execute("UPDATE [dbo].[Domains] SET [type] = @type, [type2] = @type2, [dateupdated] = GETUTCDATE() WHERE [domainId] = @domainId", 
+                    new { domainId, type = (int)type, type2 = (int)type2 });
+            }
+            catch (Exception ex)
+            {
+                // Log exception if needed
+            }
         }
 
         public void UpdateLanguage(int domainId, string lang)
@@ -250,6 +276,43 @@ namespace Collector.Data.Repositories
                 elem.parts = JsonSerializer.Deserialize<List<DomainTypeMatchPart>>(elem.words);
             }
             return result;
+        }
+        #endregion
+
+        #region "Domain Services"
+        public Dictionary<string, int> GetServiceIdsByNames(string[] serviceNames)
+        {
+            try
+            {
+                var result = new Dictionary<string, int>();
+                var services = _dbConnection.Query<dynamic>("EXEC DomainServices_GetOrCreateByNames @serviceNames=@serviceNames", 
+                    new { serviceNames = string.Join(",", serviceNames) });
+                
+                foreach (var service in services)
+                {
+                    result.Add(service.Name, service.Id);
+                }
+                
+                return result;
+            }
+            catch (Exception ex)
+            {
+                // Log exception if needed
+                return new Dictionary<string, int>();
+            }
+        }
+
+        public void AddDomainServices(int domainId, int[] serviceIds)
+        {
+            try
+            {
+                _dbConnection.Execute("EXEC DomainServices_Add @domainId=@domainId, @serviceIds=@serviceIds", 
+                    new { domainId, serviceIds = string.Join(",", serviceIds) });
+            }
+            catch (Exception ex)
+            {
+                // Log exception if needed
+            }
         }
         #endregion
     }

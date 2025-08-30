@@ -42,8 +42,10 @@ namespace Collector.Data.Interfaces
         string FindDomainTitle(int domainId);
         string FindDescription(int domainId);
         void UpdateInfo(int domainId, string title, string description, string lang);
+        void UpdateCompany(int domainId, string company);
         void UpdateDomainType(int domainId, DomainType type);
         void UpdateDomainType2(int domainId, DomainType type);
+        void UpdateDomainTypes(int domainId, DomainType type, DomainType type2);
         void UpdateLanguage(int domainId, string lang);
         void UpdateHttpsWww(int domainId, bool https, bool www);
         void IsEmpty(int domainId, bool empty);
@@ -64,5 +66,9 @@ namespace Collector.Data.Interfaces
         int AddDomainTypeMatch(List<DomainTypeMatchPart> parts, int type, int type2, int threshold, int rank);
         int RemoveDomainTypeMatch(int matchId);
         List<DomainTypeMatch> GetDomainTypeMatchesList();
+
+        // Domain Services
+        Dictionary<string, int> GetServiceIdsByNames(string[] serviceNames);
+        void AddDomainServices(int domainId, int[] serviceIds);
     }
 }

@@ -1,0 +1,14 @@
+.admin-blacklists .filters {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.admin-blacklists .nameInput {
+    flex: 1;
+}
+
+.admin-blacklists .buttons {
+    display: flex;
+    gap: 5px;
+}

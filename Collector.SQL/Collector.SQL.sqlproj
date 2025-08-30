@@ -277,7 +277,6 @@
     <Build Include="dbo\Tables\Domains\DomainLinks.sql" />
     <Build Include="dbo\Tables\Domains\Domains.sql" />
     <Build Include="dbo\Tables\Domains\DomainTypeMatches.sql" />
-    <Build Include="dbo\Tables\Domains\DownloadRules.sql" />
     <Build Include="dbo\Tables\Downloads\DownloadQueue.sql" />
     <Build Include="dbo\Tables\Downloads\Downloads.sql" />
     <Build Include="dbo\Tables\Feeds\FeedCategories.sql" />
@@ -308,6 +307,10 @@
     <Build Include="dbo\Tables\Journal\Journals.sql" />
     <Build Include="dbo\Tables\Journal\JournalCategories.sql" />
     <Build Include="dbo\Stored Procedures\Downloads\Download_UpdateType.sql" />
+    <Build Include="dbo\Functions\SplitArray.sql" />
+    <Build Include="dbo\Tables\Domains\DownloadRules.sql" />
+    <Build Include="dbo\Tables\Domains\DomainServiceNames.sql" />
+    <Build Include="dbo\Tables\Domains\DomainServices.sql" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Collector.SQL.publish.xml" />

@@ -1,0 +1,44 @@
+.pagination {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 1.25em;
+    padding: 0.625em 0;
+    gap: 0.625em;
+}
+
+.pagination-info {
+    color: #666;
+    font-size: 0.9em;
+    text-align: center;
+    margin-top: 0.5em;
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3125em;
+    width: 100%;
+}
+
+.pagination-controls button {
+    min-width: 2em;
+    height: 2em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding:0.65em;
+}
+
+.pagination-controls button.active {
+    font-weight: bold;
+}
+
+.pagination-controls button.icon {
+    padding: 0;
+}
+
+.pagination .active{
+    border-color:#00aef9;
+}

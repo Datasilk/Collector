@@ -1,0 +1,14 @@
+.admin-articles .filters {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.admin-articles .titleInput {
+    flex: 1;
+}
+
+.admin-articles .buttons {
+    display: flex;
+    gap: 5px;
+}

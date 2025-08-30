@@ -52,7 +52,10 @@ const Domains = (args) => Api({...args, useToken:true}).endpoints(({api}) => {
         // Domain Type Matches
         getDomainTypeMatches: () => api.get(`${apiPath}/type-matches`),
         addDomainTypeMatch: (match) => api.post(`${apiPath}/type-matches/add`, match),
-        removeDomainTypeMatch: (matchId) => api.get(`${apiPath}/type-matches/remove/${matchId}`)
+        removeDomainTypeMatch: (matchId) => api.get(`${apiPath}/type-matches/remove/${matchId}`),
+        
+        // Domain Types
+        getDomainTypes: () => api.get(`${apiPath}/types`)
     };
 });
 

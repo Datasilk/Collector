@@ -45,13 +45,20 @@ namespace Collector.API.Controllers.Admin
             }
         }
 
-        [HttpGet("get-all-filtered")]
-        public async Task<IActionResult> GetAllFiltered(string fullName, int role, int? radioStationId, string sort)
+        [HttpPost("get-all-filtered")]
+        public async Task<IActionResult> GetAllFiltered([FromBody] UserFilterModel filter)
         {
             try
             {
-                var users = await _userRepo.GetAllFiltered(fullName, role, radioStationId ?? -1, sort);
-                return Json(new ApiResponse { success = true, data = users });
+                int page = filter.Start / filter.Length + 1;
+                var result = await _userRepo.GetAllFiltered(filter.FullName, filter.Role, filter.RadioStationId ?? -1, filter.Sort, page, filter.Length);
+                return Json(new ApiResponse { 
+                    success = true, 
+                    data = new {
+                        items = result.items,
+                        totalCount = result.totalCount
+                    }
+                });
             }
             catch (Exception ex)
             {

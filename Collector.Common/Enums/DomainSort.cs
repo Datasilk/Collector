@@ -7,6 +7,12 @@ namespace Collector.Data.Enums
         MostArticles = 2,
         Newest = 3,
         Oldest = 4,
-        LastUpdated = 5
+        LastUpdated = 5,
+        TitleAsc = 6,
+        TitleDesc = 7,
+        LeastArticles = 8,
+        FirstUpdated = 9,
+        StatusAsc = 10,
+        StatusDesc = 11
     }
 }

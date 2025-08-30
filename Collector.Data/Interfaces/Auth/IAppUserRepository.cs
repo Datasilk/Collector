@@ -7,7 +7,7 @@ namespace Collector.Data.Interfaces.Users
     {
         int GetTotalUsers();
         Task<IEnumerable<AppUser>> GetAll();
-        Task<IList<FilteredUserResult>> GetAllFiltered(string fullName, int role, int radioStationId, string sort);
+        Task<(IList<FilteredUserResult> items, int totalCount)> GetAllFiltered(string fullName, int role, int radioStationId, string sort, int page = 1, int pageSize = 10);
         Task<AppUser> FindByUserEmailAsync(string emailAddress, bool activeOnly = true);
 		Task<AppUser> FindByGuidAsync(Guid userId, bool activeOnly = false);
         Task<AppUser> GetRolesByUserEmailAsync(string emailAddress);

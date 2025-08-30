@@ -76,11 +76,34 @@ namespace Collector.Data.Repositories.Auth
             return "Email ASC"; // Default sort if invalid
         }
 
-        public async Task<IList<FilteredUserResult>> GetAllFiltered(string fullName, int role, int radioStationId, string sort)
+        public async Task<(IList<FilteredUserResult> items, int totalCount)> GetAllFiltered(string fullName, int role, int radioStationId, string sort, int page = 1, int pageSize = 10)
         {
             string sanitizedSort = GetSanitizedSortColumn(sort);
+            int offset = (page - 1) * pageSize;
 
-            // Main query: add 'owner' column as a placeholder (to be filled after 2nd query)
+            // Count query
+            string countQuery = @$"
+                SELECT COUNT(*)
+                FROM {_tableName} SU
+                LEFT JOIN (
+                    SELECT AppUserId, MIN(AppRoleId) AS RoleId
+                    FROM {_userRoleTableName}
+                    GROUP BY AppUserId
+                ) AUR_MIN ON AUR_MIN.AppUserId = SU.Id
+                LEFT JOIN {_roleTableName} AR ON AR.Id = AUR_MIN.RoleId
+                WHERE SU.[Status]=1";
+
+            if (!string.IsNullOrEmpty(fullName))
+            {
+                countQuery += " AND SU.FullName LIKE @FullName";
+            }
+
+            if (role > 0)
+            {
+                countQuery += " AND AR.Id = @Role";
+            }
+
+            // Main query with pagination
             string query = @$"
                 SELECT 
                 SU.Email, 
@@ -111,7 +134,7 @@ namespace Collector.Data.Repositories.Auth
                 query += " AND AR.Id = @Role";
             }
 
-            query += @"
+            query += @$"
                 GROUP BY 
                     SU.Email, 
                     SU.FullName, 
@@ -120,11 +143,20 @@ namespace Collector.Data.Repositories.Auth
                     SU.Created, 
                     AR.Name,
                     AR.Id
-                ORDER BY " + sanitizedSort;
+                ORDER BY {sanitizedSort}
+                OFFSET @Offset ROWS
+                FETCH NEXT @PageSize ROWS ONLY";
             try
             {
-                var users = (await _dbConnection.QueryAsync<FilteredUserResult>(query, new { FullName = $"%{fullName}%", Role = role })).ToList();
-                return users;
+                var parameters = new { FullName = $"%{fullName}%", Role = role, Offset = offset, PageSize = pageSize };
+                
+                // Execute count query
+                int totalCount = await _dbConnection.ExecuteScalarAsync<int>(countQuery, parameters);
+                
+                // Execute main query with pagination
+                var users = (await _dbConnection.QueryAsync<FilteredUserResult>(query, parameters)).ToList();
+                
+                return (users, totalCount);
             }
             catch (Exception ex)
             {

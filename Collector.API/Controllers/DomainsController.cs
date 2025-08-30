@@ -4,6 +4,8 @@ using Collector.API.Models;
 using Collector.Data.Interfaces;
 using Collector.Common.Extensions.Strings;
 using Collector.Common;
+using System.Linq;
+using Collector.Data.Enums;
 
 namespace Collector.API.Controllers
 {
@@ -782,6 +784,61 @@ namespace Collector.API.Controllers
             {
                 return Json(new ApiResponse { success = false, message = ex.Message });
             }
+        }
+
+        #endregion
+
+        #region Domain Types
+
+        [HttpGet("types")]
+        public IActionResult GetDomainTypes()
+        {
+            try
+            {
+                var domainTypes = Enum.GetValues(typeof(DomainType))
+                    .Cast<DomainType>()
+                    .Select(t => new { value = (int)t, label = FormatDomainTypeName(t.ToString()) })
+                    .ToList();
+
+                return Json(new ApiResponse { success = true, data = domainTypes });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+        
+        /// <summary>
+        /// Formats a domain type name from snake_case to Camel Case with spaces
+        /// </summary>
+        private string FormatDomainTypeName(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+                return name;
+                
+            // Special case for B2B
+            if (name == "B2B")
+                return "B2B";
+                
+            // Special case for 3d_animation
+            if (name == "_3d_animation")
+                return "3D Animation";
+                
+            // Special case for q_and_a
+            if (name == "q_and_a")
+                return "Q and A";
+                
+            // Replace underscores with spaces and capitalize each word
+            var words = name.Split('_');
+            for (int i = 0; i < words.Length; i++)
+            {
+                if (!string.IsNullOrEmpty(words[i]))
+                {
+                    words[i] = char.ToUpper(words[i][0]) + words[i].Substring(1);
+                }
+            }
+            
+            return string.Join(" ", words);
         }
 
         #endregion

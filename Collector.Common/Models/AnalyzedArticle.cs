@@ -41,6 +41,16 @@ namespace Collector.Common.Models.Articles
         public List<AnalyzedPerson> people { get; set; }
         public AnalyzedByLlm llm { get; set; }
 
+        /// <summary>
+        /// All urls grouped by domain
+        /// </summary>
+        public Dictionary<string, List<KeyValuePair<string, string>>> urls { get; set; }
+        
+        /// <summary>
+        /// safe URLs found on the web page
+        /// </summary>
+        public List<string> urlLinks { get; set; }
+
         public AnalyzedArticle(string url = "", string html = "")
         {
             author = new AnalyzedAuthor();

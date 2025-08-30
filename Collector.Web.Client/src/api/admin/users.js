@@ -4,8 +4,8 @@ const Users = (args) => Api({...args, useToken:true}).endpoints(({api}) => {
     const apiPath = '/api/admin/users';
     return {
 		getUsers: () => api.get(`${apiPath}/get-all`),
-        getUsersFiltered: ({ fullName, role, sort }) => {
-            return api.get(`${apiPath}/get-all-filtered?fullName=${fullName}&role=${role}&sort=${sort}`);
+        getUsersFiltered: (filter) => {
+            return api.post(`${apiPath}/get-all-filtered`, filter);
         },
 		getRoles: () => api.get(`${apiPath}/get-roles`),
 		getById: (userId) => api.get(`${apiPath}/get/${userId}`),

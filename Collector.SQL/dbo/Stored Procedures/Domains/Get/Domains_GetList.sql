@@ -1,11 +1,12 @@
-﻿CREATE PROCEDURE [dbo].[Domains_GetList]
+CREATE PROCEDURE [dbo].[Domains_GetList]
 	@subjectIds nvarchar(MAX) = '',
 	@lang varchar(6) = '',
 	@search nvarchar(MAX) = '',
 	@type int = 0, -- 0 = all, 1 = whitelisted, 2 = blacklisted, 3 = not-listed, 4 = paywall, 5 = free, 6 = unprocessed, 7 = empty
 	@domainType int = -1, 
 	@domainType2 int = -1, 
-	@sort int = 0, -- 0 = ASC, 1 = DESC, 2 = most articles, 3 = newest, 4 = oldest, 5 = last updated
+	@sort int = 0, -- 0 = Domain ASC, 1 = Domain DESC, 2 = Articles DESC, 3 = DateCreated DESC, 4 = DateCreated ASC, 5 = DateUpdated DESC
+	                -- 6 = Title ASC, 7 = Title DESC, 8 = Articles ASC, 9 = DateUpdated ASC, 10 = Status ASC, 11 = Status DESC
 	@start int = 1,
 	@length int = 50,
 	@parentId int = -1
@@ -28,8 +29,8 @@ AS
 		
 		SELECT * FROM (
 			SELECT ROW_NUMBER() OVER(ORDER BY 
-			CASE WHEN @sort = 0 THEN d.domain END,
-			CASE WHEN @sort = 1 THEN d.domain END DESC
+			CASE WHEN @sort = 0 OR @sort = 6 THEN d.domain END,
+			CASE WHEN @sort = 1 OR @sort = 7 THEN d.domain END DESC
 			) AS rownum, d.domain, -1 AS [type]
 			FROM [Blacklist_Domains] d
 			WHERE
@@ -48,8 +49,8 @@ AS
 		
 		SELECT * FROM (
 			SELECT ROW_NUMBER() OVER(ORDER BY 
-			CASE WHEN @sort = 0 THEN d.domain END,
-			CASE WHEN @sort = 1 THEN d.domain END DESC
+			CASE WHEN @sort = 0 OR @sort = 6 THEN d.domain END,
+			CASE WHEN @sort = 1 OR @sort = 7 THEN d.domain END DESC
 			) AS rownum, d.domain, -2 AS [type]
 			FROM [Blacklist_Wildcards] d
 			WHERE
@@ -67,15 +68,37 @@ AS
 		/* //////////////////////////////////////////////////////////////////////////////////////// */
 		SELECT * FROM (
 			SELECT ROW_NUMBER() OVER(ORDER BY 
-			CASE WHEN @sort = 0 OR @sort = 1 THEN d.hastitle END DESC, 
-			CASE WHEN @sort = 0 THEN d.title END,
-			CASE WHEN @sort = 1 THEN d.title END DESC,
+			-- Title sorting with hastitle priority
+			CASE WHEN @sort = 0 OR @sort = 1 OR @sort = 6 OR @sort = 7 THEN d.hastitle END DESC, 
+			CASE WHEN @sort = 6 THEN d.title END,
+			CASE WHEN @sort = 7 THEN d.title END DESC,
+			-- Domain sorting
 			CASE WHEN @sort = 0 THEN d.domain END,
 			CASE WHEN @sort = 1 THEN d.domain END DESC,
+			-- Articles sorting
 			CASE WHEN @sort = 2 THEN d.articles END DESC,
+			CASE WHEN @sort = 8 THEN d.articles END ASC,
+			-- Date created sorting
 			CASE WHEN @sort = 3 THEN d.datecreated END DESC,
 			CASE WHEN @sort = 4 THEN d.datecreated END ASC,
-			CASE WHEN @sort = 5 THEN d.dateupdated END DESC
+			-- Date updated sorting
+			CASE WHEN @sort = 5 THEN d.dateupdated END DESC,
+			CASE WHEN @sort = 9 THEN d.dateupdated END ASC,
+			-- Status sorting (whitelisted/blacklisted status)
+			CASE WHEN @sort = 10 THEN 
+				CASE 
+					WHEN wl.domain IS NOT NULL THEN 1
+					WHEN bl.domain IS NOT NULL THEN 2
+					ELSE 3
+				END
+			END ASC,
+			CASE WHEN @sort = 11 THEN 
+				CASE 
+					WHEN wl.domain IS NOT NULL THEN 1
+					WHEN bl.domain IS NOT NULL THEN 2
+					ELSE 3
+				END
+			END DESC
 			) AS rownum, d.*,
 			(CASE WHEN wl.domain IS NOT NULL THEN 1 ELSE 0 END) AS whitelisted,
 			(CASE WHEN bl.domain IS NOT NULL THEN 1 ELSE 0 END) AS blacklisted

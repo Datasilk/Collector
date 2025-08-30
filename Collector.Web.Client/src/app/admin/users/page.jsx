@@ -10,6 +10,7 @@ import Icon from '@/components/ui/icon';
 import AddUser from './components/add';
 import Select from '@/components/forms/select';
 import Input from '@/components/forms/input';
+import Pagination from '@/components/ui/pagination';
 //api
 import { useSession } from '@/context/session';
 import { Users } from '@/api/admin/users';
@@ -30,10 +31,16 @@ export default function AdminUsers() {
     const [users, setUsers] = useState([]);
     const [lock, setLock] = useState(null);
     const [showAdd, setShowAdd] = useState(false);
-    const [fullName, setFullName] = useState('');
-    const [roleFilters, setRoleFilters] = useState(0);
+    const [filter, setFilter] = useState({
+        fullName: '',
+        role: 0,
+        sort: 'Email ASC',
+        start: 0,
+        length: 10
+    });
     const [roleFiltersList, setRoleFiltersList] = useState([]);
-    const [sort, setSort] = useState('Email ASC');
+    const [totalItems, setTotalItems] = useState(0);
+    const [totalPages, setTotalPages] = useState(1);
 
     //execute api
     useEffect(() => {
@@ -44,27 +51,51 @@ export default function AdminUsers() {
     }, []);
         
     useEffect(() => {
-        filterUsers();
-    }, [fullName, roleFilters, sort]);
+        // Reset to first page when filter criteria change
+        if (filter.fullName !== undefined || filter.role !== undefined || filter.sort !== undefined) {
+            setFilter(prev => ({ ...prev, start: 0 }));
+            filterUsers();
+        }
+    }, [filter.fullName, filter.role, filter.sort]);
+    
+    useEffect(() => {
+        if (filter.start !== undefined || filter.length !== undefined) {
+            filterUsers();
+        }
+    }, [filter.start, filter.length]);
 
     const fetchRoles = () => {
         getRoles().then(response => {
             if (response.data.success) {
                 setRoleFiltersList([{ id: 0, name: 'Any Role' }, ...response.data.data]); // Add 'Any' option
+            } else {
+                console.error('Failed to fetch roles:', response.data.message);
+                messages.error(response.data.message || 'Failed to fetch roles');
             }
-        }).catch(() => { });
+        }).catch(error => {
+            console.error('Error fetching roles:', error);
+            messages.error('Failed to fetch roles');
+        });
     };
 
     const filterUsers = () => {
-        getUsersFiltered({
-            fullName,
-            role: roleFilters,
-            sort
-        }).then(response => {
+        getUsersFiltered(filter).then(response => {
             if (response.data.success) {
-                setUsers(response.data.data);
+                setUsers(response.data.data.items || []);
+                setTotalItems(response.data.data.totalCount || 0);
+                setTotalPages(Math.ceil((response.data.data.totalCount || 0) / filter.length));
+            } else {
+                messages.error(response.data.message || 'Failed to fetch users');
             }
-        }).catch(() => { });
+        }).catch(error => {
+            console.error('Error fetching users:', error);
+            messages.error('Failed to fetch users');
+        });
+    };
+    
+    const handlePageChange = (page) => {
+        const start = (page - 1) * filter.length;
+        setFilter(prev => ({ ...prev, start }));
     };
 
     const handleLock = (person) => {
@@ -96,15 +127,17 @@ export default function AdminUsers() {
                 if (response.data.success) {
                     // refresh the user list
                     filterUsers();
+                    messages.success('User account locked successfully');
                 } else {
                     // Handle failure case
-                    messages.errors.generic;
+                    messages.error(response.data.message || 'Failed to lock user');
                     console.error('Failed to lock user:', response.data.message);
                 }
             })
             .catch(error => {
                 // Handle error case
                 console.error('Error locking user:', error);
+                messages.error('Failed to lock user');
             })
             .finally(() => {
                 handleLockClose();
@@ -140,33 +173,33 @@ export default function AdminUsers() {
                         name="usersearch"
                         type="text"
                         placeholder="Search by Full Name"
-                        value={fullName}
-                        onInput={(e) => setFullName(e.target.value)}
+                        value={filter.fullName}
+                        onInput={(e) => setFilter(prev => ({ ...prev, fullName: e.target.value }))}
                         className="fullNameInput"
                     />
                     <Select
                         options={roleFiltersList.map(role => ({ value: role.id, label: role.name }))}
-                        value={roleFilters}
-                        onChange={(e) => setRoleFilters(e.target.value)}
+                        value={filter.role}
+                        onChange={(e) => setFilter(prev => ({ ...prev, role: e.target.value }))}
                     />
                 </div>
                 <table className="spreadsheet">
                     <thead>
                         <tr>
-                            <th onClick={() => setSort(handleSort('Email', sort))}>
-                                Email {getSortIcon('Email', sort) && <span className="material-symbols-rounded">{getSortIcon('Email', sort)}</span>}
+                            <th onClick={() => setFilter(prev => ({ ...prev, sort: handleSort('Email', filter.sort) }))}>
+                                Email {getSortIcon('Email', filter.sort) && <span className="material-symbols-rounded">{getSortIcon('Email', filter.sort)}</span>}
                             </th>
-                            <th onClick={() => setSort(handleSort('FullName', sort))}>
-                                Full Name {getSortIcon('FullName', sort) && <span className="material-symbols-rounded">{getSortIcon('FullName', sort)}</span>}
+                            <th onClick={() => setFilter(prev => ({ ...prev, sort: handleSort('FullName', filter.sort) }))}>
+                                Full Name {getSortIcon('FullName', filter.sort) && <span className="material-symbols-rounded">{getSortIcon('FullName', filter.sort)}</span>}
                             </th>
-                            <th onClick={() => setSort(handleSort('Created', sort))}>
-                                Created {getSortIcon('Created', sort) && <span className="material-symbols-rounded">{getSortIcon('Created', sort)}</span>}
+                            <th onClick={() => setFilter(prev => ({ ...prev, sort: handleSort('Created', filter.sort) }))}>
+                                Created {getSortIcon('Created', filter.sort) && <span className="material-symbols-rounded">{getSortIcon('Created', filter.sort)}</span>}
                             </th>
-                            <th onClick={() => setSort(handleSort('AR.Name', sort))}>
-                                Role {getSortIcon('AR.Name', sort) && <span className="material-symbols-rounded">{getSortIcon('Role', sort)}</span>}
+                            <th onClick={() => setFilter(prev => ({ ...prev, sort: handleSort('AR.Name', filter.sort) }))}>
+                                Role {getSortIcon('AR.Name', filter.sort) && <span className="material-symbols-rounded">{getSortIcon('AR.Name', filter.sort)}</span>}
                             </th>
-                            <th onClick={() => setSort(handleSort('LastLogin', sort))}>
-                                Last Login {getSortIcon('LastLogin', sort) && <span className="material-symbols-rounded">{getSortIcon('LastLogin', sort)}</span>}
+                            <th onClick={() => setFilter(prev => ({ ...prev, sort: handleSort('LastLogin', filter.sort) }))}>
+                                Last Login {getSortIcon('LastLogin', filter.sort) && <span className="material-symbols-rounded">{getSortIcon('LastLogin', filter.sort)}</span>}
                             </th>
                             <th></th>
                         </tr>
@@ -205,6 +238,15 @@ export default function AdminUsers() {
                         )}
                     </tbody>
                 </table>
+                
+                <Pagination
+                    currentPage={Math.floor(filter.start / filter.length) + 1}
+                    totalPages={totalPages}
+                    pageSize={filter.length}
+                    totalItems={totalItems}
+                    onPageChange={handlePageChange}
+                    maxPageNumbers={5}
+                />
             </Container>
         </div>
     );

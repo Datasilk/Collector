@@ -16,6 +16,7 @@
     [articles] INT NOT NULL DEFAULT 0,
     [inqueue] INT NOT NULL DEFAULT 0,
     [title] NVARCHAR(128) NOT NULL DEFAULT '',
+    [company] NVARCHAR(64) NOT NULL DEFAULT '',
     [description] NVARCHAR(255) NOT NULL DEFAULT '',
     [datecreated] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     [dateupdated] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),

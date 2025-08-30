@@ -1,0 +1,14 @@
+.admin-downloads .filters {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.admin-downloads .domainNameInput {
+    flex: 1;
+}
+
+.admin-downloads .buttons {
+    display: flex;
+    gap: 5px;
+}

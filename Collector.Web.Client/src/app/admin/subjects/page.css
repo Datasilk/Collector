@@ -1,0 +1,14 @@
+.admin-subjects .filters {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.admin-subjects .nameInput {
+    flex: 1;
+}
+
+.admin-subjects .buttons {
+    display: flex;
+    gap: 5px;
+}
