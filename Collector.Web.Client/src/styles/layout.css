@@ -38,12 +38,16 @@
 }
 
 .empty{
-  padding:5em 2em 0 2em; 
+  padding:5em 2em 2em 2em; 
   width:100%; 
   max-width:500px;
   margin: 0 auto;
   box-sizing: border-box;
   text-align:center;
+}
+
+.empty.short{
+  padding:2em; 
 }
 
 .material-symbols-rounded.after{

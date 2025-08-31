@@ -9,6 +9,9 @@ namespace Collector.CyberScout
 {
     public class Scout
     {
+        private static int TotalDownload = 0;
+        private static int TotalDomains = 0;
+
         public static async Task CheckQueue(string id, int feedId, string domainName, int sort)
         {
             try
@@ -193,20 +196,19 @@ namespace Collector.CyberScout
                     }
                 }
 
-                if (isEmpty)
-                {
-                    //domain doesn't contain any content //////////////////////////////
-                    if (queue.articles == 0) { App.DomainsRepository.IsEmpty(queue.domainId, true); }
-                    App.Logger.LogInformation("Domain is empty");
-                    return;
-                }
-                else if (sort == 2)
-                {
-                    App.DomainsRepository.UpdateHttpsWww(queue.domainId, queue.url.Contains("https://"), queue.url.Contains("www."));
-                }
-
                 //process article /////////////////////////////////////////////////////
                 if (IsCanceledByUser()) { return; }
+                if (isEmpty)
+                {
+                    // Archive the download
+                    App.DownloadsRepository.Archive(queue.qid);
+                    App.DownloadsArchived++;
+                    if(isHomePage && queue.articles == 0)
+                    {
+                        App.DomainsRepository.IsEmpty(queue.domainId, true);
+                    }
+                    return;
+                }
 
                 //check all download rules against article info
                 if (downloadOnly == false)
@@ -275,7 +277,6 @@ namespace Collector.CyberScout
                 }
 
                 //get URLs from all anchor links on page
-                App.Logger.LogInformation("Collecting links from article...");
                 var links = new List<string>();
                 if (article.elements != null)
                 {
@@ -363,11 +364,15 @@ namespace Collector.CyberScout
                     }
                 }
 
-                
-
                 if (isHomePage && article != null)
                 {
+                    //analyze the domain itself since we're downloading the home page
+                    App.Logger.LogInformation("Using AI to analyze the domain home page meta data...");
+                    App.DomainsRepository.UpdateHttpsWww(queue.domainId, queue.url.Contains("https://"), queue.url.Contains("www."));
+                    App.DomainsRepository.IsEmpty(queue.domainId, isEmpty);
                     Domain.Analyze(article, queue.domainId);
+                    TotalDomains++;
+                    App.Logger.LogInformation("Domain Analyzed #" + TotalDomains);
                 }
 
                 App.Logger.LogInformation("Found {0} link{1} on {2} domain{3}...",
@@ -379,6 +384,10 @@ namespace Collector.CyberScout
                     App.DownloadsRepository.Archive(queue.qid);
                     App.DownloadsArchived++;
                 }
+
+                Console.WriteLine("");
+                Console.WriteLine("/(.)(.)\\/(.)(.)\\/(.)(.)\\/(.)(.)\\/(.)(.)\\/(.)(.)\\/(.)(.)\\/(.)(.)\\/(.)(.)\\/(.)(.)\\/(.)(.)\\/(.)(.)\\/(.)(.)\\");
+                Console.WriteLine("");
 
                 // Check if we should move archived downloads
                 if (App.DownloadsArchived > 1000)

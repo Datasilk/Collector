@@ -25,16 +25,16 @@ namespace Collector.Data.Repositories
 
         #region "Get"
 
-        public List<Domain> GetList(int[] subjectIds = null, DomainFilterType type = DomainFilterType.All, DomainType domainType = DomainType.unused, DomainType domainType2 = DomainType.unused, DomainSort sort = DomainSort.Alphabetical, string lang = "", string search = "", int start = 1, int length = 50, int parentId = -1)
+        public List<Domain> GetList(int[] subjectIds = null, DomainFilterType type = DomainFilterType.All, DomainType domainType = DomainType.unused, DomainType domainType2 = DomainType.unused, DomainSort sort = DomainSort.Alphabetical, string lang = "", string search = "", int start = 1, int length = 50, int parentId = -1, int[] serviceIds = null)
         {
-            return _dbConnection.Query<Domain>("EXEC Domains_GetList @subjectIds=@subjectIds, @lang=@lang, @search=@search, @type=@type, @domainType=@domainType, @domainType2=@domainType2, @sort=@sort, @start=@start, @length=@length, @parentId=@parentId", 
-                new { subjectIds = subjectIds?.Length > 0 ? string.Join(",", subjectIds) : "", lang, search, type, domainType, domainType2, sort, start, length, parentId }).ToList();
+            return _dbConnection.Query<Domain>("EXEC Domains_GetList @subjectIds=@subjectIds, @lang=@lang, @search=@search, @type=@type, @domainType=@domainType, @domainType2=@domainType2, @sort=@sort, @start=@start, @length=@length, @parentId=@parentId, @serviceIds=@serviceIds", 
+                new { subjectIds = subjectIds?.Length > 0 ? string.Join(",", subjectIds) : "", lang, search, type, domainType, domainType2, sort, start, length, parentId, serviceIds = serviceIds?.Length > 0 ? string.Join(",", serviceIds) : null }).ToList();
         }
 
-        public int GetCount(int[] subjectIds = null, DomainFilterType type = DomainFilterType.All, DomainType domainType = DomainType.unused, DomainType domainType2 = DomainType.unused, DomainSort sort = DomainSort.Alphabetical, string lang = "", string search = "", int parentId = -1)
+        public int GetCount(int[] subjectIds = null, DomainFilterType type = DomainFilterType.All, DomainType domainType = DomainType.unused, DomainType domainType2 = DomainType.unused, DomainSort sort = DomainSort.Alphabetical, string lang = "", string search = "", int parentId = -1, int[] serviceIds = null)
         {
-            return _dbConnection.ExecuteScalar<int>("EXEC Domains_GetCount @subjectIds=@subjectIds, @lang=@lang, @search=@search, @type=@type, @domainType=@domainType, @domainType2=@domainType2, @sort=@sort, @parentId=@parentId", 
-                new { subjectIds = subjectIds?.Length > 0 ? string.Join(",", subjectIds) : "", lang, search, type, domainType, domainType2, sort, parentId });
+            return _dbConnection.ExecuteScalar<int>("EXEC Domains_GetCount @subjectIds=@subjectIds, @lang=@lang, @search=@search, @type=@type, @domainType=@domainType, @domainType2=@domainType2, @sort=@sort, @parentId=@parentId, @serviceIds=@serviceIds", 
+                new { subjectIds = subjectIds?.Length > 0 ? string.Join(",", subjectIds) : "", lang, search, type, domainType, domainType2, sort, parentId, serviceIds = serviceIds?.Length > 0 ? string.Join(",", serviceIds) : null });
         }
 
         public Domain GetInfo(string domain)
@@ -285,7 +285,7 @@ namespace Collector.Data.Repositories
             try
             {
                 var result = new Dictionary<string, int>();
-                var services = _dbConnection.Query<dynamic>("EXEC DomainServices_GetOrCreateByNames @serviceNames=@serviceNames", 
+                var services = _dbConnection.Query<dynamic>("EXEC DomainServices_GetByNames @serviceNames=@serviceNames", 
                     new { serviceNames = string.Join(",", serviceNames) });
                 
                 foreach (var service in services)
@@ -312,6 +312,19 @@ namespace Collector.Data.Repositories
             catch (Exception ex)
             {
                 // Log exception if needed
+            }
+        }
+
+        public List<DomainService> GetDomainServices(string search = "")
+        {
+            try
+            {
+                return _dbConnection.Query<DomainService>("EXEC DomainServices_Filter @search", new { search }).ToList();
+            }
+            catch (Exception ex)
+            {
+                // Log exception if needed
+                return new List<DomainService>();
             }
         }
         #endregion

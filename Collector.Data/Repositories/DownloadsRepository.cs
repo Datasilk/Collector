@@ -43,12 +43,12 @@ namespace Collector.Data.Repositories
                 new { url, domain, parentId, feedId });
         }
 
-        public DownloadQueue CheckQueue(int feedId = 0, string domain = "", int domaindelay = 60, QueueSort sort = QueueSort.Newest)
+        public DownloadQueue CheckQueue(int feedId = 0, string domain = "", int domaindelay = 60, QueueSort sort = QueueSort.Newest, long queueId = 0)
         {
             try
             {
-                using var gridReader = _dbConnection.QueryMultiple("EXEC DownloadQueue_Check @domaindelay=@domaindelay, @domain=@domain, @feedId=@feedId, @sort=@sort", 
-                    new { domaindelay, domain, feedId, sort = (int)sort });
+                using var gridReader = _dbConnection.QueryMultiple("EXEC DownloadQueue_Check @domaindelay=@domaindelay, @domain=@domain, @feedId=@feedId, @sort=@sort, @qid=@queueId", 
+                    new { domaindelay, domain, feedId, sort = (int)sort, queueId });
 
                 var queue = gridReader.ReadFirstOrDefault<DownloadQueue>();
                 if (queue != null)

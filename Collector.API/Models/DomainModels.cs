@@ -16,6 +16,7 @@ namespace Collector.API.Models
         public int Start { get; set; } = 1;
         public int Length { get; set; } = 50;
         public int ParentId { get; set; } = -1;
+        public int[] ServiceIds { get; set; }
     }
 
     public class AddDomainModel

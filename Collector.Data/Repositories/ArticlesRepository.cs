@@ -72,7 +72,7 @@ namespace Collector.Data.Repositories
                 @length=@length,
                 @bugsOnly=@bugsOnly", 
                 new { 
-                    subjectIds = subjectId.Length == 0 ? "" : string.Join(",", subjectId), 
+                    subjectIds = subjectId != null && subjectId.Length == 0 ? "" : string.Join(",", subjectId), 
                     feedId,
                     domainId,
                     score,

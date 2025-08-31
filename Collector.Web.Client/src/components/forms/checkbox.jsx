@@ -11,37 +11,53 @@ import React, { useState } from 'react';
  * @param {string} error - Error message to display below the checkbox.
  * @param {boolean} isLabel - If true, renders the checked state as plain text instead of a checkbox.
  */
-export default function Checkbox({ label, name, checked, onChange, onInput, required = false, error, isLabel = false, iconUnchecked = null, iconChecked = null }) {
-    //render input
-    const [checkedState, setCheckedState] = useState(checked);
-    const handleChange = () => {
-        onChange(!checkedState);
-        setCheckedState(!checkedState);
-    }
+export default function Checkbox({ 
+    label, 
+    name, 
+    id, 
+    checked, 
+    onChange, 
+    onInput, 
+    required = false, 
+    error, 
+    isLabel = false, 
+    iconUnchecked = null, 
+    iconChecked = null 
+}) {
+    const inputId = id || name;
+    
+    const handleChange = (e) => {
+        if (onChange) {
+            onChange(e.target.checked);
+        }
+    };
     
     return (
-        <div className={"form-group has-checkbox input-" + name + (checkedState ? ' is-checked' : '')} onClick={handleChange}>
+        <div className={"form-group has-checkbox input-" + name + (checked ? ' is-checked' : '')}>
             <div className="form-label">
-                {label && <label htmlFor={name}>
-                    {!isLabel && !iconUnchecked && !iconChecked &&
-                        <input
-                            type="checkbox"
-                            id={name}
-                            name={name}
-                            checked={checkedState}
-                            onInput={onInput}
-                            readOnly
-                        />
-                    }
-                    {!isLabel && iconUnchecked && iconChecked && checkedState && iconChecked}
-                    {!isLabel && iconUnchecked && iconChecked && !checkedState && iconUnchecked}
-                    {label}{required ? ' *' : ''}
-                </label>}
-                {error ? <span className="error">{error}</span> : <></>}
+                {label && (
+                    <label htmlFor={inputId}>
+                        {!isLabel && !iconUnchecked && !iconChecked && (
+                            <input
+                                type="checkbox"
+                                id={inputId}
+                                name={name}
+                                checked={!!checked}
+                                onChange={handleChange}
+                                onInput={onInput}
+                                className="checkbox-input"
+                            />
+                        )}
+                        {!isLabel && iconUnchecked && iconChecked && (checked ? iconChecked : iconUnchecked)}
+                        <span className="checkbox-label">
+                            {label}{required ? ' *' : ''}
+                        </span>
+                    </label>
+                )}
+                {error && <span className="error">{error}</span>}
             </div>
 
-            {isLabel && <span className="input-islabel">{checkedState ? 'Yes' : 'No'}</span>}
-
+            {isLabel && <span className="input-islabel">{checked ? 'Yes' : 'No'}</span>}
         </div>
     );
 }

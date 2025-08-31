@@ -9,7 +9,8 @@ CREATE PROCEDURE [dbo].[Domains_GetList]
 	                -- 6 = Title ASC, 7 = Title DESC, 8 = Articles ASC, 9 = DateUpdated ASC, 10 = Status ASC, 11 = Status DESC
 	@start int = 1,
 	@length int = 50,
-	@parentId int = -1
+	@parentId int = -1,
+	@serviceIds nvarchar(MAX) = NULL
 AS
 	/* get subjects from array */
 	SELECT * INTO #subjects FROM dbo.SplitArray(@subjectIds, ',')
@@ -66,6 +67,10 @@ AS
 		/* //////////////////////////////////////////////////////////////////////////////////////// */
 		/* Get domains from Domains table */
 		/* //////////////////////////////////////////////////////////////////////////////////////// */
+		SELECT CAST(value AS INT) AS serviceId 
+		INTO #serviceIds
+		FROM STRING_SPLIT(@serviceIds, ',')
+		
 		SELECT * FROM (
 			SELECT ROW_NUMBER() OVER(ORDER BY 
 			-- Title sorting with hastitle priority
@@ -105,6 +110,7 @@ AS
 			FROM [Domains] d
 			LEFT JOIN Whitelist_Domains wl ON wl.domain = d.domain
 			LEFT JOIN Blacklist_Domains bl ON bl.domain = d.domain
+			LEFT JOIN DomainServices ds ON ds.domainId = d.domainId AND ds.serviceId IN (SELECT * FROM #serviceIds)
 			WHERE
 			(
 				(@search IS NOT NULL AND @search  <> '' AND (
@@ -146,5 +152,9 @@ AS
 				OR @lang IS NULL OR @lang = ''
 			)
 			AND d.deleted = 0
+			AND (
+				@serviceIds IS NULL
+				OR ds.serviceId IS NOT NULL
+			)
 		) AS tbl WHERE rownum >= @start AND rownum < @start + @length
 	END

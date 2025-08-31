@@ -10,6 +10,8 @@ namespace Collector.CyberScout.Models
 
         public List<string> Services { get; set; } = new List<string>();
 
+        public string Language { get; set; } = string.Empty;
+
         public string Company { get; set; } = string.Empty;
 
         public bool PayWall { get; set; } = false;

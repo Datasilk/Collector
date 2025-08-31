@@ -9,6 +9,7 @@ import Icon from '@/components/ui/icon';
 import Input from '@/components/forms/input';
 import Select from '@/components/forms/select';
 import Pagination from '@/components/ui/pagination';
+import ServicesModal from './components/services-modal';
 //components
 import AddDomain from './components/add';
 //context
@@ -32,9 +33,11 @@ export default function AdminDomains() {
 
     const [domains, setDomains] = useState([]);
     const [showAdd, setShowAdd] = useState(false);
+    const [showServicesModal, setShowServicesModal] = useState(false);
     const [debounceTimer, setDebounceTimer] = useState(null);
     const [domainTypes, setDomainTypes] = useState([]);
     const [languages, setLanguages] = useState([]);
+    const [selectedServices, setSelectedServices] = useState([]);
 
     // Create a filter object with all filter parameters including pagination
     const [filter, setFilter] = useState({
@@ -47,7 +50,8 @@ export default function AdminDomains() {
         lang: '',
         start: 0,
         length: 50,
-        parentId: -1
+        parentId: -1,
+        serviceIds: []
     });
 
     const [totalItems, setTotalItems] = useState(0);
@@ -91,7 +95,8 @@ export default function AdminDomains() {
             Lang: requestFilter.lang,
             Start: requestFilter.start,
             Length: requestFilter.length,
-            ParentId: requestFilter.parentId
+            ParentId: requestFilter.parentId,
+            ServiceIds: requestFilter.serviceIds
         }).then(response => {
             if (response.data.success) {
                 setDomains(response.data.data.domains || []);
@@ -183,6 +188,37 @@ export default function AdminDomains() {
         setShowAdd(false);
     };
 
+    const handleShowServicesModal = () => {
+        setShowServicesModal(true);
+    };
+
+    const handleServicesModalClose = () => {
+        // Update the filter with the selected services and trigger a refresh
+        const serviceIds = selectedServices.map(s => s.id);
+        const newFilter = { ...filter, serviceIds, start: 0 }; // Reset to first page
+        setFilter(newFilter);
+        filterDomains(newFilter);
+        setShowServicesModal(false);
+    };
+
+    const handleServicesModalSave = (services) => {
+        setSelectedServices(services);
+        const serviceIds = services.map(s => s.id);
+        const newFilter = { ...filter, serviceIds, start: 0 }; // Reset to first page
+        setFilter(newFilter);
+        filterDomains(newFilter);
+        setShowServicesModal(false); // Close the modal after saving
+    };
+
+    const handleRemoveService = (serviceId) => {
+        const updatedServices = selectedServices.filter(s => s.id !== serviceId);
+        setSelectedServices(updatedServices);
+        const serviceIds = updatedServices.map(s => s.id);
+        const newFilter = { ...filter, serviceIds };
+        setFilter(newFilter);
+        filterDomains(newFilter);
+    };
+
     const tools = (<>
         <button onClick={() => setShowAdd(true)}><Icon name="add"></Icon>New Domain</button>
     </>);
@@ -190,11 +226,19 @@ export default function AdminDomains() {
     return (
         <div className="admin-domains">
             {showAdd && <AddDomain onClose={handleClosedAddDomain}></AddDomain>}
+            {showServicesModal && (
+                <ServicesModal 
+                    onClose={handleServicesModalClose} 
+                    onSave={handleServicesModalSave} 
+                    session={session} 
+                    selectedServices={selectedServices}
+                />
+            )}
             <Container
                 title="Domain Management"
                 tools={tools}
             >
-                <div className="filters">
+                <div className="filters tool-bar">
                     <Input
                         name="domainsearch"
                         type="text"
@@ -246,7 +290,21 @@ export default function AdminDomains() {
                             { value: 2, label: 'Inactive' }
                         ]}
                     />
+                    <button onClick={() => handleShowServicesModal()}>Services</button>
                 </div>
+                
+                {selectedServices.length > 0 && (
+                    <div className="filters tool-bar service-filter-tags">
+                        {selectedServices.map(service => (
+                            <div key={service.id} className="service-tag">
+                                {service.name}
+                                <span className="remove" onClick={() => handleRemoveService(service.id)}>
+                                    <Icon name="close" />
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                )}
                 <table className="spreadsheet">
                     <thead>
                         <tr>
@@ -270,10 +328,6 @@ export default function AdminDomains() {
                                 Updated {filter.sort === 5 && <Icon name="arrow_downward" />}
                                 {filter.sort === 9 && <Icon name="arrow_upward" />}
                             </th>
-                            <th onClick={() => handleSort(10, 11)}>
-                                Status {filter.sort === 10 && <Icon name="arrow_upward" />}
-                                {filter.sort === 11 && <Icon name="arrow_downward" />}
-                            </th>
                             <th></th>
                         </tr>
                     </thead>
@@ -288,12 +342,6 @@ export default function AdminDomains() {
                                 <td>{domain.articles || 0}</td>
                                 <td>{domain.created ? printDate(domain.created) : 'Unknown'}</td>
                                 <td>{domain.lastchecked ? printDate(domain.lastchecked) : 'Never'}</td>
-                                <td>
-                                    {domain.deleted ? 'Deleted' :
-                                    domain.blacklisted ? 'Blacklisted' :
-                                    domain.whitelisted ? 'Whitelisted' :
-                                    domain.empty ? 'Empty' : 'Active'}
-                                </td>
                                 <td className="buttons">
                                     <Link to={'/admin/domains/edit/' + domain.domainId} title="edit domain"><Icon name="edit_square"></Icon></Link>
                                 </td>

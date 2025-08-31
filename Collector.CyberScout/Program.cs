@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using Collector.Data.Interfaces;
+using Collector.Common.Models.Articles;
 
 namespace Collector.CyberScout
 {
@@ -131,6 +132,15 @@ namespace Collector.CyberScout
             string connectionString = configuration.GetConnectionString("Database");
             services.AddTransient<IDbConnection>((sp) => new SqlConnection(connectionString));
             
+            //load LLM keys
+            foreach(var llm in Common.LLMs.Available)
+            {
+                llm.Value.PrivateKey = configuration.GetSection("LLM:" + llm.Key + ":PrivateKey").Value ?? "";
+            }
+
+            //update qwen version to use
+            Common.LLMs.Available[Common.LLMs.Models.Qwen].Model = "qwen-flash";
+
             // Add repositories
             services.AddTransient<IDownloadsRepository, Data.Repositories.DownloadsRepository>();
             services.AddTransient<IDomainsRepository, Data.Repositories.DomainsRepository>();

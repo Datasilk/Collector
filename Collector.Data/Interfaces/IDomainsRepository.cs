@@ -9,8 +9,8 @@ namespace Collector.Data.Interfaces
         int Add(string domain, string title = "", int parentId = 0, int type = 0);
 
         // Get
-        List<Domain> GetList(int[] subjectIds = null, DomainFilterType type = DomainFilterType.All, DomainType domainType = DomainType.unused, DomainType domainType2 = DomainType.unused, DomainSort sort = DomainSort.Alphabetical, string lang = "", string search = "", int start = 1, int length = 50, int parentId = -1);
-        int GetCount(int[] subjectIds = null, DomainFilterType type = DomainFilterType.All, DomainType domainType = DomainType.unused, DomainType domainType2 = DomainType.unused, DomainSort sort = DomainSort.Alphabetical, string lang = "", string search = "", int parentId = -1);
+        List<Domain> GetList(int[] subjectIds = null, DomainFilterType type = DomainFilterType.All, DomainType domainType = DomainType.unused, DomainType domainType2 = DomainType.unused, DomainSort sort = DomainSort.Alphabetical, string lang = "", string search = "", int start = 1, int length = 50, int parentId = -1, int[] serviceIds = null);
+        int GetCount(int[] subjectIds = null, DomainFilterType type = DomainFilterType.All, DomainType domainType = DomainType.unused, DomainType domainType2 = DomainType.unused, DomainSort sort = DomainSort.Alphabetical, string lang = "", string search = "", int parentId = -1, int[] serviceIds = null);
         Domain GetInfo(string domain);
         Domain GetById(int domainId);
 
@@ -70,5 +70,6 @@ namespace Collector.Data.Interfaces
         // Domain Services
         Dictionary<string, int> GetServiceIdsByNames(string[] serviceNames);
         void AddDomainServices(int domainId, int[] serviceIds);
+        List<DomainService> GetDomainServices(string search = "");
     }
 }

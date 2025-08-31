@@ -1,4 +1,4 @@
-﻿CREATE PROCEDURE [dbo].[Domains_GetCount]
+CREATE PROCEDURE [dbo].[Domains_GetCount]
 	@subjectIds nvarchar(MAX) = '',
 	@lang varchar(6) = '',
 	@search nvarchar(MAX) = '',
@@ -6,7 +6,8 @@
 	@domainType int = -1, 
 	@domainType2 int = -1,
 	@sort int = 0, -- 0 = ASC, 1 = DESC, 2 = most articles, 3 = newest, 4 = oldest, 5 = last updated
-	@parentId int = -1
+	@parentId int = -1,
+	@serviceIds nvarchar(MAX) = NULL
 AS
 	/* get subjects from array */
 	SELECT * INTO #subjects FROM dbo.SplitArray(@subjectIds, ',')
@@ -50,6 +51,10 @@ AS
 		/* //////////////////////////////////////////////////////////////////////////////////////// */
 		/* Get domains from Domains table */
 		/* //////////////////////////////////////////////////////////////////////////////////////// */
+		SELECT CAST(value AS INT) AS serviceId 
+		INTO #serviceIds
+		FROM STRING_SPLIT(@serviceIds, ',')
+		
 		SELECT COUNT(*)
 		FROM [Domains] d
 		LEFT JOIN Whitelist_Domains wl ON wl.domain = d.domain
@@ -95,4 +100,14 @@ AS
 			OR @lang IS NULL OR @lang = ''
 		)
 		AND d.deleted = 0
+		AND (
+			@serviceIds IS NULL
+			OR EXISTS (
+				SELECT 1 FROM [dbo].[DomainServices] ds
+				INNER JOIN #serviceIds s ON ds.serviceId = s.serviceId
+				WHERE ds.domainId = d.domainId
+			)
+		)
+
+		DROP TABLE #serviceIds
 	END

@@ -188,6 +188,23 @@ hr{
 
 .faded{opacity:0.5;}
 
+/* Icon animations */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.icon-spin {
+  animation: spin 1.5s linear infinite;
+  display: inline-block;
+  transform-origin: center;
+}
+
+
 /* light mode ----------------------------------------- */
 @media (prefers-color-scheme: light) {
   :root {

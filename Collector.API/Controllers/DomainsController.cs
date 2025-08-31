@@ -4,7 +4,6 @@ using Collector.API.Models;
 using Collector.Data.Interfaces;
 using Collector.Common.Extensions.Strings;
 using Collector.Common;
-using System.Linq;
 using Collector.Data.Enums;
 
 namespace Collector.API.Controllers
@@ -39,7 +38,8 @@ namespace Collector.API.Controllers
                     filter.Search,
                     filter.Start,
                     filter.Length,
-                    filter.ParentId
+                    filter.ParentId,
+                    filter.ServiceIds
                 );
 
                 var count = _domainsRepository.GetCount(
@@ -50,7 +50,8 @@ namespace Collector.API.Controllers
                     filter.Sort,
                     filter.Lang,
                     filter.Search,
-                    filter.ParentId
+                    filter.ParentId,
+                    filter.ServiceIds
                 );
 
                 return Json(new ApiResponse
@@ -575,8 +576,6 @@ namespace Collector.API.Controllers
             }
         }
 
-        #endregion
-
         [HttpGet("delete-all-articles/{domainId}")]
         public IActionResult DeleteAllArticles(int domainId)
         {
@@ -623,6 +622,8 @@ namespace Collector.API.Controllers
                 return Json(new ApiResponse { success = false, message = ex.Message });
             }
         }
+
+        #endregion
 
         #region Collections
 
@@ -779,6 +780,24 @@ namespace Collector.API.Controllers
             {
                 var result = _domainsRepository.RemoveDomainTypeMatch(matchId);
                 return Json(new ApiResponse { success = true, data = result });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        #endregion
+
+        #region Domain Services
+
+        [HttpPost("services/filter")]
+        public IActionResult GetDomainServices([FromBody] DomainServiceSearchModel model)
+        {
+            try
+            {
+                var services = _domainsRepository.GetDomainServices(model.Search);
+                return Json(new ApiResponse { success = true, data = services });
             }
             catch (Exception ex)
             {

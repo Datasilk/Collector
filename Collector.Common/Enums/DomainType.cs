@@ -134,12 +134,16 @@ namespace Collector.Data.Enums
         water_sports = 295,
         winter_sports = 296,
         extreme_sports = 297,
+        scuba_diving = 375,
         martial_arts = 298,
         cycling = 299,
         running = 300,
         golf = 301,
         tennis = 302,
         swimming = 303,
+        basketball = 489,
+        baseball = 490,
+        olympics = 491,
 
         // Travel & Places
         travel = 12,
@@ -177,7 +181,6 @@ namespace Collector.Data.Enums
         weather = 30,
 
         // Controversial & Adult
-        erotic = 27,
         conspiracy = 28,
         propaganda = 41,
         gore = 32,
@@ -191,13 +194,13 @@ namespace Collector.Data.Enums
         directory = 40,
         search_engine = 9,
         archive = 63,
-        parked_domain = 68,
+        //parked_domain = 68,
         equipment = 108,
         security = 110,
         club = 120,
         author = 121,
         conference = 123,
-        space = 39,
+        space_research = 39,
         nonprofit = 45,
 
         // Technology
@@ -436,7 +439,8 @@ namespace Collector.Data.Enums
         linguistics = 361,
 
         // Adult
-        adult = 362,
+        //adult = 362,
+        erotic = 27,
         dating = 363,
         escort = 364,
         fetish = 365,
