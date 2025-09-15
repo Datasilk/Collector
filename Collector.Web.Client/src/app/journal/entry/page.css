@@ -318,6 +318,18 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
 .entry.editable:hover{
     outline:1px dashed #a6bfff;
 }
+.entry.manually-added{
+    outline:2px solid rgba(166, 191, 255, 0);;
+    animation: manually-added 3s ease-in-out;
+}
+
+@keyframes manually-added {
+    0% { outline: 2px solid rgba(166, 191, 255, 1); }
+    50% { outline: 2px solid rgba(166, 191, 255, 1); }
+    100% { outline: 2px solid rgba(166, 191, 255, 0);  }
+}
+
+
 .entry-modules {
     display: flex;
     flex-direction: column;
@@ -461,17 +473,6 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     flex-direction: column;
     align-items: center;
     gap: 0.9375em;
-}
-
-.loading-spinner [name="loading"] {
-    animation: spin 1s linear infinite;
-    font-size: 2rem;
-    color: #4a90e2;
-}
-
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
 }
 
 .error-message {

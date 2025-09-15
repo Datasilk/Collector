@@ -27,6 +27,12 @@
   transition: all 0.3s ease;
 }
 
+/* logo */
+nav svg.logo{
+  width:8em;
+  color:#7763ed;
+}
+
 /* Scrolled state */
 body.scrolled .nav-container .nav-left {
   padding: 0 0 0 2em;

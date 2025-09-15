@@ -315,16 +315,22 @@ namespace Collector.Data.Repositories
             }
         }
 
-        public List<DomainService> GetDomainServices(string search = "")
+        public (List<DomainService> services, int totalCount) GetDomainServices(string search = "", int start = 0, int length = 50)
         {
             try
             {
-                return _dbConnection.Query<DomainService>("EXEC DomainServices_Filter @search", new { search }).ToList();
+                var result = _dbConnection.QueryMultiple("EXEC DomainServices_Filter @search, @start, @length", 
+                    new { search, start, length });
+                
+                var services = result.Read<DomainService>().ToList();
+                var totalCount = result.ReadSingle<int>();
+                
+                return (services, totalCount);
             }
             catch (Exception ex)
             {
                 // Log exception if needed
-                return new List<DomainService>();
+                return (new List<DomainService>(), 0);
             }
         }
         #endregion

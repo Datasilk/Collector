@@ -70,6 +70,6 @@ namespace Collector.Data.Interfaces
         // Domain Services
         Dictionary<string, int> GetServiceIdsByNames(string[] serviceNames);
         void AddDomainServices(int domainId, int[] serviceIds);
-        List<DomainService> GetDomainServices(string search = "");
+        (List<DomainService> services, int totalCount) GetDomainServices(string search = "", int start = 0, int length = 50);
     }
 }

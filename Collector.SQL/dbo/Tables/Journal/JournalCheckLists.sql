@@ -1,0 +1,11 @@
+﻿CREATE TABLE [dbo].[JournalCheckLists]
+(
+	[Id] INT NOT NULL PRIMARY KEY IDENTITY(1,1),
+    [AppUserId] UNIQUEIDENTIFIER NOT NULL, 
+    [EntryId] UNIQUEIDENTIFIER NOT NULL,
+    [ThemeId] INT NULL,
+    [Title] NVARCHAR(64) NOT NULL, 
+    [Description] NVARCHAR(512) NULL,
+    [Created] DATETIME2 NOT NULL DEFAULT GETUTCDATE(), 
+    [Status] INT NOT NULL DEFAULT 1, 
+)

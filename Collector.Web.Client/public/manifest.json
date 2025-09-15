@@ -1,0 +1,21 @@
+{
+  "name": "Collector",
+  "short_name": "Collector",
+  "description": "Collector.ai portal",
+  "start_url": "/journal",
+  "display": "fullscreen",
+  "background_color": "#ffffff",
+  "theme_color": "#7763ed",
+  "icons": [
+    {
+      "src": "/diamond.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/diamond.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

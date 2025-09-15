@@ -319,6 +319,7 @@
   <ItemGroup>
     <None Include="Collector.SQL.publish.xml" />
     <None Include="dbo\Indexes\IndexDomainServices.sql" />
+    <None Include="Collector.SQL.MADUIN.publish.xml" />
   </ItemGroup>
   <ItemGroup>
     <RefactorLog Include="Collector.SQL.refactorlog" />

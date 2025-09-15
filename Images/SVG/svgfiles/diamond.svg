@@ -1,0 +1,18 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" preserveAspectRatio="none" x="0px" y="0px" width="64px" height="64px" viewBox="0 0 64 64">
+<defs>
+<g id="icon_diamond_0_Layer0_0_FILL">
+<path fill="#6600FF" stroke="none" d="
+M 61.15 11.25
+L 49.05 0 12.1 0 0 11.25 30.55 52.25 61.15 11.25
+M 46.7 6
+L 53.1 11.95 30.55 42.2 8 11.95 14.45 6 46.7 6 Z"/>
+</g>
+</defs>
+
+<g transform="matrix( 1.0465545654296875, 0, 0, 1.0383148193359375, 0,6) ">
+<g transform="matrix( 1, 0, 0, 1, 0,0) ">
+<use xlink:href="#icon_diamond_0_Layer0_0_FILL"/>
+</g>
+</g>
+</svg>

@@ -3,6 +3,7 @@ import TextArea from '@/components/forms/textarea';
 import Select from '@/components/forms/select';
 import Modal from '@/components/ui/modal';
 import * as signalR from '@microsoft/signalr';
+import { apiBasePath } from '@/helpers/endpoints.js';
 
 /**
  * AI Generator Modal Component
@@ -34,7 +35,7 @@ export default function AIGeneratorModal({ module, onClose, onGenerated }) {
 
         // Connect to SignalR hub
         const conn = new signalR.HubConnectionBuilder()
-            .withUrl(import.meta.env.VITE_API_URL + '/text-editor', {
+            .withUrl(apiBasePath() + '/text-editor', {
                 withCredentials: true,
                 skipNegotiation: true,
                 transport: signalR.HttpTransportType.WebSockets

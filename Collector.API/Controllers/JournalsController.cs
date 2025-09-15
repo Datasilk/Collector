@@ -617,8 +617,8 @@ namespace Collector.API.Controllers
                     return Json(new ApiResponse { success = false, message = "Not authorized to access this entry content" });
 
                 // Get the content from the file system
-                var filePath = $"journal-entries/{id:N}.json";
-                var content = Files.GetFile(filePath);
+                var filePath = $"{id:N}.json";
+                var content = Files.GetFile(Files.Paths.Journal, filePath);
 
                 if (content == null)
                     return Json(new ApiResponse { success = false, message = "Entry content not found" });
@@ -649,8 +649,8 @@ namespace Collector.API.Controllers
                     return Json(new ApiResponse { success = false, message = "Not authorized to update this entry content" });
 
                 // Save the content to the file system
-                var filePath = $"journal-entries/{request.Id:N}.json";
-                var success = Files.SaveFile(filePath, request.Content);
+                var filePath = $"{request.Id:N}.json";
+                var success = Files.SaveFile(Files.Paths.Journal, filePath, request.Content);
 
                 if (!success)
                     return Json(new ApiResponse { success = false, message = "Failed to save entry content" });

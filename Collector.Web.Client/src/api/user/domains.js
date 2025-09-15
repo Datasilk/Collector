@@ -55,7 +55,7 @@ const Domains = (args) => Api({...args, useToken:true}).endpoints(({api}) => {
         removeDomainTypeMatch: (matchId) => api.get(`${apiPath}/type-matches/remove/${matchId}`),
         
         // Domain Services
-        getDomainServices: (search = '') => api.post(`${apiPath}/services/filter`, { search }),
+        getDomainServices: (search = '', start = 0, length = 50) => api.post(`${apiPath}/services/filter`, { Search: search, Start: start, Length: length }),
         
         // Domain Types
         getDomainTypes: () => api.get(`${apiPath}/types`)

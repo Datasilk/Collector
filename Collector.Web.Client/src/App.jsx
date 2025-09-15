@@ -7,6 +7,7 @@ import './styles/App.css';
 import { BrowserRouter as Router } from 'react-router-dom';
 import Routing from './routes/routing';
 import { SessionProvider } from './context/session';
+import { addSvg } from './helpers/svg';
 
 function App() {
   //ref
@@ -25,6 +26,9 @@ function App() {
       }
     });
     handleWindowResize();
+
+    //load all neccessary svgs
+    addSvg('/svgs/svgfiles.svg');
   }, []);
 
   const handleWindowResize = () => {

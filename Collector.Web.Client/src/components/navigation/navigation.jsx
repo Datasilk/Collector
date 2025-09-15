@@ -52,7 +52,9 @@ const Navigation = () => {
   return (
     <nav className="nav-container">
       <div className="nav-left">
-        <img src="/logo.svg" alt="Collector Logo" className="logo" style={{ height: '2.2em' }} />
+        <svg className="logo" viewBox="0 0 550 130">
+          <use href="#logo" />
+        </svg>
       </div>
       <div className="nav-right">
         {!user?.token ? <>

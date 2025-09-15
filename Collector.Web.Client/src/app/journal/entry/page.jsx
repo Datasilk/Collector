@@ -34,13 +34,15 @@ export default function JournalEntryPage() {
     const [error, setError] = useState(null);
     const [saveStatus, setSaveStatus] = useState(null);
     const [entryJson, setEntryJson] = useState({ modules: [] });
-    const [showModuleDropdown, setShowModuleDropdown] = useState(false);
+    const [showTopModuleDropdown, setShowTopModuleDropdown] = useState(false);
+    const [showBottomModuleDropdown, setShowBottomModuleDropdown] = useState(false);
     const [showModuleAboveDropdown, setShowModuleAboveDropdown] = useState(false);
     const [currentModuleId, setCurrentModuleId] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
 
     // refs
-    const dropdownRef = useRef(null);
+    const topDropdownRef = useRef(null);
+    const bottomDropdownRef = useRef(null);
     const dropdownButtonRef = useRef(null);
     const bottomDropdownButtonRef = useRef(null);
     const moduleDropdownRef = useRef(null);
@@ -60,16 +62,19 @@ export default function JournalEntryPage() {
 
     useEffect(() => {
         const handleClickOutside = (event) => {
-            // Check if click is outside both the dropdown and both buttons
-            if (showModuleDropdown && dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-                // Check if click is outside the top button (if it exists)
+            // Check if click is outside the top dropdown and its button
+            if (showTopModuleDropdown && topDropdownRef.current && !topDropdownRef.current.contains(event.target)) {
                 const isOutsideTopButton = !dropdownButtonRef.current || !dropdownButtonRef.current.contains(event.target);
-                // Check if click is outside the bottom button (if it exists)
+                if (isOutsideTopButton) {
+                    setShowTopModuleDropdown(false);
+                }
+            }
+            
+            // Check if click is outside the bottom dropdown and its button
+            if (showBottomModuleDropdown && bottomDropdownRef.current && !bottomDropdownRef.current.contains(event.target)) {
                 const isOutsideBottomButton = !bottomDropdownButtonRef.current || !bottomDropdownButtonRef.current.contains(event.target);
-
-                // If click is outside both buttons, close the dropdown
-                if (isOutsideTopButton && isOutsideBottomButton) {
-                    setShowModuleDropdown(false);
+                if (isOutsideBottomButton) {
+                    setShowBottomModuleDropdown(false);
                 }
             }
 
@@ -87,7 +92,7 @@ export default function JournalEntryPage() {
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [showModuleDropdown, showModuleAboveDropdown]);
+    }, [showTopModuleDropdown, showBottomModuleDropdown, showModuleAboveDropdown]);
 
     //actions
     const fetchEntryDetails = async () => {
@@ -122,7 +127,15 @@ export default function JournalEntryPage() {
                 setEditedTitle(newEntry.title);
                 setEditedDescription(newEntry.description);
                 setIsTitleEditing(true); // Automatically show title editor for new entries
-                setEntryJson({ modules: [] });
+                setIsEditing(true);
+                setEntryJson({ modules: [
+                    { 
+                        id: generateRandomId(), 
+                        type: 'text-editor', 
+                        manuallyAdded: false,
+                        html: '<p>Type or paste your content here!</p>'
+                    }
+                ] });
             } else {
                 // Get existing entry data
                 const entryResponse = await api.getEntry(entryId);
@@ -144,6 +157,10 @@ export default function JournalEntryPage() {
                     if (contentResponse.data.success && contentResponse.data.data) {
                         try {
                             const contentJson = JSON.parse(contentResponse.data.data);
+                            contentJson.modules.forEach(module => {
+                                //remove unneccessary properties
+                                delete module.manuallyAdded;
+                            });
                             setEntryJson(contentJson || { modules: [] });
                         } catch (parseErr) {
                             console.error('Error parsing entry content JSON:', parseErr);
@@ -298,11 +315,12 @@ export default function JournalEntryPage() {
         return Math.floor(Math.random() * 1000000);
     };
 
-    const addModule = (type) => {
-
+    const addModule = (type, position = 'bottom') => {
+        const newModuleId = generateRandomId();
         const newModule = {
-            id: generateRandomId(),
-            type: type
+            id: newModuleId,
+            type: type,
+            manuallyAdded: true
         };
 
         setEntryJson(prev => ({
@@ -310,15 +328,22 @@ export default function JournalEntryPage() {
             modules: [...prev.modules, newModule]
         }));
 
-        setShowModuleDropdown(false);
+        // Close the appropriate dropdown based on which one was used
+        if (position === 'top') {
+            setShowTopModuleDropdown(false);
+        } else {
+            setShowBottomModuleDropdown(false);
+        }
     };
 
     const addModuleAbove = (type) => {
         if (!currentModuleId) return;
 
+        const newModuleId = generateRandomId();
         const newModule = {
-            id: generateRandomId(),
-            type: type
+            id: newModuleId,
+            type: type,
+            manuallyAdded: true
         };
 
         const moduleIndex = entryJson.modules.findIndex(module => module.id === currentModuleId);
@@ -338,15 +363,6 @@ export default function JournalEntryPage() {
     };
 
     const removeModule = (moduleId) => {
-        const updatedEntryJson = {
-            ...entryJson,
-            modules: entryJson.modules.filter(module => module.id !== moduleId)
-        };
-        setEntryJson(updatedEntryJson);
-        saveEntryContent(updatedEntryJson);
-    };
-
-    const addModuleBelow = (moduleId) => {
         const updatedEntryJson = {
             ...entryJson,
             modules: entryJson.modules.filter(module => module.id !== moduleId)
@@ -388,7 +404,7 @@ export default function JournalEntryPage() {
         return (
             <div className="journal-entry-page loading">
                 <div className="loading-spinner">
-                    <Icon name="loading" />
+                    <Icon name="progress_activity" spin={true} />
                     <p>Loading entry...</p>
                 </div>
             </div>
@@ -502,21 +518,27 @@ export default function JournalEntryPage() {
                             <div className="right-side">
                                 <button
                                     ref={dropdownButtonRef}
-                                    onClick={() => setShowModuleDropdown(!showModuleDropdown)}
+                                    onClick={() => {
+                                        // Close bottom dropdown if it's open
+                                        if (showBottomModuleDropdown) {
+                                            setShowBottomModuleDropdown(false);
+                                        }
+                                        setShowTopModuleDropdown(!showTopModuleDropdown);
+                                    }}
                                 >
                                     <Icon name="add" /> Add Content
                                 </button>
 
-                                {showModuleDropdown && (
+                                {showTopModuleDropdown && (
                                     <div
                                         className="module-dropdown"
-                                        ref={dropdownRef}
+                                        ref={topDropdownRef}
                                     >
                                         {modules.map(module => (
                                             <div
                                                 key={module.id}
                                                 className="module-option"
-                                                onClick={() => addModule(module.type)}
+                                                onClick={() => addModule(module.type, 'top')}
                                             >
                                                 <Icon name={module.icon} />
                                                 <span>{module.name}</span>
@@ -544,7 +566,7 @@ export default function JournalEntryPage() {
                         const moduleType = modules.find(m => m.type === module.type);
                         const ModuleComponent = moduleType?.module;
                         return (
-                            <div key={'module-' + module.id} className={`entry module-${module.type?.replace(' ', '-') ?? ''} module-id-${module.id} ${isEditing ? 'editable' : ''}`}>
+                            <div key={'module-' + module.id} className={`entry module-${module.type?.replace(' ', '-') ?? ''} module-id-${module.id} ${isEditing ? 'editable' : ''}${module.manuallyAdded ? ' manually-added' : ''}`}>
                                 {isEditing && (
                                     <div className="module-tab-container">
                                         <div className="module-tab">
@@ -586,7 +608,7 @@ export default function JournalEntryPage() {
                                         </div>
                                     </div>
                                 )}
-                                <ModuleComponent module={module} onUpdate={handleUpdatedModule} isEditable={isEditing} />
+                                <ModuleComponent module={module} onUpdate={handleUpdatedModule} isEditable={isEditing} manuallyAdded={module.manuallyAdded} />
                             </div>
                         )
                     })}
@@ -598,20 +620,26 @@ export default function JournalEntryPage() {
                         <div className="right-side">
                             <button
                                 ref={bottomDropdownButtonRef}
-                                onClick={() => setShowModuleDropdown(!showModuleDropdown)}
+                                onClick={() => {
+                                    // Close top dropdown if it's open
+                                    if (showTopModuleDropdown) {
+                                        setShowTopModuleDropdown(false);
+                                    }
+                                    setShowBottomModuleDropdown(!showBottomModuleDropdown);
+                                }}
                             >
                                 <Icon name="add" /> Add Content
                             </button>
-                            {showModuleDropdown && (
+                            {showBottomModuleDropdown && (
                                 <div
                                     className="module-dropdown"
-                                    ref={dropdownRef}
+                                    ref={bottomDropdownRef}
                                 >
                                     {modules.map(module => (
                                         <div
                                             key={module.id}
                                             className="module-option"
-                                            onClick={() => addModule(module.type)}
+                                            onClick={() => addModule(module.type, 'bottom')}
                                         >
                                             <Icon name={module.icon} />
                                             <span>{module.name}</span>

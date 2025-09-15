@@ -1,9 +1,12 @@
 using System.Reflection;
 using Serilog;
+using Collector.Common;
 using Collector.Auth.Services;
 using Collector.API.Services;
 using Microsoft.AspNetCore.Http.Features;
 using Collector.Web.Server.SignalR;
+using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -76,8 +79,14 @@ builder.Services.AddSwaggerGen(e =>
 //load LLM keys
 foreach(var llm in Collector.Common.LLMs.Available)
 {
-    llm.Value.PrivateKey = builder.Configuration.GetSection("LLM:" + llm.Key + ":PrivateKey").Value ?? "";
+    llm.Value.PrivateKey = builder.Configuration["LLM:" + llm.Key + ":PrivateKey"] ?? "";
 }
+
+// Set all file storage paths from configuration
+Files.ArticlesPath = builder.Configuration["Storage:Articles"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content", "articles");
+Files.FilesPath = builder.Configuration["Storage:Files"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content", "files");
+Files.ImagesPath = builder.Configuration["Storage:Images"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content", "images");
+Files.JournalPath = builder.Configuration["Storage:Journal"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content", "journal-entries");
 
 var app = builder.Build();
 
@@ -109,11 +118,25 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors();
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Configure static files with SVG support
+var provider = new FileExtensionContentTypeProvider();
+provider.Mappings[".svg"] = "image/svg+xml";
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    ContentTypeProvider = provider
+});
+
+// Map controllers
 app.MapControllers();
+
+// SPA fallback to index.html for React app
+app.MapFallbackToFile("index.html");
 
 // Map SignalR hubs
 app.MapHub<TextEditorHub>("/text-editor");

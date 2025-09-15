@@ -29,6 +29,14 @@
     padding-top:1em;
 }
 
+.services-modal .search-container{
+    padding-top:1em;
+}
+
+.services-modal .search-container input{
+    width:100%;
+}
+
 .admin-domains .service-filter-tags{
     padding:0 0 0 1em;
 }
@@ -53,7 +61,7 @@
     opacity:1;
 }
 
-.admin-domains .service-tag .remove:hover{
+.admin-domains .service-tag .remove:hover {
     color:#ff0000;
 }
     

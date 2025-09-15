@@ -150,7 +150,12 @@ namespace Collector.CyberScout
             
             // Get Services properties from configuration
             Common.Article.BrowserEndpoint = configuration["Charlotte:Router:Endpoint"] ?? "http://localhost:7007/GetDOM";
-            Common.Files.ContentPath = configuration["Content:Path"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content");
+            
+            // Set all file storage paths from configuration
+            Common.Files.ArticlesPath = configuration["Storage:Articles"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content", "articles");
+            Common.Files.FilesPath = configuration["Storage:Files"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content", "files");
+            Common.Files.ImagesPath = configuration["Storage:Images"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content", "images");
+            Common.Files.JournalPath = configuration["Storage:Journal"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content", "journal-entries");
             
             return services.BuildServiceProvider();
         }

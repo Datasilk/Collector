@@ -3,11 +3,12 @@
 import axios from 'axios';
 import moment from 'moment';
 import { jwtDecode } from 'jwt-decode';
+import { apiBasePath } from '../helpers/endpoints.js';
 
 const UseAxios = ({ user, setUser, useToken = false }) => {
 
 	const api = axios.create({
-		baseURL: import.meta.env.VITE_API_URL,
+		baseURL: apiBasePath(),
 	});
 
 	api.get = (url) => {
@@ -19,7 +20,7 @@ const UseAxios = ({ user, setUser, useToken = false }) => {
 		const getNewToken = async (refreshToken) => {
 			const currentUrl = window.location.pathname + window.location.search;
 			try {
-				const response = await api.post('/auth/refresh-token', { token: refreshToken });
+				const response = await api.post('api/auth/refresh-token', { token: refreshToken });
 				const newTokenData = response.data.data;
 
 				if (user) {
@@ -39,7 +40,7 @@ const UseAxios = ({ user, setUser, useToken = false }) => {
 
 		api.interceptors.request.use(
 			async (config) => {
-				if(config.url?.indexOf('/auth/refresh-token') >= 0) return config;
+				if(config.url?.indexOf('api/auth/refresh-token') >= 0) return config;
 				const updatedConfig = { ...config };
 				if (user && user.token) {
 					const decoded = jwtDecode(user.token);

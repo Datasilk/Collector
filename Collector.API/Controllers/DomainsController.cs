@@ -565,7 +565,7 @@ namespace Collector.API.Controllers
                 foreach (var article in clean.articles)
                 {
                     var domainName = article.url.GetDomainName();
-                    Files.DeleteFile(domainName.Substring(0, 2) + "\\" + domain + "\\" + article.articleId + ".html");
+                    Files.DeleteFile(Files.Paths.Articles, domainName.Substring(0, 2) + "\\" + domain + "\\" + article.articleId + ".html");
                 }
                 _domainsRepository.CleanDownloads(domainId);
                 return Json(new ApiResponse { success = true });
@@ -602,7 +602,7 @@ namespace Collector.API.Controllers
                         try
                         {
                             var domainName = article.url.GetDomainName();
-                            Files.DeleteFile(domainName.Substring(0, 2) + "\\" + domain.domain + "\\" + article.articleId + ".html");
+                            Files.DeleteFile(Files.Paths.Articles, domainName.Substring(0, 2) + "\\" + domain.domain + "\\" + article.articleId + ".html");
                         }
                         catch (Exception ex)
                         {

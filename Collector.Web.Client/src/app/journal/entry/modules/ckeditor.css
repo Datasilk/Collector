@@ -60,3 +60,7 @@
 
 .text-editor > .text{
     min-height:1em;}
+
+.text-editor-placeholder{
+    opacity:0.5;
+}

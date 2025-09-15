@@ -75,7 +75,7 @@ export default function JournalDetailsPage() {
         return (
             <div className="journal-details-page loading">
                 <div className="loading-spinner">
-                    <Icon name="loading" />
+                    <Icon name="progress_activity" spin={true} />
                     <p>Loading journal details...</p>
                 </div>
             </div>

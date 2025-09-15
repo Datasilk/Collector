@@ -38,6 +38,7 @@ export default function AdminDomains() {
     const [domainTypes, setDomainTypes] = useState([]);
     const [languages, setLanguages] = useState([]);
     const [selectedServices, setSelectedServices] = useState([]);
+    const [loading, setLoading] = useState(false);
 
     // Create a filter object with all filter parameters including pagination
     const [filter, setFilter] = useState({
@@ -102,6 +103,7 @@ export default function AdminDomains() {
                 setDomains(response.data.data.domains || []);
                 setTotalItems(response.data.data.totalCount || 0);
                 setTotalPages(Math.ceil((response.data.data.totalCount || 0) / filter.length));
+                setLoading(false);
             }
         }).catch(error => {
             console.error('Error fetching domains:', error);
@@ -206,6 +208,7 @@ export default function AdminDomains() {
         const serviceIds = services.map(s => s.id);
         const newFilter = { ...filter, serviceIds, start: 0 }; // Reset to first page
         setFilter(newFilter);
+        setDomains([]);
         filterDomains(newFilter);
         setShowServicesModal(false); // Close the modal after saving
     };
@@ -216,6 +219,7 @@ export default function AdminDomains() {
         const serviceIds = updatedServices.map(s => s.id);
         const newFilter = { ...filter, serviceIds };
         setFilter(newFilter);
+        setLoading(true);
         filterDomains(newFilter);
     };
 
@@ -303,6 +307,11 @@ export default function AdminDomains() {
                                 </span>
                             </div>
                         ))}
+                    </div>
+                )}
+                {loading && (
+                    <div className="empty loading">
+                        <Icon name="progress_activity" spin={true} /> Loading...
                     </div>
                 )}
                 <table className="spreadsheet">

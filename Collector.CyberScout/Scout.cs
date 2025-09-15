@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Collector.Common;
 using Collector.Common.Extensions.Strings;
+using Collector.Common.Models.Articles;
 using Collector.Data.Entities;
 using Collector.Data.Enums;
-using Collector.Common.Models.Articles;
 
 namespace Collector.CyberScout
 {
@@ -272,8 +272,8 @@ namespace Collector.CyberScout
                     // Save article HTML content to disk using Files utility
                     var domain = queue.url.GetDomainName();
                     var firstTwoLetters = domain.Length >= 2 ? domain.Substring(0, 2) : domain;
-                    var relpath = $"articles/{firstTwoLetters}/{domain}/{articleInfo.articleId}.html";
-                    Files.SaveFile(relpath, result);
+                    var relpath = $"{firstTwoLetters}/{domain}/{articleInfo.articleId}.html";
+                    Files.SaveFile(Files.Paths.Articles, relpath, result);
                 }
 
                 //get URLs from all anchor links on page
@@ -487,7 +487,7 @@ namespace Collector.CyberScout
                     try
                     {
                         var domainName = article.url.GetDomainName();
-                        Files.DeleteFile(domainName.Substring(0, 2) + "\\" + domain.domain + "\\" + article.articleId + ".html");
+                        Files.DeleteFile(Files.Paths.Articles, domainName.Substring(0, 2) + "\\" + domain.domain + "\\" + article.articleId + ".html");
                     }
                     catch (Exception ex)
                     {

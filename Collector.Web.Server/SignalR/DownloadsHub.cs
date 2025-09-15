@@ -1,11 +1,11 @@
 using System.Net;
 using Microsoft.AspNetCore.SignalR;
 using Collector.Common;
-using Collector.Data.Entities;
 using Collector.Common.Extensions.Strings;
+using Collector.Common.Models.Articles;
+using Collector.Data.Entities;
 using Collector.Data.Interfaces;
 using Collector.Data.Enums;
-using Collector.Common.Models.Articles;
 
 namespace Collector.Web.Server.SignalR
 {
@@ -495,7 +495,7 @@ namespace Collector.Web.Server.SignalR
                     try
                     {
                         var domainName = article.url.GetDomainName();
-                        Files.DeleteFile(domainName.Substring(0, 2) + "\\" + domain.domain + "\\" + article.articleId + ".html");
+                        Files.DeleteFile(Files.Paths.Articles, domainName.Substring(0, 2) + "\\" + domain.domain + "\\" + article.articleId + ".html");
                     }
                     catch (Exception ex)
                     {

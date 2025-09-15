@@ -58,7 +58,7 @@ import AIGeneratorModal from './ckeditor/ai-generator-modal';
 //helpers
 import { fonts } from '@/helpers/fonts';
 
-export default function CKEditorModule({ module, onUpdate, isEditable = true }) {
+export default function CKEditorModule({ module, onUpdate, isEditable = true, manuallyAdded = false }) {
     //state
     const [mounted, setMounted] = useState(false);
     const [showAIModal, setShowAIModal] = useState(false);
@@ -78,6 +78,13 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true }) 
 
         // Add event listener for AI generator button click
         document.addEventListener('aiGeneratorRequest', handleAIGeneratorRequest);
+        
+        // Auto-focus if this module was manually added
+        if (module.manuallyAdded) {
+            setTimeout(() => {
+                showEditor();
+            }, 500);
+        }
 
         return () => {
             document.removeEventListener('aiGeneratorRequest', handleAIGeneratorRequest);
@@ -134,6 +141,7 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true }) 
     };
 
     const loadHtml = (newhtml) => {
+        if(!newhtml && manuallyAdded) newhtml = '<p>Type or paste your content here!</p>';
         if (!newhtml) newhtml = htmlRef.current;
         if(editorRef.current) return;
         const elem = getTextElement();
@@ -193,6 +201,9 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true }) 
     const showEditor = () => {
         // Don't show editor if editing is disabled
         if (isEditorActive.current == false) return;
+        
+        // Don't initialize again if already initialized
+        if (editorRef.current) return;
 
         const elem = getTextElement();
         if (!elem) return;
@@ -209,7 +220,10 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true }) 
         elem.removeEventListener('mouseover', showEditor);
         elem.removeEventListener('click', showEditor);
         document.removeEventListener('mousedown', handleClickOutside);
+
+        //load initial data into CKEditor
         const initialData = elem.innerHTML;
+
         setTimeout(() => {
             document.addEventListener('mousedown', handleClickOutside);
         }, 100);
@@ -484,7 +498,6 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true }) 
     return (
         <>
             <div className="text-editor"><div className="text"></div></div>
-
             {showAIModal && <AIGeneratorModal module={module} onClose={handleCloseAIModal} onGenerated={handleContentGenerated} />}
         </>
     );
