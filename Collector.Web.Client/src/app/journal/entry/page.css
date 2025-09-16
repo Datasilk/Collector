@@ -673,11 +673,13 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
 .entry-modules .checklist-item input[type="checkbox"]{
     appearance: none; 
     margin-right:0.5em;
+    margin-top:0.05em;
     padding:0.5em;
     border: 2px solid #7763ed;
     border-radius: 0.35em;
     position: relative;
     cursor: default;
+    vertical-align: top;
 }
 
 .entry-modules .editable .checklist-item input[type="checkbox"]{

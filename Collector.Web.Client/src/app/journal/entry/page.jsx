@@ -165,17 +165,12 @@ export default function JournalEntryPage() {
                             setEntryJson(contentJson || { modules: [] });
                         } catch (parseErr) {
                             console.error('Error parsing entry content JSON:', parseErr);
-                            setEntryJson({ modules: [] });
                         }
-                    } else {
-                        setEntryJson({...defaultEntryJson, id: generateRandomId()});
                     }
                 } catch (contentErr) {
                     console.error('Error fetching entry content:', contentErr);
-                    setEntryJson({...defaultEntryJson, id: generateRandomId()});
                 }
             }
-
             setLoading(false);
         } catch (err) {
             console.error('Error fetching entry details:', err);
