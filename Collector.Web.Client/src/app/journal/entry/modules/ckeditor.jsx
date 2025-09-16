@@ -9,6 +9,7 @@ import {
     Autosave,
     BlockQuote,
     Bold,
+    CodeBlock,
     Emoji,
     Essentials,
     FontBackgroundColor,
@@ -17,7 +18,8 @@ import {
     FontSize,
     GeneralHtmlSupport,
     Heading,
-    //Highlight,
+    Highlight,
+    HorizontalLine,
     Indent,
     IndentBlock,
     Italic,
@@ -189,7 +191,7 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
         while (elem && elem != null) {
             if (editorContainer.contains(elem) ||
                 toolbar.contains(elem) ||
-                elem.classList.contains('ck')) {
+                elem?.classList?.contains('ck')) {
                 return;
             }
             elem = elem.parentNode;
@@ -251,35 +253,49 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                     'heading',
                     'style',
                     '|',
-                    'lineheight',
+                    'alignment:left',
+                    'alignment:center',
+                    'alignment:right',
+                    'alignment:justify',
                     '|',
-                    'link',
-                    'emoji',
-                    'specialCharacters',
-                    'subscript',
-                    'superscript',
-                    'blockQuote',
-                    '|',
+                    'bulletedList',
+                    'numberedList',
+                    'outdent',
+                    'indent',
+                    "|",
+                    'horizontalLine',
                     'removeFormat',
-                    'aiGenerator',
+                    "|",
+                    {
+                        label: 'Advanced',
+                        icon: 'threeVerticalDots',
+                        items: [ 
+                            'specialCharacters',
+                            'subscript', 
+                            'superscript', 
+                            'blockQuote'
+                        ]
+                    },
                     '-',
                     'fontSize',
+                    'lineheight',
+                    '|',
                     'fontFamily',
                     'fontColor',
                     'fontBackgroundColor',
-                    //'highlight',
+                    'highlight',
                     '|',
                     'bold',
                     'italic',
                     'underline',
                     'strikethrough',
                     '|',
-                    'alignment',
+                    'link',
                     '|',
-                    'bulletedList',
-                    'numberedList',
-                    'outdent',
-                    'indent',
+                    'insertTable',
+                    'codeBlock',
+                    'emoji',
+                    'aiGenerator',
                 ],
                 shouldNotGroupWhenFull: true,
                 viewportTopOffset: 160,
@@ -291,6 +307,7 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                 Autosave,
                 BlockQuote,
                 Bold,
+                CodeBlock,
                 Emoji,
                 Essentials,
                 FontBackgroundColor,
@@ -299,7 +316,8 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                 FontSize,
                 GeneralHtmlSupport,
                 Heading,
-                //Highlight,
+                Highlight,
+                HorizontalLine,
                 Indent,
                 IndentBlock,
                 Italic,
@@ -398,9 +416,74 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
             style: {
                 definitions: [
                     {
-                        name: 'Highlighted',
-                        element: 'span',
-                        classes: ['highlighted']
+                        name: 'Button',
+                        element: 'a',
+                        classes: ['button']
+                    },
+                    {
+                        name: 'Button Outlined',
+                        element: 'a',
+                        classes: ['button','outline']
+                    },
+                    {
+                        name: 'Button Inline',
+                        element: 'a',
+                        classes: ['button','inline']
+                    },
+                    {
+                        name: 'Note',
+                        element: 'p',
+                        classes: ['note','grey']
+                    },
+                    {
+                        name: 'Note - Red',
+                        element: 'p',
+                        classes: ['note', 'red']
+                    },
+                    {
+                        name: 'Note - Green',
+                        element: 'p',
+                        classes: ['note', 'green']
+                    },
+                    {
+                        name: 'Note - Blue',
+                        element: 'p',
+                        classes: ['note', 'blue']
+                    },
+                    {
+                        name: 'Note - Yellow',
+                        element: 'p',
+                        classes: ['note', 'yellow']
+                    },
+                    {
+                        name: 'Note - Orange',
+                        element: 'p',
+                        classes: ['note', 'orange']
+                    },
+                    {
+                        name: 'Note - Purple',
+                        element: 'p',
+                        classes: ['note', 'purple']
+                    },
+                    {
+                        name: 'Note - Pink',
+                        element: 'p',
+                        classes: ['note', 'pink']
+                    },
+                    {
+                        name: 'Information',
+                        element: 'p',
+                        classes: ['information']
+                    },
+                    {
+                        name: 'Warning',
+                        element: 'p',
+                        classes: ['warning']
+                    },
+                    {
+                        name: 'Error',
+                        element: 'p',
+                        classes: ['error']
                     },
                 ]
             },
@@ -417,6 +500,15 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
             indentBlock: {
                 offset: 1,
                 unit: 'em'
+            },
+            codeBlock: {
+                languages: [
+                    { language: 'plaintext', label: 'Plain text' },
+                    { language: 'html', label: 'HTML' },
+                    { language: 'css', label: 'CSS' },
+                    { language: 'javascript', label: 'JavaScript' }
+                ],
+                indentSequence: '    ' // Example: 4 spaces for indentation
             }
         };
 
@@ -447,11 +539,9 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
             editorRef.current.destroy();
             editorRef.current = null;
             loadHtml();
-            console.log('destroyed editor');
         }else if (!isEditorActive.current) {
             //editor is not active, add event listeners instead
             addEditorEventListeners();
-            console.log('added event listeners');
         }
     };
 

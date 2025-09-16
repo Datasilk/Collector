@@ -319,11 +319,11 @@ namespace Collector.API.Controllers
                     CheckListId = model.CheckListId,
                     Title = model.Title,
                     Icon = model.Icon,
-                    Status = 1 // Active
+                    Status = 0 //unchecked by default
                 };
 
-                var id = await _checkListItemsRepo.Add(item);
-                return Json(new ApiResponse { success = true, data = id });
+                item.Id = await _checkListItemsRepo.Add(item);
+                return Json(new ApiResponse { success = true, data = item });
             }
             catch (Exception ex)
             {

@@ -315,6 +315,8 @@
     <Build Include="dbo\Stored Procedures\Domains\Services\DomainServices_Add.sql" />
     <Build Include="dbo\Stored Procedures\Domains\Services\DomainServices_GetByNames.sql" />
     <Build Include="dbo\Stored Procedures\Domains\Services\DomainServices_Filter.sql" />
+    <Build Include="dbo\Tables\Journal\JournalCheckListItems.sql" />
+    <Build Include="dbo\Tables\Journal\JournalCheckLists.sql" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Collector.SQL.publish.xml" />

@@ -10,7 +10,7 @@
 }
 .ck.ck-editor__editable_inline{
     padding:inherit !important;
-    overflow:auto;
+    overflow:visible !important;
     min-height:fit-content;
 }
 .ck.ck-editor__editable_inline > *:last-child{margin-bottom:0 !important}
@@ -47,7 +47,7 @@
 }
 
 .ck-balloon-panel > .ck.ck-toolbar > .ck-toolbar__items{
-	width:43em;
+	width:50em;
 }
 
 .ck.ck-dropdown.ck-heading-dropdown{

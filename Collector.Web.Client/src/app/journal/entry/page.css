@@ -429,6 +429,211 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     padding-inline-start:1em;
 }
 
+/* text editor styles the user can select from */
+.entry-modules .highlighted{
+    background-color: #ffff00;
+    display:inline-block;
+    padding:0 0.25em;
+}
+
+.entry-modules .note,
+.ck-style-grid__button__preview .note{
+    border-style:solid;
+    border-width:2px;
+    border-left-width:10px;
+    border-color:#a7a7a7;
+    padding:0.5em;
+    border-radius:0.5em;
+    display:inline-block;
+    margin-bottom:1em;
+}
+
+.entry-modules .note.grey,
+.ck-style-grid__button__preview .note.grey{
+    border-color:#b2b2b2;
+    background-color: #eaeaea;
+}
+
+.entry-modules .note.red,
+.ck-style-grid__button__preview .note.red{
+    border-color:#fd7f7f;
+    background-color: #fbe5e5;
+    color:#730101;
+}
+
+.entry-modules .note.orange,
+.ck-style-grid__button__preview .note.orange{
+    border-color:#f7b045;
+    background-color: #fbefe5;
+    color:#953800;
+}
+
+.entry-modules .note.yellow,
+.ck-style-grid__button__preview .note.yellow{
+    border-color:#ffdc41;
+    background-color: #fbf4e5;
+    color:#c86c00;
+}
+
+.entry-modules .note.green,
+.ck-style-grid__button__preview .note.green{
+    border-color:#9ac27f;
+    background-color: #dbead5;
+    color:#235d10;
+}
+
+.entry-modules .note.blue,
+.ck-style-grid__button__preview .note.blue{
+    border-color:#7f97fd;
+    background-color: #e5edfb;
+    color:#1e33b5;
+}
+
+.entry-modules .note.purple,
+.ck-style-grid__button__preview .note.purple{
+    border-color:#b183ff;
+    background-color: #eae5fb;
+    color:#5503d1;
+}
+
+.entry-modules .note.pink,
+.ck-style-grid__button__preview .note.pink{
+    border-color:#ff83c9;
+    background-color: #fbe5f4;
+    color:#c50061;
+}
+
+.entry-modules .information,
+.ck-style-grid__button__preview .information{
+    border-style:solid;
+    border-width:2px;
+    color:#007da2;
+    border-color:#7bc9eb;
+    background-color: #dfeff7;
+    padding:0.5em;
+    border-radius:0.5em;
+    display:inline-block;
+    width:100%;
+    overflow:hidden;
+}
+
+.entry-modules .information::before,
+.ck-style-grid__button__preview .information::before{
+    content:"\e88e";
+    font-family: 'Material Symbols Rounded';
+    font-weight: bold;
+    margin-right:0.5em;
+    font-size:2em;
+    display:inline-block;
+    vertical-align:middle;
+    line-height:1;
+    width:1em;
+    color:#008ecb;
+}
+
+
+
+.entry-modules .warning,
+.ck-style-grid__button__preview .warning{
+    border-style:solid;
+    border-width:2px;
+    border-color:#f7b045;
+    background-color: #fbefe5;
+    padding:0.5em;
+    border-radius:0.5em;
+    display:inline-block;
+    width:100%;
+    overflow:hidden;
+    color:#e86e00;
+}
+
+.entry-modules .warning::before,
+.ck-style-grid__button__preview .warning::before{
+    content:"\e002";
+    font-family: 'Material Symbols Rounded';
+    font-weight: bold;
+    margin-right:0.5em;
+    font-size:2em;
+    display:inline-block;
+    vertical-align:middle;
+    line-height:1;
+    width:1em;
+    color:#ff6d08;
+}
+
+.entry-modules .error,
+.ck-style-grid__button__preview .error{
+    border-style:solid;
+    border-width:2px;
+    border-color:#fd7f7f;
+    background-color: #fbe5e5;
+    padding:0.5em;
+    border-radius:0.5em;
+    display:inline-block;
+    width:100%;
+    overflow:hidden;
+    color:#bb2c2c;
+}
+
+.entry-modules .error::before,
+.ck-style-grid__button__preview .error::before{
+    content:"\e000";
+    font-family: 'Material Symbols Rounded';
+    font-weight: bold;
+    margin-right:0.5em;
+    font-size:2em;
+    display:inline-block;
+    vertical-align:middle;
+    line-height:1;
+    width:1em;
+    color:#e81212;
+}
+
+.entry-modules .button.outline,
+.ck-style-grid__button__preview .button.outline{
+    background-color:transparent !important;
+    color:#7763ed !important;
+    border-color:transparent;
+    border-width:2px;
+    border-style:solid;
+}
+
+.entry-modules .button.outline:hover,
+.ck-style-grid__button__preview .button.outline:hover{
+    border-color:#7763ed;
+}
+
+.entry-modules .button.inline,
+.ck-style-grid__button__preview .button.inline{
+    background-color:transparent !important;
+    color:#7763ed !important;
+    border-color:transparent;
+    border-width:2px;
+    border-style:solid;
+    padding:0.25em 0.25em;
+    border-radius:0.25em;
+    margin:0 !important;
+}
+
+.entry-modules .button.inline:hover,
+.ck-style-grid__button__preview .button.inline:hover{
+    border-color:#7763ed;
+}
+
+.entry-modules mark{
+    display:inline-block;
+    padding:0 0.25em;
+}
+
+.entry-modules hr,
+.ck.ck-content hr {
+    background:#ccc;
+    border:0;
+    height:4px;
+    margin:15px 0;
+}
+
+
 .ck.ck-editor__editable.ck-focused:not(.ck-editor__nested-editable){
     box-shadow: none !important;
 }
@@ -450,6 +655,49 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
 .entry-modules .ai-generated{
     display:block;
 }
+
+/* checklists */
+.entry-modules .checklist-item{
+    margin:0.2em 0;
+    padding:0.25em;
+    cursor:default;
+}
+.entry-modules .editable .checklist-item:hover{
+    background-color:#dedbf4;
+    cursor:pointer;
+}
+.entry-modules .checklist-item label{
+    margin:0;
+}
+
+.entry-modules .checklist-item input[type="checkbox"]{
+    appearance: none; 
+    margin-right:0.5em;
+    padding:0.5em;
+    border: 2px solid #7763ed;
+    border-radius: 0.35em;
+    position: relative;
+    cursor: default;
+}
+
+.entry-modules .editable .checklist-item input[type="checkbox"]{
+    cursor:pointer;
+}
+
+.entry-modules .checklist-item input[type="checkbox"]:checked{
+    background-color:#7763ed;
+}
+
+.entry-modules .checklist-item input[type="checkbox"]:checked::after{
+    content:"\2713";
+    color:#ffffff;
+    font-size:0.8em;
+    position:absolute;
+    top:45%;
+    left:50%;
+    transform:translate(-50%,-50%);
+}
+
 
 
 .text-editor > .text > *:last-child{margin-bottom:0 !important}

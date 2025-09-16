@@ -84,7 +84,7 @@ const ServicesModal = ({ onClose, onSave, session, selectedServices = [] }) => {
         const selectedServiceObjects = services.filter(service => selectedIds.includes(service.id));
         onSave(selectedServiceObjects);
     };
-console.log(services);
+    
     return (
         <Modal isOpen={true} onClose={onClose} title="Domain Services">
             <div className="services-modal">

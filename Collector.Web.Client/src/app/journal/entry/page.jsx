@@ -12,7 +12,16 @@ import { useSession } from '@/context/session';
 import { Journals } from '@/api/user/journals';
 //modules
 import modules from './modules';
-import CKEditorModule from './modules/ckeditor';
+
+const defaultEntryJson = {
+    modules: [
+        {
+            type: 'text-editor',
+            manuallyAdded: false,
+            html: '<p>Type or paste your content here!</p>'
+        }
+    ]
+};
 
 /**
  * <summary>Journal Entry Page</summary>
@@ -110,7 +119,7 @@ export default function JournalEntryPage() {
             const journalData = journalResponse.data.data;
             setJournal(journalData);
 
-            const isNewEntry = entryId === 'new';
+            const isNewEntry = entryId === 'new' || entryId == null;
 
             if (isNewEntry) {
                 // Create a new entry template
@@ -128,18 +137,10 @@ export default function JournalEntryPage() {
                 setEditedDescription(newEntry.description);
                 setIsTitleEditing(true); // Automatically show title editor for new entries
                 setIsEditing(true);
-                setEntryJson({ modules: [
-                    { 
-                        id: generateRandomId(), 
-                        type: 'text-editor', 
-                        manuallyAdded: false,
-                        html: '<p>Type or paste your content here!</p>'
-                    }
-                ] });
+                setEntryJson({...defaultEntryJson, id: generateRandomId()});
             } else {
                 // Get existing entry data
                 const entryResponse = await api.getEntry(entryId);
-
                 if (!entryResponse.data.success) {
                     setError(entryResponse.data.message || 'Failed to load entry details');
                     setLoading(false);
@@ -167,11 +168,11 @@ export default function JournalEntryPage() {
                             setEntryJson({ modules: [] });
                         }
                     } else {
-                        setEntryJson({ modules: [] });
+                        setEntryJson({...defaultEntryJson, id: generateRandomId()});
                     }
                 } catch (contentErr) {
                     console.error('Error fetching entry content:', contentErr);
-                    setEntryJson({ modules: [] });
+                    setEntryJson({...defaultEntryJson, id: generateRandomId()});
                 }
             }
 
@@ -211,7 +212,7 @@ export default function JournalEntryPage() {
         }
 
         setSaveStatus('saving');
-        const api = Journals(session);
+        const { addEntry, renameEntry } = Journals(session);
 
         try {
             if (entryId === 'new') {
@@ -219,10 +220,11 @@ export default function JournalEntryPage() {
                 const newEntry = {
                     journalId: parseInt(journalId),
                     title: editedTitle.trim(),
-                    description: editedDescription
+                    description: editedDescription,
+                    json: entryJson
                 };
 
-                const response = await api.addEntry(newEntry);
+                const response = await addEntry(newEntry);
 
                 if (!response.data.success) {
                     throw new Error(response.data.message || 'Failed to create entry');
@@ -233,7 +235,7 @@ export default function JournalEntryPage() {
                 return;
             } else {
                 // Update the entry title for existing entries
-                await api.renameEntry(entry.id, editedTitle.trim());
+                await renameEntry(entry.id, editedTitle.trim());
                 const updatedEntry = {
                     ...entry,
                     title: editedTitle.trim(),
