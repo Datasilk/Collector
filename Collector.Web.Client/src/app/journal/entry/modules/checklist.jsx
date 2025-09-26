@@ -16,6 +16,9 @@ export default function ChecklistModule({ module, onUpdate, isEditable = true, m
     const [editingItemId, setEditingItemId] = useState(null);
     const debounceTimer = useRef(null);
 
+    //refs
+    const titleInputRef = useRef(null);
+
     //context
     const session = useSession();
     const {
@@ -94,17 +97,44 @@ export default function ChecklistModule({ module, onUpdate, isEditable = true, m
         }
 
         // Create a new timer
-        debounceTimer.current = setTimeout(() => {
-            updateChecklistItemTitle(item.id, newTitle).then(response => {
-                if (response.data.success) {
-                    const updatedItems = items.map(i =>
-                        i.id === item.id ? { ...i, title: newTitle } : i
-                    );
-                    setItems(updatedItems);
-                }
-            });
-        }, 1500); // 500ms debounce delay
+        debounceTimer.current = setTimeout(() => handleUpdateChecklistItemTitle(item.id, newTitle), 1500); // 500ms debounce delay
     };
+
+    const getSelectedItem = () => {
+        return items.find(item => item.id === editingItemId);
+    };
+
+    const handleTitleKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const item = getSelectedItem();
+            const value = titleInputRef.current.value;
+            handleUpdateChecklistItemTitle(item.id, value);
+            setEditingItemId(null);
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            setEditingItemId(null);
+        }
+    };
+
+    const handleUpdateChecklistItemTitle = (id, title) => {
+        updateChecklistItemTitle(id, title).then(response => {
+            if (response.data.success) {
+                const updatedItems = items.map(i =>
+                    i.id === id ? { ...i, title: title } : i
+                );
+                setItems(updatedItems);
+            }
+        });
+    }
+
+    const handleItemTitleChangeInput = (e, item) => {
+        const updatedItems = items.map(i =>
+            i.id === item.id ? { ...i, title: e.target.value } : i
+        );
+        setItems(updatedItems);
+        handleItemTitleChange(item, e.target.value);
+    }
 
     const handleInputBlur = () => {
         setEditingItemId(null);
@@ -123,17 +153,13 @@ export default function ChecklistModule({ module, onUpdate, isEditable = true, m
                             label={<>
                                 {editingItemId === item.id ? (
                                     <Input
+                                        ref={titleInputRef}
                                         name={`checklist-item-input-${item.id}`}
                                         value={item.title}
-                                        onChange={(e) => {
-                                            const updatedItems = items.map(i =>
-                                                i.id === item.id ? { ...i, title: e.target.value } : i
-                                            );
-                                            setItems(updatedItems);
-                                            handleItemTitleChange(item, e.target.value);
-                                        }}
+                                        onChange={(e) => handleItemTitleChangeInput(e, item)}
                                         onBlur={handleInputBlur}
                                         autoFocus
+                                        onKeyDown={handleTitleKeyDown}
                                     />
                                 ) : (
                                     <span
@@ -141,7 +167,7 @@ export default function ChecklistModule({ module, onUpdate, isEditable = true, m
                                         onClick={isEditable ? (e) => handleItemClick(e, item) : undefined}
                                         style={{ cursor: isEditable ? 'pointer' : 'default' }}
                                     >
-                                        {item.title}
+                                        {item.title !== '' ? item.title : <>&nbsp;</>}
                                     </span>
                                 )}
                             </>}

@@ -186,11 +186,12 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
     const handleClickOutside = (event) => {
         if (inModal.current) return;
         const editorContainer = document.querySelector(`.module-id-${module.id}`);
+        if(!editorContainer) { hideEditor(); return; }
         const toolbar = document.querySelector('.ck-toolbar');
         let elem = event.target;
         while (elem && elem != null) {
-            if (editorContainer.contains(elem) ||
-                toolbar.contains(elem) ||
+            if (editorContainer?.contains(elem) ||
+                toolbar?.contains(elem) ||
                 elem?.classList?.contains('ck')) {
                 return;
             }
@@ -547,10 +548,12 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
 
     const disableEditorEvents = () => {
         document.removeEventListener('mousedown', handleClickOutside);
+        if (editorRef.current) editorRef.current.model.document.off('change:data', handleDataChange);
     };
 
     const enableEditorEvents = () => {
         document.addEventListener('mousedown', handleClickOutside);
+        if (editorRef.current) editorRef.current.model.document.on('change:data', handleDataChange);
     };
 
     // AI Generator handlers

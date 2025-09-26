@@ -58,10 +58,16 @@ export default function JournalEntryPage() {
     const moduleDropdownButtonRef = useRef(null);
     const titleInputRef = useRef(null);
 
+    //apis
+    const { addEntry, renameEntry } = Journals(session);
+
     //effect
     useEffect(() => {
-        fetchEntryDetails();
-    }, [journalId, entryId, navigate, session]);
+        if(!entry || entry.id != entryId) {
+            console.log('fetching entry details');
+            fetchEntryDetails();
+        }
+    }, [journalId, entryId]);
 
     useEffect(() => {
         if (isTitleEditing && titleInputRef.current) {
@@ -187,6 +193,8 @@ export default function JournalEntryPage() {
         if (e.key === 'Enter') {
             e.preventDefault();
             updateEntryTitle();
+            setIsTitleEditing(false);
+            setIsEditing(false);
         } else if (e.key === 'Escape') {
             e.preventDefault();
             setIsTitleEditing(false);
@@ -202,12 +210,13 @@ export default function JournalEntryPage() {
         if (editedTitle.trim() === '') return;
 
         if (entryId !== 'new' && entry.title === editedTitle.trim()) {
+            //title is the same, do nothing
             setIsTitleEditing(false);
             return;
         }
+        if(saveStatus == 'saving') return;
 
         setSaveStatus('saving');
-        const { addEntry, renameEntry } = Journals(session);
 
         try {
             if (entryId === 'new') {
@@ -222,6 +231,7 @@ export default function JournalEntryPage() {
                 const response = await addEntry(newEntry);
 
                 if (!response.data.success) {
+                    setSaveStatus('error');
                     throw new Error(response.data.message || 'Failed to create entry');
                 }
 
@@ -348,7 +358,6 @@ export default function JournalEntryPage() {
 
         const updatedModules = [...entryJson.modules];
         updatedModules.splice(moduleIndex, 0, newModule);
-
         const updatedEntryJson = {
             ...entryJson,
             modules: updatedModules

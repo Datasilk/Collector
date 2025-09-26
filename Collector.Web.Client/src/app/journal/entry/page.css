@@ -656,11 +656,17 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     display:block;
 }
 
+.text-editor > .text > *:last-child{margin-bottom:0 !important}
+.text-editor > .text > *:first-child{margin-top:0 !important}
+.text-editor > .text > p:last-child{margin-bottom:0 !important}
+.text-editor > .text > p:first-child{margin-top:0 !important}
+
 /* checklists */
 .entry-modules .checklist-item{
     margin:0.2em 0;
     padding:0.25em;
     cursor:default;
+    line-height:0;
 }
 .entry-modules .editable .checklist-item:hover{
     background-color:#dedbf4;
@@ -700,12 +706,34 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     transform:translate(-50%,-50%);
 }
 
+.entry-modules .checklist-item .form-group{
+    display:inline-block;
+    width:100%;
+}
 
+.entry-modules .checklist-item .form-group label{
+    width:100%;
+    cursor:pointer;
+}
 
-.text-editor > .text > *:last-child{margin-bottom:0 !important}
-.text-editor > .text > *:first-child{margin-top:0 !important}
-.text-editor > .text > p:last-child{margin-bottom:0 !important}
-.text-editor > .text > p:first-child{margin-top:0 !important}
+.entry-modules .checklist-item .checklist-item-label{
+    cursor:text !important;
+    min-width:10em;
+    display:inline-block;
+}
+
+.entry-modules .checklist-item span,
+.entry-modules .checklist-item input[type="text"]{
+    line-height:1.25;
+}
+
+.entry-modules .checklist-item input[type="text"]{
+    padding:0.25em 0.5em 0.25em 0.1em;
+    font-family: inherit;
+    font-size:inherit;
+    width:100%;
+    margin:-0.25em 0 -0.25em 0;
+}
 
 /* Loading state */
 .journal-entry-page.loading,
