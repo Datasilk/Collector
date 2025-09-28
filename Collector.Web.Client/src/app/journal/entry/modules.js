@@ -1,6 +1,7 @@
 
 import CKEditorModule from './modules/ckeditor';
 import ChecklistModule from './modules/checklist';
+import ImageModule from './modules/image';
 
 const modules = [
     {
@@ -16,6 +17,13 @@ const modules = [
         icon: 'checklist',
         type: 'checklist',
         module: ChecklistModule
+    },
+    {
+        id: 'image',
+        name: 'Image',
+        icon: 'image',
+        type: 'image',
+        module: ImageModule
     }
 ];
 

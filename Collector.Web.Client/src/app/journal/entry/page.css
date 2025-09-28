@@ -20,6 +20,10 @@ body.scrolled .entry-header {
     margin-bottom:-3em;
 }
 
+body.scrolled .entry-content{
+  padding-top:3em;
+}
+
 .back-button {
     float:left;
 }
@@ -667,6 +671,35 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     padding:0.25em;
     cursor:default;
     line-height:0;
+}
+
+/* image upload module */
+
+.image-upload-button-container {
+    position: relative;
+    display: inline-block;
+    margin: 0 0 1em 0;
+}
+
+.image-upload-button-container input[type="file"] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    z-index: 2;
+}
+
+.image-preview {
+    text-align: center;
+}
+
+.image-preview img {
+    max-width: 100%;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 .entry-modules .editable .checklist-item:hover{
     background-color:#dedbf4;

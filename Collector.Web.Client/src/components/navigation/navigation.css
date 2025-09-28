@@ -42,6 +42,10 @@ body.scrolled .nav-container .nav-right {
   padding: 0.5em 2em 0.5em 0;
 }
 
+body.scrolled .main-header{
+  margin-bottom:1.5em;
+}
+
 .nav-link {
   color: #2c2c2c;
   text-decoration: none;
