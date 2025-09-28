@@ -8,7 +8,7 @@ import { Images } from '@/api/user/images';
 //helpers
 import { apiBasePath } from '@/helpers/endpoints.js';
 
-export default function ImageModule({ module, onUpdate, isEditable = true, manuallyAdded = false }) {
+export default function ImageModule({ module, entryId, onUpdate, isEditable = true, manuallyAdded = false }) {
     //state
     const [isUploading, setIsUploading] = useState(false);
     const [uploadError, setUploadError] = useState(null);
@@ -18,7 +18,7 @@ export default function ImageModule({ module, onUpdate, isEditable = true, manua
     
     //context
     const session = useSession();
-    const { getImageUrl, upload } = Images(session);
+    const { upload } = Images(session);
     
     // Auto-trigger file dialog when module is manually added
     useEffect(() => {
@@ -54,7 +54,7 @@ export default function ImageModule({ module, onUpdate, isEditable = true, manua
             const fileName = `${timestamp}-${module.id}.${fileExtension}`;
             
             // Path format: journal-entries/{entryId}/{moduleId}.{extension}
-            const path = `journal-entries/${module.entryId}/${fileName}`;
+            const path = `journal-entries/${entryId}/${fileName}`;
             
             const response = await upload(path, file);
             
@@ -103,7 +103,7 @@ export default function ImageModule({ module, onUpdate, isEditable = true, manua
             {module.image && (
                 <div className="image-preview">
                     <img 
-                        src={apiBasePath() + `/image/journal-entries/${module.entryId}/${module.image}`} 
+                        src={apiBasePath() + `/image/journal-entries/${entryId}/${module.image}`} 
                         alt="Uploaded content" 
                     />
                 </div>

@@ -614,7 +614,13 @@ export default function JournalEntryPage() {
                                         </div>
                                     </div>
                                 )}
-                                <ModuleComponent module={module} onUpdate={handleUpdatedModule} isEditable={isEditing} manuallyAdded={module.manuallyAdded} />
+                                <ModuleComponent 
+                                    module={module} 
+                                    entryId={entryId} 
+                                    onUpdate={handleUpdatedModule} 
+                                    isEditable={isEditing} 
+                                    manuallyAdded={module.manuallyAdded} 
+                                />
                             </div>
                         )
                     })}
