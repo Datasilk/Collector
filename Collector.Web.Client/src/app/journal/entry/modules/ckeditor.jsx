@@ -60,11 +60,13 @@ import AIGeneratorModal from './ckeditor/ai-generator-modal';
 //helpers
 import { fonts } from '@/helpers/fonts';
 
+
 export default function CKEditorModule({ module, onUpdate, isEditable = true, manuallyAdded = false }) {
     //state
     const [mounted, setMounted] = useState(false);
     const [showAIModal, setShowAIModal] = useState(false);
     const [userInput, setUserInput] = useState('');
+    const [showToolbar, setShowToolbar] = useState(false);
 
     //refs
     const htmlRef = useRef(null);
@@ -72,13 +74,14 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
     const timerSave = useRef(null);
     const inModal = useRef(false);
     const isEditorActive = useRef(false);
+    const defaultHtml = '<p>Type or paste your content here!</p>';
 
     //effect
     useEffect(() => {
         if (mounted) return;
         setMounted(true);
 
-        // Add event listener for AI generator button click
+        // Add event listener for AI generator button click from CK Editor AI plugin toolbar button
         document.addEventListener('aiGeneratorRequest', handleAIGeneratorRequest);
         
         // Auto-focus if this module was manually added
@@ -130,20 +133,23 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
         const elem = getTextElement();
         if (!elem) return;
         if (isEditable) {
-            elem.addEventListener('mouseover', showEditor);
-            elem.addEventListener('click', showEditor);
+            //elem.addEventListener('mouseover', showEditor);
+            elem.addEventListener('mouseup', showEditor);
         }
     };
 
     const removeEditorEventListeners = () => {
         const elem = getTextElement();
         if (!elem) return;
-        elem.removeEventListener('mouseover', showEditor);
-        elem.removeEventListener('click', showEditor);
+        //elem.removeEventListener('mouseover', showEditor);
+        elem.removeEventListener('mouseup', showEditor);
     };
 
+
     const loadHtml = (newhtml) => {
-        if(!newhtml && manuallyAdded) newhtml = '<p>Type or paste your content here!</p>';
+        if(!newhtml && manuallyAdded && (htmlRef.current == null || htmlRef.current == '')) {
+            newhtml = defaultHtml;
+        }
         if (!newhtml) newhtml = htmlRef.current;
         if(editorRef.current) return;
         const elem = getTextElement();
@@ -211,6 +217,7 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
         const elem = getTextElement();
         if (!elem) return;
         if (elem.querySelector('.main-container')) return; //editor already loaded
+
         //hide all other modules
         const allModules = window.entry?.textEditors;
         if (!window.entry) window.entry = { modules: {} };
@@ -218,10 +225,12 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
         if (allModules) Object.keys(allModules).forEach(key => allModules[key]());
         window.entry.textEditors = {};
         window.entry.textEditors[module.id] = hideEditor;
+        
+        setShowToolbar(true);
 
         //add event listener to hide editor
-        elem.removeEventListener('mouseover', showEditor);
-        elem.removeEventListener('click', showEditor);
+        //elem.removeEventListener('mouseover', showEditor);
+        elem.removeEventListener('mouseup', showEditor);
         document.removeEventListener('mousedown', handleClickOutside);
 
         //load initial data into CKEditor
@@ -516,7 +525,6 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
         [...document.querySelectorAll('.ck-body')].forEach(a => a.remove());
         const container = document.createElement('div');
         container.innerHTML = containerHtml;
-        elem.appendChild(container);
 
         InlineEditor.create(container.querySelector('#editor_textelem_' + module.id), editorConfig)
             .then(editor => {
@@ -540,10 +548,9 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
             editorRef.current.destroy();
             editorRef.current = null;
             loadHtml();
-        }else if (!isEditorActive.current) {
-            //editor is not active, add event listeners instead
-            addEditorEventListeners();
         }
+        setShowToolbar(false);
+        addEditorEventListeners();
     };
 
     const disableEditorEvents = () => {
@@ -590,8 +597,12 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
 
     return (
         <>
-            <div className="text-editor"><div className="text"></div></div>
-            {showAIModal && <AIGeneratorModal module={module} onClose={handleCloseAIModal} onGenerated={handleContentGenerated} />}
+            <div className={"text-editor" + (showToolbar ? ' active' : '')}><div className="text"></div></div>
+            {showAIModal && <AIGeneratorModal 
+                module={module} 
+                onClose={handleCloseAIModal} 
+                onGenerated={handleContentGenerated} 
+            />}
         </>
     );
 }

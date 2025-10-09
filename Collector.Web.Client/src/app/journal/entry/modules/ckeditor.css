@@ -58,9 +58,17 @@
     width:8em !important
 }
 
+.text-editor:not(.active){
+    cursor:pointer;
+}
+
 .text-editor > .text{
     min-height:1em;}
 
 .text-editor-placeholder{
     opacity:0.5;
+}
+
+.text-editor .main-container{
+    border: 2px dashed #b3b3b3;
 }

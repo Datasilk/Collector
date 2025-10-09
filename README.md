@@ -18,4 +18,7 @@ The new Collector app will be a .NET command-line-based web server with a web UI
 A common .NET library that contains all the common functionality of the Collector App so that you can build your own app to collect data from the web.
 
 ### Collector.YouTube
-A .NET command-line tool for scraping YouTube based on what kind of content you are looking for. Uses AI to build search queries for YouTube.
+A plugin for Command Center that allows the system to scrape the web for YouTube videos based on the user's needs.
+
+### Command Center
+A command-line tool that allows users to speak with an AI in real-time and utilize all of Collector's tools to gather, catalog, and parse intelligence from the web and beyond.

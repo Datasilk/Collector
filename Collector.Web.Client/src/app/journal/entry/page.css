@@ -321,6 +321,7 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
 }
 .entry.editable:hover{
     outline:1px dashed #a6bfff;
+    z-index:110;
 }
 .entry.manually-added{
     outline:2px solid rgba(166, 191, 255, 0);;
@@ -354,13 +355,13 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     bottom:0;
     width:7em;
 }
-
 .module-tab{
     position:sticky;
     top:11.25em;
     right:0;
     bottom:0;
     text-align:right;
+    height:100%;
 }
 
 .module-tab .box{
@@ -371,8 +372,10 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     display:none;
     text-align:left;
     line-height:1;
-    position: sticky;
-    top: 7em;
+    /*position: sticky;*/
+    position:absolute;
+    top:calc(30% - 2em);
+    /*top: 7em;*/
     right:0;
     z-index:100;
     transition: top 0.1s ease-out;

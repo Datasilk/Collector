@@ -50,6 +50,8 @@ export default function JournalEntryPage() {
     const [isEditing, setIsEditing] = useState(false);
 
     // refs
+    const entryRef = useRef(null);
+    const entryJsonRef = useRef(null);
     const topDropdownRef = useRef(null);
     const bottomDropdownRef = useRef(null);
     const dropdownButtonRef = useRef(null);
@@ -64,7 +66,6 @@ export default function JournalEntryPage() {
     //effect
     useEffect(() => {
         if(!entry || entry.id != entryId) {
-            console.log('fetching entry details');
             fetchEntryDetails();
         }
     }, [journalId, entryId]);
@@ -139,11 +140,14 @@ export default function JournalEntryPage() {
                 };
 
                 setEntry(newEntry);
+                entryRef.current = newEntry;
                 setEditedTitle(newEntry.title);
                 setEditedDescription(newEntry.description);
                 setIsTitleEditing(true); // Automatically show title editor for new entries
                 setIsEditing(true);
-                setEntryJson({...defaultEntryJson, id: generateRandomId()});
+                const newEntryJson = {...defaultEntryJson, id: generateRandomId()};
+                setEntryJson(newEntryJson);
+                entryJsonRef.current = newEntryJson;
             } else {
                 // Get existing entry data
                 const entryResponse = await api.getEntry(entryId);
@@ -155,6 +159,7 @@ export default function JournalEntryPage() {
 
                 const entryData = entryResponse.data.data;
                 setEntry(entryData);
+                entryRef.current = entryData;
                 setEditedTitle(entryData.title);
                 setEditedDescription(entryData.description);
 
@@ -169,6 +174,7 @@ export default function JournalEntryPage() {
                                 delete module.manuallyAdded;
                             });
                             setEntryJson(contentJson || { modules: [] });
+                            entryJsonRef.current = contentJson || { modules: [] };
                         } catch (parseErr) {
                             console.error('Error parsing entry content JSON:', parseErr);
                         }
@@ -248,6 +254,7 @@ export default function JournalEntryPage() {
                 };
 
                 setEntry(updatedEntry);
+                entryRef.current = updatedEntry;
                 setSaveStatus('saved');
 
                 // Clear the "saved" status after a few seconds
@@ -268,12 +275,13 @@ export default function JournalEntryPage() {
     };
 
     const handleUpdatedModule = (module) => {
-        const modules = entryJson.modules;
+        const modules = entryJsonRef.current.modules;
         const index = modules.findIndex(a => a.id == module.id);
         if (index > -1) {
             modules[index] = module;
-            setEntryJson({ ...entryJson, modules });
-            saveEntryContent({ ...entryJson, modules });
+            setEntryJson({ ...entryJsonRef.current, modules });
+            entryJsonRef.current = { ...entryJsonRef.current, modules };
+            saveEntryContent({ ...entryJsonRef.current, modules });
         }
     };
 
@@ -330,10 +338,9 @@ export default function JournalEntryPage() {
             manuallyAdded: true
         };
 
-        setEntryJson(prev => ({
-            ...prev,
-            modules: [...prev.modules, newModule]
-        }));
+        const newEntryJson = { ...entryJsonRef.current, modules: [...(entryJsonRef.current?.modules ?? []), newModule] };
+        setEntryJson(newEntryJson);
+        entryJsonRef.current = newEntryJson;
 
         // Close the appropriate dropdown based on which one was used
         if (position === 'top') {
@@ -353,27 +360,29 @@ export default function JournalEntryPage() {
             manuallyAdded: true
         };
 
-        const moduleIndex = entryJson.modules.findIndex(module => module.id === currentModuleId);
+        const moduleIndex = entryJsonRef.current.modules.findIndex(module => module.id === currentModuleId);
         if (moduleIndex === -1) return;
 
-        const updatedModules = [...entryJson.modules];
+        const updatedModules = [...entryJsonRef.current.modules];
         updatedModules.splice(moduleIndex, 0, newModule);
         const updatedEntryJson = {
-            ...entryJson,
+            ...entryJsonRef.current,
             modules: updatedModules
         };
 
         setEntryJson(updatedEntryJson);
+        entryJsonRef.current = updatedEntryJson;
         saveEntryContent(updatedEntryJson);
         setShowModuleAboveDropdown(false);
     };
 
     const removeModule = (moduleId) => {
         const updatedEntryJson = {
-            ...entryJson,
-            modules: entryJson.modules.filter(module => module.id !== moduleId)
+            ...entryJsonRef.current,
+            modules: entryJsonRef.current.modules.filter(module => module.id !== moduleId)
         };
         setEntryJson(updatedEntryJson);
+        entryJsonRef.current = updatedEntryJson;
         saveEntryContent(updatedEntryJson);
     };
 
@@ -572,7 +581,14 @@ export default function JournalEntryPage() {
                         const moduleType = modules.find(m => m.type === module.type);
                         const ModuleComponent = moduleType?.module;
                         return (
-                            <div key={'module-' + module.id} className={`entry module-${module.type?.replace(' ', '-') ?? ''} module-id-${module.id} ${isEditing ? 'editable' : ''}${module.manuallyAdded ? ' manually-added' : ''}`}>
+                            <div 
+                                key={'module-' + module.id} 
+                                className={
+                                    `entry module-${module.type?.replace(' ', '-') ?? ''} ` +
+                                    `module-id-${module.id} ${isEditing ? 'editable' : ''}` +
+                                    (module.manuallyAdded ? ' manually-added' : '')
+                                }
+                            >
                                 {isEditing && (
                                     <div className="module-tab-container">
                                         <div className="module-tab">
