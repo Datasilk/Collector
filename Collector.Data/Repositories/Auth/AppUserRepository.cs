@@ -378,5 +378,17 @@ namespace Collector.Data.Repositories.Auth
 
         #endregion
 
+        #region Encryption
+
+        public void UpdateEncryption(Guid id, string key, string type)
+        {
+            string query = @$"UPDATE {_tableName} SET 
+                EncryptionKey = @key,
+                EncryptionType = @type
+                WHERE Id = @id";
+            _dbConnection.Execute(query, new { id, key, type });
+        }
+
+        #endregion
     }
 }

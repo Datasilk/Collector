@@ -11,5 +11,6 @@ namespace Collector.Data.Entities
         public DateTime Created { get; set; }
         public DateTime Modified { get; set; }
         public int Status { get; set; }
+        public bool Encrypted { get; set; }
     }
 }

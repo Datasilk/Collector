@@ -14,6 +14,8 @@
     [NewEmail] [nvarchar](64) NULL,
 	[OneTimeLoginToken] [nvarchar](128) NULL,
 	[OneTimeLoginExpiry] DateTime NULL,
+    [EncryptionKey] [nvarchar](255) NULL,
+    [EncryptionType] [nvarchar](16) NULL,
 	[Status] [int] NOT NULL DEFAULT 0,
     [Created] DateTime2 DEFAULT GETUTCDATE(),
 )

@@ -6,6 +6,7 @@ import './page.css';
 import Icon from '@/components/ui/icon';
 import Input from '@/components/forms/input';
 import ToggleSwitch from '@/components/ui/toggle-switch';
+import Modal from '@/components/ui/modal';
 //context
 import { useSession } from '@/context/session';
 //api
@@ -48,6 +49,9 @@ export default function JournalEntryPage() {
     const [showModuleAboveDropdown, setShowModuleAboveDropdown] = useState(false);
     const [currentModuleId, setCurrentModuleId] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
+    const [showSettingsModal, setShowSettingsModal] = useState(false);
+    const [settings, setSettings] = useState({ encrypted: false, published: false });
+    const [settingsChanged, setSettingsChanged] = useState(false);
 
     // refs
     const entryRef = useRef(null);
@@ -61,7 +65,7 @@ export default function JournalEntryPage() {
     const titleInputRef = useRef(null);
 
     //apis
-    const { addEntry, renameEntry } = Journals(session);
+    const { addEntry, renameEntry, setEntryEncrypted, setEntryPublished } = Journals(session);
 
     //effect
     useEffect(() => {
@@ -136,7 +140,7 @@ export default function JournalEntryPage() {
                     title: '',
                     description: '',
                     created: new Date().toISOString(),
-                    status: 0
+                    status: 1
                 };
 
                 setEntry(newEntry);
@@ -162,6 +166,10 @@ export default function JournalEntryPage() {
                 entryRef.current = entryData;
                 setEditedTitle(entryData.title);
                 setEditedDescription(entryData.description);
+                setSettings({
+                    encrypted: entryData.encrypted,
+                    published: entryData.status === 2
+                });
 
                 // Fetch entry content (JSON data)
                 try {
@@ -296,20 +304,26 @@ export default function JournalEntryPage() {
         });
     };
 
-    const getStatusText = (status) => {
-        switch (status) {
-            case 0: return 'Active';
-            case 1: return 'Published';
-            case 2: return 'Archived';
+    const getStatusText = (entry) => {
+        if (entry.encrypted && entry.status > 0) {
+            return 'Private';
+        }
+        switch (entry.status) {
+            case 0: return 'Deleted';
+            case 1: return 'Active';
+            case 2: return 'Published';
             default: return 'Unknown';
         }
     };
 
-    const getStatusClass = (status) => {
-        switch (status) {
-            case 0: return 'status-active';
-            case 1: return 'status-published';
-            case 2: return 'status-archived';
+    const getStatusClass = (entry) => {
+        if (entry.encrypted && entry.status > 0) {
+            return 'status-private';
+        }
+        switch (entry.status) {
+            case 0: return 'status-deleted';
+            case 1: return 'status-active';
+            case 2: return 'status-published';
             default: return '';
         }
     };
@@ -454,8 +468,95 @@ export default function JournalEntryPage() {
     }
 
     // Render entry
+    const handleOpenSettings = () => {
+        setSettings({
+            encrypted: entry.encrypted,
+            published: entry.status === 2
+        });
+        setSettingsChanged(false);
+        setShowSettingsModal(true);
+    };
+
+    const handleCloseSettings = () => {
+        setShowSettingsModal(false);
+    };
+
+    const handleSettingChange = (setting, value) => {
+        const newSettings = { ...settings, [setting]: value };
+
+        // if encrypted is turned on, turn published off
+        if (setting === 'encrypted' && value && newSettings.published) {
+            newSettings.published = false;
+        }
+
+        setSettings(newSettings);
+        setSettingsChanged(true);
+    };
+
+    const handleSaveChanges = async () => {
+        if (!settingsChanged) return;
+
+        setSaveStatus('saving');
+        try {
+            let promises = [];
+            const originalPublished = entry.status === 2;
+
+            if (settings.encrypted !== entry.encrypted) {
+                promises.push(setEntryEncrypted(entry.id, settings.encrypted));
+            }
+
+            if (settings.published !== originalPublished) {
+                promises.push(setEntryPublished(entry.id, settings.published));
+            }
+
+            await Promise.all(promises);
+
+            // Manually update local entry state to reflect changes immediately
+            const updatedEntry = { 
+                ...entry, 
+                encrypted: settings.encrypted,
+                status: settings.published ? 2 : 1
+            };
+            setEntry(updatedEntry);
+            entryRef.current = updatedEntry;
+
+            setSaveStatus('saved');
+            setTimeout(() => setSaveStatus(null), 3000);
+            handleCloseSettings();
+
+        } catch (err) {
+            console.error('Error saving settings:', err);
+            setSaveStatus('error');
+        }
+    };
+
     return (
         <div className="journal-entry-page">
+            {showSettingsModal && (
+                <Modal title="Entry Settings" onClose={handleCloseSettings}>
+                    <div className="settings-modal-content">
+                        <ToggleSwitch
+                            name="encrypted"
+                            label="Encrypted"
+                            checked={settings.encrypted}
+                            onChange={(isChecked) => handleSettingChange('encrypted', isChecked)}
+                        />
+                        <ToggleSwitch
+                            name="published"
+                            label="Published"
+                            checked={settings.published}
+                            onChange={(isChecked) => handleSettingChange('published', isChecked)}
+                            disabled={settings.encrypted} // disable if encrypted is on
+                        />
+                    </div>
+                    <div className="buttons">
+                        {settingsChanged && (
+                            <button className="btn primary" onClick={handleSaveChanges}>Save Changes</button>
+                        )}
+                        <button className="btn cancel" onClick={handleCloseSettings}>Cancel</button>
+                    </div>
+                </Modal>
+            )}
             <div className="entry-header">
                 <div className="entry-navigation tool-bar">
                     <button className="back-button" onClick={handleBackToJournal}>
@@ -468,8 +569,8 @@ export default function JournalEntryPage() {
                                 {getSaveStatusMessage()}
                             </div>
                         )}
-                        <span className={`status-indicator ${getStatusClass(entry.status)}`}>
-                            {getStatusText(entry.status)}
+                        <span className={`status-indicator ${getStatusClass(entry)}`}>
+                            {getStatusText(entry)}
                         </span>
                         <ToggleSwitch
                             name="edit-entry"
@@ -477,6 +578,9 @@ export default function JournalEntryPage() {
                             onChange={setIsEditing}
                             label="Edit"
                         />
+                        <button className="icon" onClick={handleOpenSettings}>
+                            <Icon name="settings" />
+                        </button>
                     </div>
                 </div>
 

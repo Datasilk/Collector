@@ -110,5 +110,22 @@ namespace Collector.Data.Repositories
                 WHERE [Id] = @journalEntryId", 
                 new { journalEntryId });
         }
+
+        public void SetEncrypted(Guid journalEntryId, bool encrypted)
+        {
+            _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
+                SET [Encrypted] = @encrypted
+                WHERE [Id] = @journalEntryId",
+                new { journalEntryId, encrypted });
+        }
+
+        public void SetPublished(Guid journalEntryId, bool isPublished)
+        {
+            var status = isPublished ? 2 : 1; // 2 = Published, 1 = Active
+            _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
+                SET [Status] = @status
+                WHERE [Id] = @journalEntryId",
+                new { journalEntryId, status });
+        }
     }
 }

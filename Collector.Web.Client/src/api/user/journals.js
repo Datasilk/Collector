@@ -35,7 +35,9 @@ const Journals = (args) => Api({...args, useToken:true}).endpoints(({api}) => {
         unarchiveEntry: (id) => api.get(`${apiPath}/entries/unarchive/${id}`),
         publishEntry: (id) => api.get(`${apiPath}/entries/publish/${id}`),
         modifyEntry: (id) => api.get(`${apiPath}/entries/modify/${id}`),
-        moveEntry: (entryId, targetJournalId) => api.post(`${apiPath}/entry/move`, { EntryId: entryId, TargetJournalId: targetJournalId })
+        moveEntry: (entryId, targetJournalId) => api.post(`${apiPath}/entry/move`, { EntryId: entryId, TargetJournalId: targetJournalId }),
+        setEntryEncrypted: (id, isSet) => api.post(`${apiPath}/entries/set-encrypted`, { Id: id, IsSet: isSet }),
+        setEntryPublished: (id, isSet) => api.post(`${apiPath}/entries/set-published`, { Id: id, IsSet: isSet })
     };
 });
 

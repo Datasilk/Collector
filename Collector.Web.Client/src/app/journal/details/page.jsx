@@ -148,11 +148,14 @@ export default function JournalDetailsPage() {
     };
     
     // Get status text
-    const getStatusText = (status) => {
-        switch(status) {
-            case 0: return 'Draft';
-            case 1: return 'Published';
-            case 2: return 'Archived';
+    const getStatusText = (entry) => {
+        if(entry.status > 0 && entry.encrypted){
+            return 'Private';
+        }
+        switch(entry.status) {
+            case 0: return 'Deleted';
+            case 1: return 'Active';
+            case 2: return 'Published';
             default: return 'Unknown';
         }
     };
@@ -241,7 +244,7 @@ export default function JournalDetailsPage() {
                                         <td>{formatDate(entry.modified)}</td>
                                         <td>
                                             <span className={`entry-status status-${entry.status}`}>
-                                                {getStatusText(entry.status)}
+                                                {getStatusText(entry)}
                                             </span>
                                         </td>
                                         <td className="tool-bar align-right">

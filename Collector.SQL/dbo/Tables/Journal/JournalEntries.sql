@@ -6,5 +6,6 @@ CREATE TABLE [dbo].[JournalEntries]
     [Description] NVARCHAR(512) NOT NULL, 
     [Created] DATETIME2 NOT NULL DEFAULT GETUTCDATE(), 
     [Modified] DATETIME2 NOT NULL DEFAULT GETUTCDATE(), 
-    [Status] INT NOT NULL DEFAULT 1
+    [Status] INT NOT NULL DEFAULT 1, --0=deleted, 1=active, 2=published, 3=archived
+    [Encrypted] BIT NOT NULL DEFAULT 0 --if encrypted, cannot be published
 )

@@ -28,5 +28,7 @@ namespace Collector.Data.Interfaces.Users
 
 		Task<AppUser> FindByOneTimeLoginToken(string emailAuthToken, bool activeOnly = true);
 		Task<AppUser> UpdateOneTimeLoginToken(AppUser user);
+        
+        void UpdateEncryption(Guid id, string key, string type);
     }
 }

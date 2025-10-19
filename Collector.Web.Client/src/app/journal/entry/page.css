@@ -56,6 +56,16 @@ body.scrolled .entry-content{
     color: #616161;
 }
 
+.status-private {
+    background-color: #c5f2e0;
+    color: #06ba90;
+}
+
+.status-deleted {
+    background-color: #ffebee;
+    color: #c62828;
+}
+
 .toggle-switch-edit-entry{
     background-color:#ede3fa;
     border-radius:1em;

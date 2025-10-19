@@ -4,6 +4,8 @@ using Collector.API.Models;
 using Collector.Common;
 using Collector.Data.Entities;
 using Collector.Data.Interfaces;
+using Collector.Data.Interfaces.Users;
+using Collector.Common.Encryption;
 
 namespace Collector.API.Controllers
 {
@@ -14,15 +16,18 @@ namespace Collector.API.Controllers
         private readonly IJournalCategoriesRepository _categoriesRepository;
         private readonly IJournalsRepository _journalsRepository;
         private readonly IJournalEntriesRepository _entriesRepository;
+        private readonly IAppUserRepository _userRepository;
 
         public JournalsController(
             IJournalCategoriesRepository categoriesRepository,
             IJournalsRepository journalsRepository,
-            IJournalEntriesRepository entriesRepository)
+            IJournalEntriesRepository entriesRepository,
+            IAppUserRepository userRepository)
         {
             _categoriesRepository = categoriesRepository;
             _journalsRepository = journalsRepository;
             _entriesRepository = entriesRepository;
+            _userRepository = userRepository;
         }
 
         #region Journal Categories
@@ -600,7 +605,7 @@ namespace Collector.API.Controllers
         #region Journal Entry Content
 
         [HttpGet("entries/{id}/content")]
-        public IActionResult GetEntryContent(Guid id)
+        public async Task<IActionResult> GetEntryContent(Guid id)
         {
             var userId = GetUserId();
             if (userId == Guid.Empty)
@@ -616,12 +621,20 @@ namespace Collector.API.Controllers
                 if (journal == null || journal.AppUserId != userId)
                     return Json(new ApiResponse { success = false, message = "Not authorized to access this entry content" });
 
-                // Get the content from the file system
                 var filePath = $"{id:N}.json";
                 var content = Files.GetFile(Files.Paths.Journal, filePath);
 
                 if (content == null)
                     return Json(new ApiResponse { success = false, message = "Entry content not found" });
+
+                if (entry.Encrypted)
+                {
+                    var user = await _userRepository.FindByGuidAsync(userId);
+                    if (user == null || string.IsNullOrEmpty(user.EncryptionKey))
+                        return Json(new ApiResponse { success = false, message = "Cannot decrypt content without an encryption key." });
+
+                    content = Sha256.Decrypt(content, user.EncryptionKey);
+                }
 
                 return Json(new ApiResponse { success = true, data = content });
             }
@@ -632,7 +645,7 @@ namespace Collector.API.Controllers
         }
 
         [HttpPost("entries/update-entry")]
-        public IActionResult UpdateEntryContent([FromBody] UpdateEntryContentModel request)
+        public async Task<IActionResult> UpdateEntryContent([FromBody] UpdateEntryContentModel request)
         {
             var userId = GetUserId();
             if (userId == Guid.Empty)
@@ -648,14 +661,22 @@ namespace Collector.API.Controllers
                 if (journal == null || journal.AppUserId != userId)
                     return Json(new ApiResponse { success = false, message = "Not authorized to update this entry content" });
 
-                // Save the content to the file system
+                var contentToSave = request.Content;
+                if (entry.Encrypted)
+                {
+                    var user = await _userRepository.FindByGuidAsync(userId);
+                    if (user == null || string.IsNullOrEmpty(user.EncryptionKey))
+                        return Json(new ApiResponse { success = false, message = "Cannot encrypt content without an encryption key." });
+
+                    contentToSave = Sha256.Encrypt(contentToSave, user.EncryptionKey);
+                }
+
                 var filePath = $"{request.Id:N}.json";
-                var success = Files.SaveFile(Files.Paths.Journal, filePath, request.Content);
+                var success = Files.SaveFile(Files.Paths.Journal, filePath, contentToSave);
 
                 if (!success)
                     return Json(new ApiResponse { success = false, message = "Failed to save entry content" });
 
-                // Update the last modified date in the database
                 _entriesRepository.UpdateLastModified(request.Id);
 
                 return Json(new ApiResponse { success = true });
@@ -668,5 +689,83 @@ namespace Collector.API.Controllers
 
 
         #endregion
+
+        [HttpPost("entries/set-published")]
+        public async Task<IActionResult> SetEntryPublished([FromBody] JournalEntryStateModel request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var entry = _entriesRepository.GetById(request.Id);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
+
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized to update this entry" });
+
+                _entriesRepository.SetPublished(request.Id, request.IsSet);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("entries/set-encrypted")]
+        public async Task<IActionResult> SetEntryEncrypted([FromBody] JournalEntryStateModel request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var entry = _entriesRepository.GetById(request.Id);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
+
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized to update this entry" });
+
+                var user = await _userRepository.FindByGuidAsync(userId);
+                if(user == null) return Json(new ApiResponse { success = false, message = "User not found" });
+
+                if (string.IsNullOrEmpty(user.EncryptionKey))
+                {
+                    user.EncryptionKey = Sha256.GenerateKey();
+                    user.EncryptionType = "AES";
+                    _userRepository.UpdateEncryption(user.Id.Value, user.EncryptionKey, user.EncryptionType);
+                }
+
+                var filePath = $"{request.Id:N}.json";
+                var content = Files.GetFile(Files.Paths.Journal, filePath);
+
+                if (request.IsSet)
+                {
+                    // Encrypt the file
+                    var encryptedContent = Sha256.Encrypt(content, user.EncryptionKey);
+                    Files.SaveFile(Files.Paths.Journal, filePath, encryptedContent);
+                }
+                else
+                {
+                    // Decrypt the file
+                    var decryptedContent = Sha256.Decrypt(content, user.EncryptionKey);
+                    Files.SaveFile(Files.Paths.Journal, filePath, decryptedContent);
+                }
+
+                _entriesRepository.SetEncrypted(request.Id, request.IsSet);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
     }
 }

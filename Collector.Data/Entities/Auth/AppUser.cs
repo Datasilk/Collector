@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 namespace Collector.Data.Entities.Auth
 {
@@ -24,6 +24,9 @@ namespace Collector.Data.Entities.Auth
 
         public string OneTimeLoginToken { get; set; } = string.Empty;
         public DateTime? OneTimeLoginExpiry { get; set; } = null;
+
+        public string EncryptionKey { get; set; } = string.Empty;
+        public string EncryptionType { get; set; } = string.Empty;
 
         public AppUserStatus Status { get; set; }
         public DateTime Created { get; set; }
