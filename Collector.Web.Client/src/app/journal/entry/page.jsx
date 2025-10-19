@@ -139,6 +139,7 @@ export default function JournalEntryPage() {
                     journalId: parseInt(journalId),
                     title: '',
                     description: '',
+                    encrypted: false,
                     created: new Date().toISOString(),
                     status: 1
                 };
@@ -328,6 +329,18 @@ export default function JournalEntryPage() {
         }
     };
 
+    const getStatusTitle = (entry) => {
+        if (entry.encrypted && entry.status > 0) {
+            return 'An encrypted and protected journal entry';
+        }
+        switch (entry.status) {
+            case 0: return 'This entry has been archived';
+            case 1: return 'This entry is active';
+            case 2: return 'This entry has been published for public viewing';
+            default: return '';
+        }
+    };
+
     const getSaveStatusMessage = () => {
         switch (saveStatus) {
             case 'saving': return 'Saving...';
@@ -427,47 +440,6 @@ export default function JournalEntryPage() {
             setSaveStatus('error');
         }
     };
-
-    // Render loading state
-    if (loading) {
-        return (
-            <div className="journal-entry-page loading">
-                <div className="loading-spinner">
-                    <Icon name="progress_activity" spin={true} />
-                    <p>Loading entry...</p>
-                </div>
-            </div>
-        );
-    }
-
-    // Render error state
-    if (error) {
-        return (
-            <div className="journal-entry-page error">
-                <div className="error-message">
-                    <Icon name="error" />
-                    <p>{error}</p>
-                    <button className="btn primary" onClick={() => window.location.reload()}>Retry</button>
-                </div>
-            </div>
-        );
-    }
-
-    // Render entry not found
-    if (!entry) {
-        return (
-            <div className="journal-entry-page not-found">
-                <div className="not-found-message">
-                    <Icon name="warning" />
-                    <h2>Entry Not Found</h2>
-                    <p>The journal entry you're looking for doesn't exist or you don't have permission to view it.</p>
-                    <button className="btn primary" onClick={handleBackToJournal}>Back to Journal</button>
-                </div>
-            </div>
-        );
-    }
-
-    // Render entry
     const handleOpenSettings = () => {
         setSettings({
             encrypted: entry.encrypted,
@@ -530,24 +502,70 @@ export default function JournalEntryPage() {
         }
     };
 
+    // Render loading state
+    if (loading) {
+        return (
+            <div className="journal-entry-page loading">
+                <div className="loading-spinner">
+                    <Icon name="progress_activity" spin={true} />
+                    <p>Loading entry...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Render error state
+    if (error) {
+        return (
+            <div className="journal-entry-page error">
+                <div className="error-message">
+                    <Icon name="error" />
+                    <p>{error}</p>
+                    <button className="btn primary" onClick={() => window.location.reload()}>Retry</button>
+                </div>
+            </div>
+        );
+    }
+
+    // Render entry not found
+    if (!entry) {
+        return (
+            <div className="journal-entry-page not-found">
+                <div className="not-found-message">
+                    <Icon name="warning" />
+                    <h2>Entry Not Found</h2>
+                    <p>The journal entry you're looking for doesn't exist or you don't have permission to view it.</p>
+                    <button className="btn primary" onClick={handleBackToJournal}>Back to Journal</button>
+                </div>
+            </div>
+        );
+    }
+
+    // Render entry UI
     return (
         <div className="journal-entry-page">
             {showSettingsModal && (
                 <Modal title="Entry Settings" onClose={handleCloseSettings}>
                     <div className="settings-modal-content">
+                        <div className="col-2">
                         <ToggleSwitch
                             name="encrypted"
                             label="Encrypted"
                             checked={settings.encrypted}
+                            title="Encrypted entries are only visible to you and cannot be shared with others."
                             onChange={(isChecked) => handleSettingChange('encrypted', isChecked)}
                         />
+                        </div>
+                        <div className="col-2">
                         <ToggleSwitch
                             name="published"
                             label="Published"
                             checked={settings.published}
+                            title="Published entries are visible to anyone who has access to the journal."
                             onChange={(isChecked) => handleSettingChange('published', isChecked)}
                             disabled={settings.encrypted} // disable if encrypted is on
                         />
+                        </div>
                     </div>
                     <div className="buttons">
                         {settingsChanged && (
@@ -569,7 +587,7 @@ export default function JournalEntryPage() {
                                 {getSaveStatusMessage()}
                             </div>
                         )}
-                        <span className={`status-indicator ${getStatusClass(entry)}`}>
+                        <span className={`status-indicator ${getStatusClass(entry)}`} title={getStatusTitle(entry)}>
                             {getStatusText(entry)}
                         </span>
                         <ToggleSwitch

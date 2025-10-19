@@ -39,6 +39,7 @@ body.scrolled .entry-content{
     border-radius: 0.9375em;
     font-size: 0.85rem;
     font-weight: 500;
+    cursor:default;
 }
 
 .status-active {
@@ -811,6 +812,11 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     flex-direction: column;
     align-items: center;
     gap: 0.9375em;
+}
+
+/* entry settings modal */
+.settings-modal-content{
+    padding:1em 0;
 }
 
 @media screen and (max-width: 900px) {

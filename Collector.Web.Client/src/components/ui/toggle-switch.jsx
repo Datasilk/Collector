@@ -15,7 +15,8 @@ export default function ToggleSwitch({
     label = '', 
     disabled = false,
     className = '',
-    name = ''
+    name = '',
+    title = ''
 }) {
     const handleChange = (e) => {
         if (onChange && !disabled) {
@@ -26,7 +27,7 @@ export default function ToggleSwitch({
     return (
         <div className={`toggle-switch-container ${className} toggle-switch-${name}`}>
             {label && <span className="toggle-label">{label}</span>}
-            <label className={`toggle-switch ${disabled ? 'disabled' : ''}`}>
+            <label className={`toggle-switch ${disabled ? 'disabled' : ''}`} title={title}>
                 <input
                     type="checkbox"
                     checked={checked}

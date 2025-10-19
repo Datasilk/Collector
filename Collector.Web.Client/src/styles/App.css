@@ -65,6 +65,11 @@ body {
   position:relative;
 }
 
+.col-2{
+  width:50%;
+  display:inline-block;
+}
+
 h1 {
   font-size: 3.2em;
   line-height: 1.1;
