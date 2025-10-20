@@ -2,6 +2,7 @@
 import CKEditorModule from './modules/ckeditor';
 import ChecklistModule from './modules/checklist';
 import ImageModule from './modules/image';
+import TabsModule from './modules/tabs';
 
 const modules = [
     {
@@ -24,6 +25,13 @@ const modules = [
         icon: 'image',
         type: 'image',
         module: ImageModule
+    },
+    {
+        id: 'tabs',
+        name: 'Tabs',
+        icon: 'tab',
+        type: 'tabs',
+        module: TabsModule
     }
 ];
 

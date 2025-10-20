@@ -51,7 +51,7 @@ namespace Collector.Data.Repositories
         public void Archive(Guid journalEntryId)
         {
             _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
-                SET [Status] = 2 
+                SET [Status] = 0 
                 WHERE [Id] = @journalEntryId", 
                 new { journalEntryId });
         }
@@ -59,7 +59,7 @@ namespace Collector.Data.Repositories
         public void Unarchive(Guid journalEntryId)
         {
             _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
-                SET [Status] = 0 
+                SET [Status] = 1 
                 WHERE [Id] = @journalEntryId", 
                 new { journalEntryId });
         }
@@ -67,7 +67,7 @@ namespace Collector.Data.Repositories
         public void Publish(Guid journalEntryId)
         {
             _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
-                SET [Status] = 1 
+                SET [Status] = 2 
                 WHERE [Id] = @journalEntryId", 
                 new { journalEntryId });
         }
@@ -84,6 +84,7 @@ namespace Collector.Data.Repositories
         {
             return _dbConnection.Query<JournalEntry>(@"SELECT * FROM [dbo].[JournalEntries] 
                 WHERE [JournalId] = @journalId
+                AND [Status] > 0
                 ORDER BY [Created] DESC", 
                 new { journalId }).ToList();
         }

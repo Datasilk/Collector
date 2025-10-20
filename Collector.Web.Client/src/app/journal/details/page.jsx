@@ -160,6 +160,18 @@ export default function JournalDetailsPage() {
         }
     };
 
+    const getStatusClass = (entry) => {
+        if (entry.encrypted && entry.status > 0) {
+            return 'status-private';
+        }
+        switch (entry.status) {
+            case 0: return 'status-deleted';
+            case 1: return 'status-active';
+            case 2: return 'status-published';
+            default: return '';
+        }
+    };
+
     // Sort entries based on current sort setting
     const sortedEntries = [...entries].sort((a, b) => {
         const [field, direction] = sort.split('_');
@@ -243,7 +255,7 @@ export default function JournalDetailsPage() {
                                         <td>{formatDate(entry.created)}</td>
                                         <td>{formatDate(entry.modified)}</td>
                                         <td>
-                                            <span className={`entry-status status-${entry.status}`}>
+                                            <span className={`entry-status ${getStatusClass(entry)}`}>
                                                 {getStatusText(entry)}
                                             </span>
                                         </td>

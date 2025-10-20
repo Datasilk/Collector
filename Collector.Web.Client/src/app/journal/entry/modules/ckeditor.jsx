@@ -495,6 +495,11 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                         element: 'p',
                         classes: ['error']
                     },
+                    {
+                        name: 'Secret',
+                        element: 'span',
+                        classes: ['secret-content']
+                    },
                 ]
             },
             lineHeight: {

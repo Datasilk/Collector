@@ -7,6 +7,7 @@ import Icon from '@/components/ui/icon';
 import Input from '@/components/forms/input';
 import ToggleSwitch from '@/components/ui/toggle-switch';
 import Modal from '@/components/ui/modal';
+import ModuleList from './module-list';
 //context
 import { useSession } from '@/context/session';
 //api
@@ -46,8 +47,6 @@ export default function JournalEntryPage() {
     const [entryJson, setEntryJson] = useState({ modules: [] });
     const [showTopModuleDropdown, setShowTopModuleDropdown] = useState(false);
     const [showBottomModuleDropdown, setShowBottomModuleDropdown] = useState(false);
-    const [showModuleAboveDropdown, setShowModuleAboveDropdown] = useState(false);
-    const [currentModuleId, setCurrentModuleId] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
     const [settings, setSettings] = useState({ encrypted: false, published: false });
@@ -60,16 +59,15 @@ export default function JournalEntryPage() {
     const bottomDropdownRef = useRef(null);
     const dropdownButtonRef = useRef(null);
     const bottomDropdownButtonRef = useRef(null);
-    const moduleDropdownRef = useRef(null);
-    const moduleDropdownButtonRef = useRef(null);
     const titleInputRef = useRef(null);
+    const secretsTimerRef = useRef(null);
 
     //apis
     const { addEntry, renameEntry, setEntryEncrypted, setEntryPublished } = Journals(session);
 
     //effect
     useEffect(() => {
-        if(!entry || entry.id != entryId) {
+        if (!entry || entry.id != entryId && entryId != 'new') {
             fetchEntryDetails();
         }
     }, [journalId, entryId]);
@@ -89,21 +87,13 @@ export default function JournalEntryPage() {
                     setShowTopModuleDropdown(false);
                 }
             }
-            
+
             // Check if click is outside the bottom dropdown and its button
             if (showBottomModuleDropdown && bottomDropdownRef.current && !bottomDropdownRef.current.contains(event.target)) {
                 const isOutsideBottomButton = !bottomDropdownButtonRef.current || !bottomDropdownButtonRef.current.contains(event.target);
                 if (isOutsideBottomButton) {
                     setShowBottomModuleDropdown(false);
                 }
-            }
-
-            if (showModuleAboveDropdown &&
-                moduleDropdownRef.current &&
-                !moduleDropdownRef.current.contains(event.target) &&
-                moduleDropdownButtonRef.current &&
-                !moduleDropdownButtonRef.current.contains(event.target)) {
-                setShowModuleAboveDropdown(false);
             }
         };
 
@@ -112,9 +102,11 @@ export default function JournalEntryPage() {
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [showTopModuleDropdown, showBottomModuleDropdown, showModuleAboveDropdown]);
+    }, [showTopModuleDropdown, showBottomModuleDropdown]);
 
     //actions
+
+    //#region Entry
     const fetchEntryDetails = async () => {
         try {
             setLoading(true);
@@ -150,9 +142,10 @@ export default function JournalEntryPage() {
                 setEditedDescription(newEntry.description);
                 setIsTitleEditing(true); // Automatically show title editor for new entries
                 setIsEditing(true);
-                const newEntryJson = {...defaultEntryJson, id: generateRandomId()};
+                const newEntryJson = { ...defaultEntryJson, id: generateRandomId() };
                 setEntryJson(newEntryJson);
                 entryJsonRef.current = newEntryJson;
+                console.log('loaded new stuff', defaultEntryJson, newEntryJson);
             } else {
                 // Get existing entry data
                 const entryResponse = await api.getEntry(entryId);
@@ -200,6 +193,47 @@ export default function JournalEntryPage() {
         }
     };
 
+    const formatDate = (dateString) => {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
+    // Save entry content to the server
+    const saveEntryContent = async (json) => {
+        if (!entry || !entry.id || entry.id === 0) return;
+
+        setSaveStatus('saving');
+        try {
+            const api = Journals(session);
+            const contentString = JSON.stringify(json);
+
+            const response = await api.updateEntryContent(entry.id, contentString);
+
+            if (!response.data.success) {
+                throw new Error(response.data.message || 'Failed to save entry content');
+            }
+
+            setSaveStatus('saved');
+
+            // Clear the "saved" status after a few seconds
+            setTimeout(() => {
+                setSaveStatus(null);
+            }, 3000);
+
+        } catch (err) {
+            console.error('Error saving entry content:', err);
+            setSaveStatus('error');
+        }
+    };
+    //#endregion
+
+    //#region Entry Title
     const handleTitleEdit = () => {
         setIsTitleEditing(true);
     };
@@ -229,7 +263,7 @@ export default function JournalEntryPage() {
             setIsTitleEditing(false);
             return;
         }
-        if(saveStatus == 'saving') return;
+        if (saveStatus == 'saving') return;
 
         setSaveStatus('saving');
 
@@ -283,28 +317,9 @@ export default function JournalEntryPage() {
         navigate(`/journal/${journalId}`);
     };
 
-    const handleUpdatedModule = (module) => {
-        const modules = entryJsonRef.current.modules;
-        const index = modules.findIndex(a => a.id == module.id);
-        if (index > -1) {
-            modules[index] = module;
-            setEntryJson({ ...entryJsonRef.current, modules });
-            entryJsonRef.current = { ...entryJsonRef.current, modules };
-            saveEntryContent({ ...entryJsonRef.current, modules });
-        }
-    };
+    //#endregion
 
-    const formatDate = (dateString) => {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-    };
-
+    //#region Status
     const getStatusText = (entry) => {
         if (entry.encrypted && entry.status > 0) {
             return 'Private';
@@ -352,7 +367,9 @@ export default function JournalEntryPage() {
             default: return null;
         }
     };
+    //#endregion
 
+    //#region Modules
     const generateRandomId = () => {
         return Math.floor(Math.random() * 1000000);
     };
@@ -377,17 +394,19 @@ export default function JournalEntryPage() {
         }
     };
 
-    const addModuleAbove = (type) => {
-        if (!currentModuleId) return;
+    const handleUpdatedModule = (module) => {
+        const modules = entryJsonRef.current.modules;
+        const index = modules.findIndex(a => a.id == module.id);
+        if (index > -1) {
+            modules[index] = module;
+            setEntryJson({ ...entryJsonRef.current, modules });
+            entryJsonRef.current = { ...entryJsonRef.current, modules };
+            saveEntryContent({ ...entryJsonRef.current, modules });
+        }
+    };
 
-        const newModuleId = generateRandomId();
-        const newModule = {
-            id: newModuleId,
-            type: type,
-            manuallyAdded: true
-        };
-
-        const moduleIndex = entryJsonRef.current.modules.findIndex(module => module.id === currentModuleId);
+    const handleAddedModule = (newModule, targetModuleId) => {
+        const moduleIndex = entryJsonRef.current.modules.findIndex(module => module.id === targetModuleId);
         if (moduleIndex === -1) return;
 
         const updatedModules = [...entryJsonRef.current.modules];
@@ -400,10 +419,9 @@ export default function JournalEntryPage() {
         setEntryJson(updatedEntryJson);
         entryJsonRef.current = updatedEntryJson;
         saveEntryContent(updatedEntryJson);
-        setShowModuleAboveDropdown(false);
     };
 
-    const removeModule = (moduleId) => {
+    const handleRemovedModule = (moduleId) => {
         const updatedEntryJson = {
             ...entryJsonRef.current,
             modules: entryJsonRef.current.modules.filter(module => module.id !== moduleId)
@@ -412,34 +430,9 @@ export default function JournalEntryPage() {
         entryJsonRef.current = updatedEntryJson;
         saveEntryContent(updatedEntryJson);
     };
+    //#endregion
 
-    // Save entry content to the server
-    const saveEntryContent = async (json) => {
-        if (!entry || !entry.id || entry.id === 0) return;
-
-        setSaveStatus('saving');
-        try {
-            const api = Journals(session);
-            const contentString = JSON.stringify(json);
-
-            const response = await api.updateEntryContent(entry.id, contentString);
-
-            if (!response.data.success) {
-                throw new Error(response.data.message || 'Failed to save entry content');
-            }
-
-            setSaveStatus('saved');
-
-            // Clear the "saved" status after a few seconds
-            setTimeout(() => {
-                setSaveStatus(null);
-            }, 3000);
-
-        } catch (err) {
-            console.error('Error saving entry content:', err);
-            setSaveStatus('error');
-        }
-    };
+    //#region Settings
     const handleOpenSettings = () => {
         setSettings({
             encrypted: entry.encrypted,
@@ -465,7 +458,7 @@ export default function JournalEntryPage() {
         setSettingsChanged(true);
     };
 
-    const handleSaveChanges = async () => {
+    const handleSaveSettings = async () => {
         if (!settingsChanged) return;
 
         setSaveStatus('saving');
@@ -484,8 +477,8 @@ export default function JournalEntryPage() {
             await Promise.all(promises);
 
             // Manually update local entry state to reflect changes immediately
-            const updatedEntry = { 
-                ...entry, 
+            const updatedEntry = {
+                ...entry,
                 encrypted: settings.encrypted,
                 status: settings.published ? 2 : 1
             };
@@ -501,6 +494,52 @@ export default function JournalEntryPage() {
             setSaveStatus('error');
         }
     };
+
+    const handleArchiveEntry = async () => {
+        if (!window.confirm('Are you sure you want to archive this entry?')) return;
+
+        setSaveStatus('saving');
+        try {
+            const api = Journals(session);
+            await api.archiveEntry(entry.id);
+
+            // Update local entry state
+            const updatedEntry = { ...entry, status: 0 };
+            setEntry(updatedEntry);
+            entryRef.current = updatedEntry;
+
+            setSaveStatus('saved');
+            setTimeout(() => setSaveStatus(null), 3000);
+            handleCloseSettings();
+
+        } catch (err) {
+            console.error('Error archiving entry:', err);
+            setSaveStatus('error');
+        }
+    };
+    //#endregion
+
+    //#region Secrets
+
+    const showSecret = (e) => {
+        console.log('show secret');
+        e.preventDefault();
+        e.target.classList.toggle('show-secret');
+    };
+
+    //add event listeners to secret content on component render
+    if(secretsTimerRef.current) clearTimeout(secretsTimerRef.current);
+    secretsTimerRef.current = setTimeout(() => {
+    const els = document.querySelectorAll('.module .secret-content');
+    els.forEach(el => {
+        el.onclick = showSecret;
+    });
+    console.log('added event listeners to secret content');
+    }, 500);
+
+    //#endregion
+
+    //#region Rendering
 
     // Render loading state
     if (loading) {
@@ -543,35 +582,39 @@ export default function JournalEntryPage() {
 
     // Render entry UI
     return (
-        <div className="journal-entry-page">
+        <div className={"journal-entry-page " + (isEditing ? " editing" : "preview")}>
             {showSettingsModal && (
                 <Modal title="Entry Settings" onClose={handleCloseSettings}>
                     <div className="settings-modal-content">
                         <div className="col-2">
-                        <ToggleSwitch
-                            name="encrypted"
-                            label="Encrypted"
-                            checked={settings.encrypted}
-                            title="Encrypted entries are only visible to you and cannot be shared with others."
-                            onChange={(isChecked) => handleSettingChange('encrypted', isChecked)}
-                        />
+                            <ToggleSwitch
+                                name="encrypted"
+                                label="Encrypted"
+                                checked={settings.encrypted}
+                                title="Encrypted entries are only visible to you and cannot be shared with others."
+                                onChange={(isChecked) => handleSettingChange('encrypted', isChecked)}
+                            />
                         </div>
                         <div className="col-2">
-                        <ToggleSwitch
-                            name="published"
-                            label="Published"
-                            checked={settings.published}
-                            title="Published entries are visible to anyone who has access to the journal."
-                            onChange={(isChecked) => handleSettingChange('published', isChecked)}
-                            disabled={settings.encrypted} // disable if encrypted is on
-                        />
+                            <ToggleSwitch
+                                name="published"
+                                label="Published"
+                                checked={settings.published}
+                                title="Published entries are visible to anyone who has access to the journal."
+                                onChange={(isChecked) => handleSettingChange('published', isChecked)}
+                                disabled={settings.encrypted} // disable if encrypted is on
+                            />
                         </div>
                     </div>
                     <div className="buttons">
+                        {entry.status !== 0 && (
+                            <button className="btn" style={{ backgroundColor: '#c62828', color: 'white' }} onClick={handleArchiveEntry}>Archive Entry</button>
+                        )}
                         {settingsChanged && (
-                            <button className="btn primary" onClick={handleSaveChanges}>Save Changes</button>
+                            <button className="btn primary" onClick={handleSaveSettings}>Save Changes</button>
                         )}
                         <button className="btn cancel" onClick={handleCloseSettings}>Cancel</button>
+
                     </div>
                 </Modal>
             )}
@@ -696,73 +739,16 @@ export default function JournalEntryPage() {
                     </div>
                 )}
 
-
-                <div className="entry-modules">
-                    {entryJson.modules.map((module) => {
-                        if (!module.type) return;
-                        const moduleType = modules.find(m => m.type === module.type);
-                        const ModuleComponent = moduleType?.module;
-                        return (
-                            <div 
-                                key={'module-' + module.id} 
-                                className={
-                                    `entry module-${module.type?.replace(' ', '-') ?? ''} ` +
-                                    `module-id-${module.id} ${isEditing ? 'editable' : ''}` +
-                                    (module.manuallyAdded ? ' manually-added' : '')
-                                }
-                            >
-                                {isEditing && (
-                                    <div className="module-tab-container">
-                                        <div className="module-tab">
-                                            <div className="module-type">{moduleType?.name}</div>
-                                            <div className="box">
-                                                <div className="tool-bar vertical">
-                                                    <button
-                                                        className="icon"
-                                                        ref={module.id === currentModuleId ? moduleDropdownButtonRef : null}
-                                                        onClick={() => {
-                                                            setCurrentModuleId(module.id);
-                                                            setShowModuleAboveDropdown(!showModuleAboveDropdown || currentModuleId !== module.id);
-                                                        }}
-                                                    >
-                                                        <Icon name="add" />
-                                                    </button>
-                                                    {showModuleAboveDropdown && currentModuleId === module.id && (
-                                                        <div
-                                                            className="module-dropdown module-dropdown-left"
-                                                            ref={moduleDropdownRef}
-                                                        >
-                                                            {modules.map(moduleOption => (
-                                                                <div
-                                                                    key={moduleOption.id}
-                                                                    className="module-option"
-                                                                    onClick={() => addModuleAbove(moduleOption.type)}
-                                                                >
-                                                                    <Icon name={moduleOption.icon} />
-                                                                    <span>{moduleOption.name}</span>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                    <button className="icon" onClick={() => removeModule(module.id)}>
-                                                        <Icon name="delete" />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                                <ModuleComponent 
-                                    module={module} 
-                                    entryId={entryId} 
-                                    onUpdate={handleUpdatedModule} 
-                                    isEditable={isEditing} 
-                                    manuallyAdded={module.manuallyAdded} 
-                                />
-                            </div>
-                        )
-                    })}
-                </div>
+                {!loading && (
+                    <ModuleList
+                        entryJson={entryJson}
+                        entryId={entryId}
+                        isEditing={isEditing}
+                        updatedModule={handleUpdatedModule}
+                        addedModule={handleAddedModule}
+                        removedModule={handleRemovedModule}
+                    />
+                )}
 
                 {/* Bottom Add Content button - only shows if there are modules and editing is enabled */}
                 {entryJson.modules.length > 0 && isEditing && (
@@ -803,4 +789,6 @@ export default function JournalEntryPage() {
             </div>
         </div>
     );
+
+    //#endregion
 }

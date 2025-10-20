@@ -58,7 +58,7 @@
     width:8em !important
 }
 
-.text-editor:not(.active){
+.editable .text-editor:not(.active){
     cursor:pointer;
 }
 

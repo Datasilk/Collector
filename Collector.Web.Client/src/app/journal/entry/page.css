@@ -9,7 +9,7 @@
     margin-bottom: 0.5em;
     position: sticky;
     top: 3.25em;
-    z-index: 40;
+    z-index: 120;
     transition: all 0.3s ease;
     padding: 0 0 1em 0;
 }
@@ -40,31 +40,6 @@ body.scrolled .entry-content{
     font-size: 0.85rem;
     font-weight: 500;
     cursor:default;
-}
-
-.status-active {
-    background-color: #e8f5e9;
-    color: #2e7d32;
-}
-
-.status-published {
-    background-color: #e3f2fd;
-    color: #1565c0;
-}
-
-.status-archived {
-    background-color: #f5f5f5;
-    color: #616161;
-}
-
-.status-private {
-    background-color: #c5f2e0;
-    color: #06ba90;
-}
-
-.status-deleted {
-    background-color: #ffebee;
-    color: #c62828;
 }
 
 .toggle-switch-edit-entry{
@@ -319,6 +294,7 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     gap: 0.5em;
     padding: 0.75em 1em;
     cursor: pointer;
+    white-space: nowrap;
     transition: background-color 0.2s ease;
 }
 
@@ -327,14 +303,14 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
 }
 
 /* Entry modules */
-.entry{
+.module{
     position:relative;
 }
-.entry.editable:hover{
+.module.editable:hover{
     outline:1px dashed #a6bfff;
     z-index:110;
 }
-.entry.manually-added{
+.module.manually-added{
     outline:2px solid rgba(166, 191, 255, 0);;
     animation: manually-added 3s ease-in-out;
 }
@@ -353,7 +329,7 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     margin-bottom: 2em;
 }
 
-.entry-modules .entry.element {
+.entry-modules .module.element {
     border: 1px solid #ddd;
     border-radius: 6px;
     overflow: hidden;
@@ -396,7 +372,7 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     width:2.75em;
 }
 
-.entry:hover .module-tab .box{
+.module:hover > .module-tab-container .module-tab .box{
     display:inline-block;
 }
 
@@ -679,6 +655,50 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
 .text-editor > .text > p:last-child{margin-bottom:0 !important}
 .text-editor > .text > p:first-child{margin-top:0 !important}
 
+/* secret content */
+.journal-entry-page.preview .entry-modules .secret-content,
+.ck-button .secret-content {
+  /* Hide the original text visually */
+  visibility: hidden; 
+  position:relative;
+}
+
+.journal-entry-page.preview .entry-modules .secret-content::before,
+.ck-button .secret-content::before {
+  /* Display the asterisks */
+  content: "***********"; 
+  visibility: visible;
+  position:absolute;
+  cursor:pointer;
+  color:#7763ed;
+  white-space: nowrap;
+}
+
+.journal-entry-page.preview .entry-modules .secret-content:hover::before,
+.ck-button .secret-content:hover::before {
+  /* Display the asterisks */
+  outline:2px dotted #7763ed;
+  content: "show secret"; 
+}
+
+.journal-entry-page.preview .entry-modules .secret-content.show-secret{
+    visibility: visible !important;
+}
+
+.journal-entry-page.preview .entry-modules .secret-content.show-secret::before{
+    visibility: hidden !important;
+}
+
+.journal-entry-page.preview .entry-modules .secret-content.show-secret:hover{
+  outline:2px dotted #7763ed;
+  cursor:pointer;
+}
+
+.journal-entry-page.editing .entry-modules .secret-content {
+  /* Display the asterisks */
+  outline:2px dotted #7763ed;
+}
+
 /* checklists */
 .entry-modules .checklist-item{
     margin:0.2em 0;
@@ -830,5 +850,165 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     .entry-header .modified-date{
         display:none;
     }
+}
+
+/* Tabs Module */
+.tabs-module {
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background-color: #fff;
+}
+
+.tabs-module .tabs-toolbar {
+    background-color: #f5f5f5;
+    padding: 0.5em 0.75em 0 0.75em;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1em;
+}
+
+.tabs-module .tabs-list {
+    display: flex;
+    align-items: center;
+    gap: 0.25em;
+    flex-wrap: wrap;
+    flex: 1;
+}
+
+.tabs-module .tab {
+    display: flex;
+    align-items: center;
+    gap: 0.25em;
+    padding: 0.5em 0.75em;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px 4px 0 0;
+    cursor: pointer;
+    transition: transform 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease;
+    user-select: none;
+    min-width: 80px;
+}
+
+.editable .tabs-module .tab {
+    cursor: grab;
+}
+
+.editable .tabs-module .tab:active {
+    cursor: grabbing;
+}
+
+.tabs-module .tab:hover {
+    background-color: #f9f9f9;
+}
+
+.tabs-module .tab.active {
+    background-color: #fff;
+    border-bottom-color: #fff;
+    font-weight: 500;
+    z-index: 1;
+}
+
+.tabs-module .tab.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+    z-index: 100;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    transform: scale(1.05);
+}
+
+.tabs-module .tab.drag-over {
+    transform: translateX(0);
+}
+
+.tabs-module .tab-title {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding:0.4em 0.25em;
+}
+
+.tabs-module .tab .form-group {
+    margin: 0;
+    flex: 1;
+}
+
+.tabs-module .tab .form-group input {
+    padding: 0.25em 0.5em;
+    font-size: 0.9em;
+    border: 1px solid #7763ed;
+    border-radius: 3px;
+}
+
+.tabs-module .tab .form-group .form-label {
+    display: none;
+}
+
+.tabs-module .tabs-list .icon span{
+    font-size:1.2em;
+}
+
+.tabs-module .tab-edit,
+.tabs-module .tab-close {
+    opacity: 0.5;
+    transition: opacity 0.2s ease;
+    padding: 0.5em 1em 0.45em 1em;
+    margin:0;
+}
+
+.tabs-module .tab-edit:hover,
+.tabs-module .tab-close:hover {
+    opacity: 1;
+}
+.tabs-module .tab-edit{
+    margin-left:0.25em;
+}
+
+.tabs-module .add-tab {
+    padding: 0.5em 1em 0.45em 1em;
+    background-color: transparent;
+    border: 2px dashed #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: auto;
+}
+
+.add-tab:hover {
+    background-color: #f0f0f0;
+    border-color: #999;
+}
+
+.tab-content {
+    padding: 1.5em;
+    min-height: 200px;
+}
+
+.editable .tab-content {
+    padding: 0.5em 1.5em 1.5em 1.5em;
+}
+
+.tabs-module .add-module-container {
+    position: relative;
+    width:100%;
+    padding-bottom:1em;
+}
+
+.tabs-module .add-module-container button{
+    float:right;
+}
+
+.tab-content .entry-modules {
+    margin-bottom: 0;
+}
+
+/* Nested module styling */
+.tabs-module .entry-modules .entry {
+    margin-bottom: 1em;
+}
+
+.tabs-module .entry-modules .entry:last-child {
+    margin-bottom: 0;
 }
     
