@@ -55,7 +55,7 @@ export default function ChecklistModule({ module, onUpdate, isEditable = true, m
             }
         }
         if (!id) {
-            console.log('Error getting checklistId. Failed creating checklist.');
+            console.error('Error getting checklistId. Failed creating checklist.');
             return;
         }
         const response = await addChecklistItem({ CheckListId: id, Title: 'New task' });

@@ -215,6 +215,7 @@ hr{
 
 .align-right{text-align:right;}
 .align-center{text-align:center;}
+.right{float:right !important;}
 
 .faded{opacity:0.5;}
 

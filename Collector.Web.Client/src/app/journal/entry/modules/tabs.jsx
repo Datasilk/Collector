@@ -6,7 +6,7 @@ import ModuleList from '../module-list';
 //modules
 import modules from '../modules';
 
-export default function TabsModule({ module, entryId, onUpdate, isEditable = true, manuallyAdded = false }) {
+export default function TabsModule({ module, entryId, journalId, onUpdate, isEditable = true, manuallyAdded = false }) {
     //state
     const [tabs, setTabs] = useState(module.tabs || []);
     const [activeTabId, setActiveTabId] = useState(null);
@@ -63,7 +63,7 @@ export default function TabsModule({ module, entryId, onUpdate, isEditable = tru
 
     //actions
     const generateRandomId = () => {
-        return Math.floor(Math.random() * 1000000);
+        return String(Math.floor(Math.random() * 1000000));
     };
 
     const handleAddTab = () => {
@@ -420,6 +420,7 @@ export default function TabsModule({ module, entryId, onUpdate, isEditable = tru
                     <ModuleList
                         entryJson={{ modules: activeTab.modules || [] }}
                         entryId={entryId}
+                        journalId={journalId}
                         isEditing={isEditable}
                         updatedModule={handleUpdatedModule}
                         addedModule={handleAddedModule}

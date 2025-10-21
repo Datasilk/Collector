@@ -24,6 +24,13 @@
     gap: 0.625em;
 }
 
+.toggle-switch-edit-layout{
+    background-color:#ede3fa;
+    border-radius:1em;
+    padding:0.5em;
+    color:#7037de;
+}
+
 .journal-metadata {
     display: flex;
     gap: 0.625em;

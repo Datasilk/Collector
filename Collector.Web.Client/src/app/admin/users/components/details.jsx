@@ -60,7 +60,7 @@ export default function AdminUserDetails({ user, setUser, onError }) {
                 if (typeof onError === 'function') onError(response.data?.message || 'Failed to save changes');
             }
         } catch (err) {
-            console.log(err);
+            console.error(err);
             setErrors({ ...errors, form: messages.errors.generic });
             setFormState('error');
             if (typeof onError === 'function') onError(messages.errors.generic);

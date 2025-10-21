@@ -7,5 +7,6 @@ CREATE TABLE [dbo].[Journals]
     [Created] DATETIME2 NOT NULL DEFAULT GETUTCDATE(), 
     [Status] INT NOT NULL DEFAULT 1, 
     [ThemeId] INT NULL, 
-    [Color] NVARCHAR(16) NOT NULL --hex color (no #)
+    [Color] NVARCHAR(16) NOT NULL, --hex color (no #)
+    [EntriesListIndex] INT NOT NULL DEFAULT 999 --index for sorting entries list within the array of modules
 )

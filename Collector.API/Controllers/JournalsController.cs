@@ -16,17 +16,20 @@ namespace Collector.API.Controllers
         private readonly IJournalCategoriesRepository _categoriesRepository;
         private readonly IJournalsRepository _journalsRepository;
         private readonly IJournalEntriesRepository _entriesRepository;
+        private readonly IJournalModulesRepository _modulesRepository;
         private readonly IAppUserRepository _userRepository;
 
         public JournalsController(
             IJournalCategoriesRepository categoriesRepository,
             IJournalsRepository journalsRepository,
             IJournalEntriesRepository entriesRepository,
+            IJournalModulesRepository modulesRepository,
             IAppUserRepository userRepository)
         {
             _categoriesRepository = categoriesRepository;
             _journalsRepository = journalsRepository;
             _entriesRepository = entriesRepository;
+            _modulesRepository = modulesRepository;
             _userRepository = userRepository;
         }
 
@@ -203,7 +206,7 @@ namespace Collector.API.Controllers
         }
 
         [HttpGet("{id}")]
-        public IActionResult GetJournal(int id)
+        public async Task<IActionResult> GetJournal(int id)
         {
             var userId = GetUserId();
             if (userId == Guid.Empty)
@@ -214,6 +217,73 @@ namespace Collector.API.Controllers
                 var journal = _journalsRepository.GetById(id);
                 if (journal == null || journal.AppUserId != userId)
                     return Json(new ApiResponse { success = false, message = "Journal not found" });
+
+                // Get all modules for this journal
+                var modules = _modulesRepository.GetAllByJournalId(id);
+                
+                // Get user for encryption key
+                var user = await _userRepository.FindByGuidAsync(userId);
+                
+                // Populate JSON data for each module from entry files
+                foreach (var module in modules)
+                {
+                    try
+                    {
+                        var entry = _entriesRepository.GetById(new Guid(module.JournalEntryId.ToString()));
+                        if (entry != null)
+                        {
+                            var filePath = $"{entry.Id:N}.json";
+                            var content = Files.GetFile(Files.Paths.Journal, filePath);
+                            
+                            if (!string.IsNullOrEmpty(content))
+                            {
+                                // Decrypt if necessary
+                                if (entry.Encrypted && user != null && !string.IsNullOrEmpty(user.EncryptionKey))
+                                {
+                                    content = Sha256.Decrypt(content, user.EncryptionKey);
+                                }
+                                
+                                // Parse JSON and extract the specific module
+                                var jsonDoc = System.Text.Json.JsonDocument.Parse(content);
+                                if (jsonDoc.RootElement.TryGetProperty("modules", out var modulesArray))
+                                {
+                                    foreach (var jsonModule in modulesArray.EnumerateArray())
+                                    {
+                                        if (jsonModule.TryGetProperty("id", out var moduleIdProp))
+                                        {
+                                            string jsonModuleId = null;
+                                            
+                                            // Handle both string and number types in JSON
+                                            if (moduleIdProp.ValueKind == System.Text.Json.JsonValueKind.String)
+                                            {
+                                                jsonModuleId = moduleIdProp.GetString();
+                                            }
+                                            else if (moduleIdProp.ValueKind == System.Text.Json.JsonValueKind.Number)
+                                            {
+                                                jsonModuleId = moduleIdProp.GetInt32().ToString();
+                                            }
+                                            
+                                            // Compare module IDs
+                                            if (jsonModuleId == module.ModuleId)
+                                            {
+                                                // Convert the module back to JSON string
+                                                module.Json = jsonModule.GetRawText();
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // If there's an error reading a specific module, continue with others
+                        module.Json = null;
+                    }
+                }
+                
+                journal.Modules = modules;
 
                 return Json(new ApiResponse { success = true, data = journal });
             }
@@ -600,6 +670,84 @@ namespace Collector.API.Controllers
             }
         }
 
+        [HttpPost("entries/set-published")]
+        public async Task<IActionResult> SetEntryPublished([FromBody] JournalEntryStateModel request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var entry = _entriesRepository.GetById(request.Id);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
+
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized to update this entry" });
+
+                _entriesRepository.SetPublished(request.Id, request.IsSet);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("entries/set-encrypted")]
+        public async Task<IActionResult> SetEntryEncrypted([FromBody] JournalEntryStateModel request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var entry = _entriesRepository.GetById(request.Id);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
+
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized to update this entry" });
+
+                var user = await _userRepository.FindByGuidAsync(userId);
+                if (user == null) return Json(new ApiResponse { success = false, message = "User not found" });
+
+                if (string.IsNullOrEmpty(user.EncryptionKey))
+                {
+                    user.EncryptionKey = Sha256.GenerateKey();
+                    user.EncryptionType = "AES";
+                    _userRepository.UpdateEncryption(user.Id.Value, user.EncryptionKey, user.EncryptionType);
+                }
+
+                var filePath = $"{request.Id:N}.json";
+                var content = Files.GetFile(Files.Paths.Journal, filePath);
+
+                if (request.IsSet)
+                {
+                    // Encrypt the file
+                    var encryptedContent = Sha256.Encrypt(content, user.EncryptionKey);
+                    Files.SaveFile(Files.Paths.Journal, filePath, encryptedContent);
+                }
+                else
+                {
+                    // Decrypt the file
+                    var decryptedContent = Sha256.Decrypt(content, user.EncryptionKey);
+                    Files.SaveFile(Files.Paths.Journal, filePath, decryptedContent);
+                }
+
+                _entriesRepository.SetEncrypted(request.Id, request.IsSet);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
         #endregion
 
         #region Journal Entry Content
@@ -690,8 +838,10 @@ namespace Collector.API.Controllers
 
         #endregion
 
-        [HttpPost("entries/set-published")]
-        public async Task<IActionResult> SetEntryPublished([FromBody] JournalEntryStateModel request)
+        #region Modules
+
+        [HttpPost("modules/add")]
+        public IActionResult AddModule([FromBody] JournalModule module)
         {
             var userId = GetUserId();
             if (userId == Guid.Empty)
@@ -699,15 +849,91 @@ namespace Collector.API.Controllers
 
             try
             {
-                var entry = _entriesRepository.GetById(request.Id);
+                var journal = _journalsRepository.GetById(module.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found or not authorized" });
+
+                _modulesRepository.Add(module);
+                return Json(new ApiResponse { success = true, data = module });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpGet("modules/journal/{journalId}")]
+        public IActionResult GetModulesByJournal(int journalId)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var journal = _journalsRepository.GetById(journalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found or not authorized" });
+
+                var modules = _modulesRepository.GetAllByJournalId(journalId);
+                return Json(new ApiResponse { success = true, data = modules });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpGet("modules/entry/{entryId}")]
+        public IActionResult GetModulesByEntry(Guid entryId)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var entry = _entriesRepository.GetById(entryId);
                 if (entry == null)
                     return Json(new ApiResponse { success = false, message = "Entry not found" });
 
                 var journal = _journalsRepository.GetById(entry.JournalId);
                 if (journal == null || journal.AppUserId != userId)
-                    return Json(new ApiResponse { success = false, message = "Not authorized to update this entry" });
+                    return Json(new ApiResponse { success = false, message = "Not authorized" });
 
-                _entriesRepository.SetPublished(request.Id, request.IsSet);
+                var modules = _modulesRepository.GetAllByEntryId(entryId);
+                return Json(new ApiResponse { success = true, data = modules });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("modules/update")]
+        public IActionResult UpdateModule([FromBody] JournalModuleUpdateModel request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var journal = _journalsRepository.GetById(request.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found or not authorized" });
+
+                var module = new JournalModule
+                {
+                    JournalId = request.JournalId,
+                    JournalEntryId = request.JournalEntryId,
+                    ModuleId = request.ModuleId,
+                    Sort = request.Sort,
+                    Width = request.Width,
+                    Height = request.Height
+                };
+
+                _modulesRepository.Update(module);
                 return Json(new ApiResponse { success = true });
             }
             catch (Exception ex)
@@ -716,8 +942,8 @@ namespace Collector.API.Controllers
             }
         }
 
-        [HttpPost("entries/set-encrypted")]
-        public async Task<IActionResult> SetEntryEncrypted([FromBody] JournalEntryStateModel request)
+        [HttpPost("modules/delete")]
+        public IActionResult DeleteModule([FromBody] JournalModuleDeleteModel request)
         {
             var userId = GetUserId();
             if (userId == Guid.Empty)
@@ -725,41 +951,11 @@ namespace Collector.API.Controllers
 
             try
             {
-                var entry = _entriesRepository.GetById(request.Id);
-                if (entry == null)
-                    return Json(new ApiResponse { success = false, message = "Entry not found" });
-
-                var journal = _journalsRepository.GetById(entry.JournalId);
+                var journal = _journalsRepository.GetById(request.JournalId);
                 if (journal == null || journal.AppUserId != userId)
-                    return Json(new ApiResponse { success = false, message = "Not authorized to update this entry" });
+                    return Json(new ApiResponse { success = false, message = "Journal not found or not authorized" });
 
-                var user = await _userRepository.FindByGuidAsync(userId);
-                if(user == null) return Json(new ApiResponse { success = false, message = "User not found" });
-
-                if (string.IsNullOrEmpty(user.EncryptionKey))
-                {
-                    user.EncryptionKey = Sha256.GenerateKey();
-                    user.EncryptionType = "AES";
-                    _userRepository.UpdateEncryption(user.Id.Value, user.EncryptionKey, user.EncryptionType);
-                }
-
-                var filePath = $"{request.Id:N}.json";
-                var content = Files.GetFile(Files.Paths.Journal, filePath);
-
-                if (request.IsSet)
-                {
-                    // Encrypt the file
-                    var encryptedContent = Sha256.Encrypt(content, user.EncryptionKey);
-                    Files.SaveFile(Files.Paths.Journal, filePath, encryptedContent);
-                }
-                else
-                {
-                    // Decrypt the file
-                    var decryptedContent = Sha256.Decrypt(content, user.EncryptionKey);
-                    Files.SaveFile(Files.Paths.Journal, filePath, decryptedContent);
-                }
-
-                _entriesRepository.SetEncrypted(request.Id, request.IsSet);
+                _modulesRepository.Delete(request.JournalId, request.EntryId, request.ModuleId);
                 return Json(new ApiResponse { success = true });
             }
             catch (Exception ex)
@@ -767,5 +963,37 @@ namespace Collector.API.Controllers
                 return Json(new ApiResponse { success = false, message = ex.Message });
             }
         }
+
+        [HttpPost("modules/resort")]
+        public IActionResult ResortModules([FromBody] JournalModuleResortModel request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var journal = _journalsRepository.GetById(request.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found or not authorized" });
+
+                // Convert the sort items to JournalModule entities
+                var modules = request.Modules.Select(m => new JournalModule
+                {
+                    JournalId = request.JournalId,
+                    JournalEntryId = m.JournalEntryId,
+                    ModuleId = m.ModuleId
+                }).ToList();
+
+                _modulesRepository.ResortModules(request.JournalId, modules);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        #endregion
     }
 }

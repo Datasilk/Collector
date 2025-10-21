@@ -15,16 +15,6 @@ import { Journals } from '@/api/user/journals';
 //modules
 import modules from './modules';
 
-const defaultEntryJson = {
-    modules: [
-        {
-            type: 'text-editor',
-            manuallyAdded: false,
-            html: '<p>Type or paste your content here!</p>'
-        }
-    ]
-};
-
 /**
  * <summary>Journal Entry Page</summary>
  * <description>Displays and allows editing of a specific journal entry</description>
@@ -124,6 +114,16 @@ export default function JournalEntryPage() {
 
             const isNewEntry = entryId === 'new' || entryId == null;
 
+            const defaultEntryJson = {
+                modules: [
+                    {
+                        type: 'text-editor',
+                        manuallyAdded: false,
+                        html: '<p>Type or paste your content here!</p>'
+                    }
+                ]
+            };
+
             if (isNewEntry) {
                 // Create a new entry template
                 const newEntry = {
@@ -142,10 +142,12 @@ export default function JournalEntryPage() {
                 setEditedDescription(newEntry.description);
                 setIsTitleEditing(true); // Automatically show title editor for new entries
                 setIsEditing(true);
-                const newEntryJson = { ...defaultEntryJson, id: generateRandomId() };
+                const newEntryJson = { 
+                    ...JSON.parse(JSON.stringify(defaultEntryJson)), 
+                    id: generateRandomId() 
+                };
                 setEntryJson(newEntryJson);
                 entryJsonRef.current = newEntryJson;
-                console.log('loaded new stuff', defaultEntryJson, newEntryJson);
             } else {
                 // Get existing entry data
                 const entryResponse = await api.getEntry(entryId);
@@ -202,7 +204,7 @@ export default function JournalEntryPage() {
             hour: '2-digit',
             minute: '2-digit'
         });
-    };
+    }; 
 
     // Save entry content to the server
     const saveEntryContent = async (json) => {
@@ -371,7 +373,7 @@ export default function JournalEntryPage() {
 
     //#region Modules
     const generateRandomId = () => {
-        return Math.floor(Math.random() * 1000000);
+        return String(Math.floor(Math.random() * 1000000));
     };
 
     const addModule = (type, position = 'bottom') => {
@@ -522,7 +524,6 @@ export default function JournalEntryPage() {
     //#region Secrets
 
     const showSecret = (e) => {
-        console.log('show secret');
         e.preventDefault();
         e.target.classList.toggle('show-secret');
     };
@@ -534,7 +535,6 @@ export default function JournalEntryPage() {
     els.forEach(el => {
         el.onclick = showSecret;
     });
-    console.log('added event listeners to secret content');
     }, 500);
 
     //#endregion
@@ -743,6 +743,7 @@ export default function JournalEntryPage() {
                     <ModuleList
                         entryJson={entryJson}
                         entryId={entryId}
+                        journalId={journalId}
                         isEditing={isEditing}
                         updatedModule={handleUpdatedModule}
                         addedModule={handleAddedModule}

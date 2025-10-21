@@ -178,15 +178,23 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
 
         // Get the cleaned HTML
         newhtml = tempDiv.innerHTML;
-
         htmlRef.current = newhtml;
+        handlePostponeSave();
+    };
+
+    const handlePostponeSave = () => {
         if (timerSave.current) clearTimeout(timerSave.current);
         timerSave.current = setTimeout(() => {
             onUpdate({
-                ...module, html: newhtml,
+                ...module, html: htmlRef.current,
                 userInput: [...(module.userInput ? module.userInput.filter(a => a != userInput) : []), userInput]
             });
+            timerSave.current = null;
         }, 3000);
+    };
+
+    const handleKeyDown = (input) => {
+        if(timerSave.current != null) handlePostponeSave();
     };
 
     const handleClickOutside = (event) => {
@@ -537,6 +545,7 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                 elem.appendChild(container);
 
                 editor.model.document.on('change:data', handleDataChange);
+                editor.editing.view.document.on( 'keydown', handleKeyDown);
                 editor.focus();
                 editorRef.current = editor;
             });
@@ -561,11 +570,13 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
     const disableEditorEvents = () => {
         document.removeEventListener('mousedown', handleClickOutside);
         if (editorRef.current) editorRef.current.model.document.off('change:data', handleDataChange);
+        if (editorRef.current) editorRef.current.editing.view.document.off( 'keydown', handleKeyDown);
     };
 
     const enableEditorEvents = () => {
         document.addEventListener('mousedown', handleClickOutside);
         if (editorRef.current) editorRef.current.model.document.on('change:data', handleDataChange);
+        if (editorRef.current) editorRef.current.editing.view.document.on( 'keydown', handleKeyDown);
     };
 
     // AI Generator handlers

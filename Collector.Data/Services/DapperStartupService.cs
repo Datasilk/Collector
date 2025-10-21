@@ -41,6 +41,7 @@ namespace Collector.Data.Services
             builder.Services.AddTransient<IJournalEntriesRepository, JournalEntriesRepository>();
             builder.Services.AddTransient<IJournalCheckListsRepository, JournalCheckListsRepository>();
             builder.Services.AddTransient<IJournalCheckListItemsRepository, JournalCheckListItemsRepository>();
+            builder.Services.AddTransient<IJournalModulesRepository, JournalModulesRepository>();
         }
     }
 }

@@ -304,12 +304,60 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
 
 /* Entry modules */
 .module{
+    float:left;
     position:relative;
+    vertical-align: top;
 }
-.module.editable:hover{
+.module.editable:not(.no-hover-outline):hover{
     outline:1px dashed #a6bfff;
     z-index:110;
 }
+
+/* Module resize handles */
+.module-resize-handle {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 8px;
+    cursor: ew-resize;
+    opacity: 0;
+    transition: opacity 0.2s;
+    z-index: 120;
+}
+
+.module-resize-handle.left {
+    left: 0;
+    background: linear-gradient(to right, #7c62e4, transparent);
+}
+
+.module-resize-handle.right {
+    right: 0;
+    background: linear-gradient(to left, #7c62e4, transparent);
+}
+
+.module.editable:hover .module-resize-handle {
+    opacity: 0.6;
+}
+
+.module-resize-handle:hover {
+    opacity: 1 !important;
+}
+
+.module-resize-handle.resizing {
+    opacity: 1 !important;
+}
+
+/* Module width classes */
+.module.width-10 { width: 10%; }
+.module.width-20 { width: 20%; }
+.module.width-30 { width: 30%; }
+.module.width-40 { width: 40%; }
+.module.width-50 { width: 50%; }
+.module.width-60 { width: 60%; }
+.module.width-70 { width: 70%; }
+.module.width-80 { width: 80%; }
+.module.width-90 { width: 90%; }
+.module.width-100 { width: 100%; }
 .module.manually-added{
     outline:2px solid rgba(166, 191, 255, 0);;
     animation: manually-added 3s ease-in-out;
@@ -321,18 +369,44 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     100% { outline: 2px solid rgba(166, 191, 255, 0);  }
 }
 
-
-.entry-modules {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5em;
-    margin-bottom: 2em;
+/* Drag and drop styles */
+.module.draggable {
+    cursor: move;
 }
 
-.entry-modules .module.element {
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    overflow: hidden;
+.module.dragging {
+    opacity: 0.5;
+}
+
+.module.drag-over-left::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background-color: #7c62e4;
+    z-index: 1000;
+}
+
+.module.drag-over-right::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background-color: #7c62e4;
+    z-index: 1000;
+}
+
+.entry-modules {
+    margin-bottom: 2em;
+}
+.entry-modules:after{
+    content:"";
+    display:block;
+    clear:both;
 }
 
 .module-tab-container {
@@ -342,6 +416,39 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     bottom:0;
     width:7em;
 }
+
+.pin-tooltip {
+    position: absolute;
+    top: -3em;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #7c62e4;
+    color: white;
+    padding: 0.5em 1em;
+    border-radius: 0.5em;
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.pin-tooltip::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 6px solid #7c62e4;
+}
+
 .module-tab{
     position:sticky;
     top:11.25em;
@@ -372,7 +479,7 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     width:2.75em;
 }
 
-.module:hover > .module-tab-container .module-tab .box{
+.module:not(.no-hover-tab):hover > .module-tab-container .module-tab .box{
     display:inline-block;
 }
 
@@ -1010,5 +1117,18 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
 
 .tabs-module .entry-modules .entry:last-child {
     margin-bottom: 0;
+}
+
+/* masonry grid */
+.my-masonry-grid {
+  display: -webkit-box; /* Not needed if autoprefixing */
+  display: -ms-flexbox; /* Not needed if autoprefixing */
+  display: flex;
+  margin-left: -30px; /* gutter size offset */
+  width: auto;
+}
+.my-masonry-grid_column {
+  padding-left: 30px; /* gutter size */
+  background-clip: padding-box;
 }
     

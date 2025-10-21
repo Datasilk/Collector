@@ -96,7 +96,7 @@ export default function Login () {
           setFormState('error');
         }
       }).catch((err) => {
-        console.log(err);
+        console.error(err);
         setErrors({ ...errors, form: messages.errors.generic });
         setFormState('error');
       });

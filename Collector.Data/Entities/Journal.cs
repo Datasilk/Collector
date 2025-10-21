@@ -10,5 +10,7 @@ namespace Collector.Data.Entities
         public int Status { get; set; }
         public int? ThemeId { get; set; }
         public string Color { get; set; }
+        public int EntriesListIndex { get; set; }
+        public List<JournalModule> Modules { get; set; }
     }
 }
