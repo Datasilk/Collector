@@ -69,7 +69,6 @@ const UseAxios = ({ user, setUser, useToken = false }) => {
 					switch (error.response.status) {
 						case 401:
 						case 403:
-						case 404:
 							// Dispatch logout action to reset state
 							setUser(null);
 							console.error('Session expired');

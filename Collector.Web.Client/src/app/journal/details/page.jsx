@@ -6,6 +6,7 @@ import { useSession } from '@/context/session';
 import { Journals } from '@/api/user/journals';
 import ModuleList from '@/app/journal/entry/module-list';
 import detailsModules from './components/modules';
+import JournalSettingsModal from './components/settings-modal';
 import '../entry/page.css';
 import './page.css';
 import '@/styles/forms.css';
@@ -26,11 +27,37 @@ export default function JournalDetailsPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [canEditLayout, setCanEditLayout] = useState(false);
+    const [showSettingsModal, setShowSettingsModal] = useState(false);
 
     //effect
     useEffect(() => {
         fetchJournalDetails();
     }, [journalId, navigate, session]);
+
+    useEffect(() => {
+        // Inject CSS from journal settings
+        if (journal?.settings?.css) {
+            const styleId = `journal-${journalId}-styles`;
+            let styleElement = document.getElementById(styleId);
+            
+            if (!styleElement) {
+                styleElement = document.createElement('style');
+                styleElement.id = styleId;
+                document.head.appendChild(styleElement);
+            }
+            
+            styleElement.textContent = journal.settings.css;
+        }
+
+        // Cleanup function to remove style when component unmounts or journal changes
+        return () => {
+            const styleId = `journal-${journalId}-styles`;
+            const styleElement = document.getElementById(styleId);
+            if (styleElement) {
+                styleElement.remove();
+            }
+        };
+    }, [journal?.settings?.css, journalId]);
 
     //actions
     const fetchJournalDetails = () => {
@@ -91,6 +118,20 @@ export default function JournalDetailsPage() {
                     }
 
                     setModules(parsedModules);
+                    
+                    // Inject CSS if settings exist
+                    if (journalData.settings?.css) {
+                        const styleId = `journal-${journalId}-styles`;
+                        let styleElement = document.getElementById(styleId);
+                        
+                        if (!styleElement) {
+                            styleElement = document.createElement('style');
+                            styleElement.id = styleId;
+                            document.head.appendChild(styleElement);
+                        }
+                        
+                        styleElement.textContent = journalData.settings.css;
+                    }
                 }
 
                 setLoading(false);
@@ -106,8 +147,31 @@ export default function JournalDetailsPage() {
         navigate(`/journal/${journalId}/entry/new`);
     };
 
-    const handleEditJournal = () => {
-        navigate(`/journal/${journalId}/edit`);
+    const handleOpenSettings = () => {
+        setShowSettingsModal(true);
+    };
+
+    const handleCloseSettings = () => {
+        setShowSettingsModal(false);
+    };
+
+    const handleSettingsSaved = (updatedJournal, css) => {
+        // Update journal with new title
+        setJournal(updatedJournal);
+        
+        // Inject updated CSS
+        if (css !== undefined) {
+            const styleId = `journal-${journalId}-styles`;
+            let styleElement = document.getElementById(styleId);
+            
+            if (!styleElement) {
+                styleElement = document.createElement('style');
+                styleElement.id = styleId;
+                document.head.appendChild(styleElement);
+            }
+            
+            styleElement.textContent = css;
+        }
     };
 
     // Format date for display
@@ -222,11 +286,19 @@ export default function JournalDetailsPage() {
                     <button onClick={handleNewEntry}>
                         <Icon name="add" /> New Entry
                     </button>
-                    <button onClick={handleEditJournal}>
-                        <Icon name="edit" /> Edit Journal
+                    <button onClick={handleOpenSettings} className="icon">
+                        <Icon name="settings" />
                     </button>
                 </div>
             </div>
+
+            {showSettingsModal && (
+                <JournalSettingsModal
+                    journal={journal}
+                    onClose={handleCloseSettings}
+                    onSaved={handleSettingsSaved}
+                />
+            )}
 
             <div className="journal-metadata">
                 <div className="created-date">

@@ -143,7 +143,7 @@ export default function JournalEntryPage() {
                 setIsTitleEditing(true); // Automatically show title editor for new entries
                 setIsEditing(true);
                 const newEntryJson = { 
-                    ...JSON.parse(JSON.stringify(defaultEntryJson)), 
+                    ...defaultEntryJson, 
                     id: generateRandomId() 
                 };
                 setEntryJson(newEntryJson);
@@ -208,7 +208,7 @@ export default function JournalEntryPage() {
 
     // Save entry content to the server
     const saveEntryContent = async (json) => {
-        if (!entry || !entry.id || entry.id === 0) return;
+        if (!entry || !entry.id || entry.id === 0 || json.modules == null || json.modules.length === 0) return;
 
         setSaveStatus('saving');
         try {
@@ -405,6 +405,12 @@ export default function JournalEntryPage() {
             entryJsonRef.current = { ...entryJsonRef.current, modules };
             saveEntryContent({ ...entryJsonRef.current, modules });
         }
+    };
+
+    const handleDroppedModule = (json) => {
+        setEntryJson({ ...entryJsonRef.current, ...json });
+        entryJsonRef.current = { ...entryJsonRef.current, ...json };
+        saveEntryContent({ ...entryJsonRef.current, ...json });
     };
 
     const handleAddedModule = (newModule, targetModuleId) => {
@@ -745,9 +751,11 @@ export default function JournalEntryPage() {
                         entryId={entryId}
                         journalId={journalId}
                         isEditing={isEditing}
+                        canDragDrop={isEditing}
                         updatedModule={handleUpdatedModule}
                         addedModule={handleAddedModule}
                         removedModule={handleRemovedModule}
+                        droppedModule={handleDroppedModule}
                     />
                 )}
 

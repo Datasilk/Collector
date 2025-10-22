@@ -422,9 +422,11 @@ export default function TabsModule({ module, entryId, journalId, onUpdate, isEdi
                         entryId={entryId}
                         journalId={journalId}
                         isEditing={isEditable}
+                        canDragDrop={isEditable}
                         updatedModule={handleUpdatedModule}
                         addedModule={handleAddedModule}
                         removedModule={handleRemovedModule}
+                        containerId={`tab-${module.id}-${activeTab.id}`}
                     />
                 </>)}
             </div>

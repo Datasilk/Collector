@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Collector.API.Models;
@@ -285,7 +286,37 @@ namespace Collector.API.Controllers
                 
                 journal.Modules = modules;
 
-                return Json(new ApiResponse { success = true, data = journal });
+                // Load journal settings
+                dynamic settings = null;
+                try
+                {
+                    var settingsFilePath = $"journal_{id}.json";
+                    var settingsContent = Files.GetFile(Files.Paths.Journal, settingsFilePath);
+                    
+                    if (!string.IsNullOrEmpty(settingsContent))
+                    {
+                        settings = JsonSerializer.Deserialize<dynamic>(settingsContent);
+                    }
+                }
+                catch
+                {
+                    // Settings file doesn't exist yet, that's okay
+                    settings = null;
+                }
+
+                var response = new
+                {
+                    journal.Id,
+                    journal.Title,
+                    journal.CategoryId,
+                    journal.AppUserId,
+                    journal.Created,
+                    journal.Status,
+                    journal.Modules,
+                    Settings = settings
+                };
+
+                return Json(new ApiResponse { success = true, data = response });
             }
             catch (Exception ex)
             {
@@ -986,6 +1017,100 @@ namespace Collector.API.Controllers
                 }).ToList();
 
                 _modulesRepository.ResortModules(request.JournalId, modules);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpGet("settings/{journalId}")]
+        public IActionResult GetJournalSettings(int journalId)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var journal = _journalsRepository.GetById(journalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found or not authorized" });
+
+                var filePath = $"journal_{journalId}.json";
+                
+                try
+                {
+                    var fileContent = Files.GetFile(Files.Paths.Journal, filePath);
+
+                    if (string.IsNullOrEmpty(fileContent))
+                    {
+                        // Return empty settings if file doesn't exist
+                        return Json(new ApiResponse { success = true, data = new { css = "" } });
+                    }
+
+                    var settings = JsonSerializer.Deserialize<dynamic>(fileContent);
+                    return Json(new ApiResponse { success = true, data = settings });
+                }
+                catch
+                {
+                    // File doesn't exist, return empty settings
+                    return Json(new ApiResponse { success = true, data = new { css = "" } });
+                }
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("settings/update")]
+        public async Task<IActionResult> UpdateJournalSettings([FromBody] UpdateJournalSettingsModel request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var journal = _journalsRepository.GetById(request.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found or not authorized" });
+
+                var filePath = $"journal_{request.JournalId}.json";
+                
+                // Load existing settings or create new dictionary
+                Dictionary<string, object> settings;
+                try
+                {
+                    var existingContent = Files.GetFile(Files.Paths.Journal, filePath);
+                    
+                    if (!string.IsNullOrEmpty(existingContent))
+                    {
+                        settings = JsonSerializer.Deserialize<Dictionary<string, object>>(existingContent);
+                    }
+                    else
+                    {
+                        settings = new Dictionary<string, object>();
+                    }
+                }
+                catch
+                {
+                    // File doesn't exist yet, create new settings dictionary
+                    settings = new Dictionary<string, object>();
+                }
+
+                // Update CSS property
+                if (request.Css != null)
+                {
+                    settings["css"] = request.Css;
+                }
+
+                // Save back to file
+                var jsonContent = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+                await Files.SaveFileAsync(Files.Paths.Journal, filePath, jsonContent);
+
                 return Json(new ApiResponse { success = true });
             }
             catch (Exception ex)

@@ -307,6 +307,7 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     float:left;
     position:relative;
     vertical-align: top;
+    z-index:20;
 }
 .module.editable:not(.no-hover-outline):hover{
     outline:1px dashed #a6bfff;
@@ -402,6 +403,8 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
 
 .entry-modules {
     margin-bottom: 2em;
+    transition: border 0.2s ease;
+    min-height:2em;
 }
 .entry-modules:after{
     content:"";
@@ -409,12 +412,19 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     clear:both;
 }
 
+.entry-modules.drag-over-container {
+    border: 3px dashed #7c62e4;
+    border-radius: 4px;
+    padding: 4px;
+}
+
 .module-tab-container {
     position:absolute;
     left:-7em;
+    right:0;
     top:0;
     bottom:0;
-    width:7em;
+    pointer-events: none; /* The magic property */
 }
 
 .pin-tooltip {
@@ -451,7 +461,7 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
 
 .module-tab{
     position:sticky;
-    top:11.25em;
+    top:1em;
     right:0;
     bottom:0;
     text-align:right;
@@ -468,11 +478,10 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     line-height:1;
     /*position: sticky;*/
     position:absolute;
-    top:calc(30% - 2em);
-    /*top: 7em;*/
     right:0;
     z-index:100;
     transition: top 0.1s ease-out;
+    pointer-events:all; /* The magic property */
 }
 
 .module-tab .tool-bar.vertical{
@@ -511,6 +520,9 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     padding:0 0 0.5em 0;
     white-space: nowrap;
     margin-right:1em;
+    width:7em;
+    float:left;
+    text-align:right;
 }
 
 .module-tab button.icon{

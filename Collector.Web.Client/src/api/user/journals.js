@@ -45,7 +45,11 @@ const Journals = (args) => Api({...args, useToken:true}).endpoints(({api}) => {
         getModulesByEntry: (entryId) => api.get(`${apiPath}/modules/entry/${entryId}`),
         updateModule: (module) => api.post(`${apiPath}/modules/update`, module),
         deleteModule: (journalId, entryId, moduleId) => api.post(`${apiPath}/modules/delete`, { JournalId: journalId, EntryId: entryId, ModuleId: moduleId }),
-        resortModules: (journalId, modules) => api.post(`${apiPath}/modules/resort`, { JournalId: journalId, Modules: modules })
+        resortModules: (journalId, modules) => api.post(`${apiPath}/modules/resort`, { JournalId: journalId, Modules: modules }),
+        
+        // Journal Settings
+        getJournalSettings: (journalId) => api.get(`${apiPath}/settings/${journalId}`),
+        updateJournalSettings: (journalId, settings) => api.post(`${apiPath}/settings/update`, { JournalId: journalId, Css: settings.css })
     };
 });
 

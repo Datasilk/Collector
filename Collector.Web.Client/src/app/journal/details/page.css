@@ -172,3 +172,7 @@
 .is-mobile .journal-details-page .tool-bar{
     margin-left:2em;
 }
+
+.modal.modal-for-settings{
+    overflow-y:visible;
+}

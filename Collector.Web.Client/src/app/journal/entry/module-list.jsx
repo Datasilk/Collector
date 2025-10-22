@@ -29,10 +29,11 @@ export default function ModuleList({
     updatedModule,
     addedModule,
     removedModule,
+    droppedModule,
     onPinModule,
     onUnPinModule,
-    onReorderedModules,
-    modulesRegistry = null
+    modulesRegistry = null,
+    containerId = 'main'
 }) {
     // context
     const session = useSession();
@@ -40,6 +41,7 @@ export default function ModuleList({
     const [showModuleAboveDropdown, setShowModuleAboveDropdown] = useState(false);
     const [currentModuleId, setCurrentModuleId] = useState(null);
     const [pinnedModules, setPinnedModules] = useState([]);
+    const [tabButtons, setTabButtons] = useState([]);
 
     // refs
     const moduleDropdownRef = useRef(null);
@@ -51,10 +53,11 @@ export default function ModuleList({
     const dragOverModuleIdRef = useRef(null);
     const dragStartIndexRef = useRef(null);
     const dropIndexRef = useRef(null);
+    const containerRef = useRef(null);
 
     //effect
     useEffect(() => {
-        if(entryId) fetchPinnedModules();
+        if (entryId) fetchPinnedModules();
     }, [entryId]);
 
     useEffect(() => {
@@ -86,6 +89,7 @@ export default function ModuleList({
     const generateRandomId = () => {
         return String(Math.floor(Math.random() * 1000000));
     };
+
     const addModuleAbove = (type) => {
         if (!currentModuleId) return;
 
@@ -136,7 +140,7 @@ export default function ModuleList({
         if (pinnedModules && pinnedModules.length > 0) {
             return pinnedModules.some(pm => pm.moduleId == moduleId);
         }
-        
+
         // Fallback: check if module has pinned property set to true
         const module = entryJson.modules.find(m => m.id == moduleId);
         return module?.pinned === true;
@@ -165,7 +169,7 @@ export default function ModuleList({
 
             const response = await api.addModule(moduleData);
             if (response.data.success) {
-                if(onPinModule){
+                if (onPinModule) {
                     onPinModule(moduleId);
                 }
 
@@ -214,12 +218,12 @@ export default function ModuleList({
 
             const response = await api.deleteModule(journalId, entryId ?? module.entryId, moduleId);
             if (response.data.success) {
-                if(onUnPinModule){
+                if (onUnPinModule) {
                     onUnPinModule(moduleId);
                 }
 
                 // Update pinned modules list
-                if(entryId) await fetchPinnedModules();
+                if (entryId) await fetchPinnedModules();
 
                 // Create and show tooltip
                 const moduleElement = document.querySelector(`.module-id-${moduleId}`);
@@ -256,7 +260,7 @@ export default function ModuleList({
         }
     };
     //#endregion
-    
+
     //#region Resize Width
     const getWidthClass = (width) => {
         if (!width || width >= 0.95) return 'width-100';
@@ -293,7 +297,7 @@ export default function ModuleList({
         moduleDivs.forEach(moduleDiv => {
             const rect = moduleDiv.getBoundingClientRect();
             const moduleId = moduleDiv.getAttribute('data-id');
-            
+
             //check next module to see if it is to the right of this module
             //if not, add this module to the right aligned modules list
             const nextModule = moduleDiv.nextElementSibling;
@@ -319,7 +323,7 @@ export default function ModuleList({
             if (moduleIndex !== -1) {
                 const currentModule = updatedModules[moduleIndex];
                 const hadRightProperty = currentModule.right === true;
-                
+
                 if (rightAligned && !hadRightProperty) {
                     updatedModules[moduleIndex] = { ...currentModule, right: true };
                     hasChanges = true;
@@ -341,21 +345,21 @@ export default function ModuleList({
     const handleResizeStart = (e, moduleId, side) => {
         e.preventDefault();
         e.stopPropagation();
-        
+
         const moduleElement = document.querySelector(`.module-id-${moduleId}`);
         if (!moduleElement) return;
-        
+
         const currentWidth = moduleElement.offsetWidth;
         const containerWidth = moduleElement.parentElement.offsetWidth;
-        
+
         resizingModuleRef.current = { id: moduleId, side };
         resizeStartXRef.current = e.clientX;
         resizeStartWidthRef.current = currentWidth / containerWidth;
-        
+
         // Add resizing class to handle
         const handle = e.target;
         handle.classList.add('resizing');
-        
+
         // Add event listeners
         document.addEventListener('mousemove', handleResizeMove);
         document.addEventListener('mouseup', handleResizeEnd);
@@ -363,24 +367,24 @@ export default function ModuleList({
 
     const handleResizeMove = (e) => {
         if (!resizingModuleRef.current) return;
-        
+
         const moduleElement = document.querySelector(`.module-id-${resizingModuleRef.current.id}`);
         if (!moduleElement) return;
-        
+
         const containerWidth = moduleElement.parentElement.offsetWidth;
         const deltaX = e.clientX - resizeStartXRef.current;
         const deltaPercentage = (deltaX / containerWidth) * 100;
-        
+
         let newPercentage;
         if (resizingModuleRef.current.side === 'right') {
             newPercentage = (resizeStartWidthRef.current * 100) + deltaPercentage;
         } else {
             newPercentage = (resizeStartWidthRef.current * 100) - deltaPercentage;
         }
-        
+
         // Clamp between 10% and 100%
         newPercentage = Math.max(10, Math.min(100, newPercentage));
-        
+
         // Apply width
         const snappedWidth = snapToWidth(newPercentage);
         moduleElement.style.width = `${snappedWidth * 100}%`;
@@ -388,13 +392,13 @@ export default function ModuleList({
 
     const handleResizeEnd = async (e) => {
         if (!resizingModuleRef.current) return;
-        
+
         const moduleElement = document.querySelector(`.module-id-${resizingModuleRef.current.id}`);
         if (moduleElement) {
             const containerWidth = moduleElement.parentElement.offsetWidth;
             const finalWidth = moduleElement.offsetWidth / containerWidth;
             const snappedWidth = snapToWidth(finalWidth * 100);
-            
+
             // Update module width via API
             const module = entryJson.modules.find(m => m.id == resizingModuleRef.current.id);
             if (module && journalId) {
@@ -408,10 +412,10 @@ export default function ModuleList({
                         Height: parseFloat(module.height || 1),
                         Sort: parseInt(module.sort || 999, 10)
                     };
-                    
+
                     const response = await api.updateModule(updateData);
                     if (response.data.success) {
-                        
+
                         // Update local module data - this triggers re-render with new className
                         if (updatedModule) {
                             updatedModule({ ...module, width: snappedWidth });
@@ -429,17 +433,17 @@ export default function ModuleList({
                 // Remove inline style if no API call needed
                 moduleElement.style.width = '';
             }
-            
+
             // Remove resizing class from all handles
             document.querySelectorAll('.module-resize-handle.resizing').forEach(handle => {
                 handle.classList.remove('resizing');
             });
         }
-        
+
         // Remove event listeners
         document.removeEventListener('mousemove', handleResizeMove);
         document.removeEventListener('mouseup', handleResizeEnd);
-        
+
         resizingModuleRef.current = null;
     };
     //#endregion
@@ -447,22 +451,39 @@ export default function ModuleList({
     //#region Drag and Drop
     const handleDragStart = (e, moduleId, index) => {
         if (!canDragDrop) return;
-        
+        e.stopPropagation();
+
         draggedModuleIdRef.current = moduleId;
         dragStartIndexRef.current = index;
         e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/html', e.currentTarget);
-        
+        //find container based on moduleId
+        let node = e.target;
+        let sourceContainerId = null;
+        const allContainers = getModuleHierarchyFromNode(node);
+        const allContainerModules = getAllContainerModules(allContainers);
+
+        // Store drag data including container info
+        const dragData = {
+            moduleId: moduleId,
+            sourceContainerId: allContainers[0],
+            sourceIndex: index,
+            module: entryJson.modules[index],
+            allContainers: allContainers,
+            allContainerModules: allContainerModules
+        };
+        window.dragData = dragData;
+
         // Add dragging class
         e.currentTarget.classList.add('dragging');
     };
 
     const handleDragOver = (e, moduleId) => {
-        if (!canDragDrop || !draggedModuleIdRef.current) return;
-        
+        if (!canDragDrop) return;
         e.preventDefault();
+        e.stopPropagation();
         e.dataTransfer.dropEffect = 'move';
-        
+
+        // Allow drag over even if draggedModuleIdRef is not set (for cross-container drops)
         if (moduleId !== draggedModuleIdRef.current) {
             // Remove drag-over classes from previous element
             if (dragOverModuleIdRef.current) {
@@ -472,16 +493,16 @@ export default function ModuleList({
                     prevElement.classList.remove('drag-over-right');
                 }
             }
-            
+
             // Find the index of the module being dragged over
             const dragOverIndex = entryJson.modules.findIndex(m => m.id == moduleId);
-            
+
             // Determine which side of the module we're hovering over
             const rect = e.currentTarget.getBoundingClientRect();
             const mouseX = e.clientX;
             const elementMiddle = rect.left + (rect.width / 2);
             const isLeftSide = mouseX < elementMiddle;
-            
+
             // Add appropriate drag-over class to current element
             dragOverModuleIdRef.current = moduleId;
             if (isLeftSide) {
@@ -502,30 +523,73 @@ export default function ModuleList({
         } catch (err) { }
     };
 
-    const handleDrop = async (e, dropModuleId) => {
-        if (!canDragDrop || !draggedModuleIdRef.current) return;
-        
+    const handleDrop = async (e) => {
+        if (!canDragDrop) return;
         e.preventDefault();
         e.stopPropagation();
-        
+        // Try to get drag data for cross-container drops
+        let dragData = window.dragData;
+
+        // Handle cross-container drop
+        if (dragData && dragData.sourceContainerId != window.dragOverContainerId) {
+
+            // If dropping into a nested container (tab or module-list)
+            let newModules = [...entryJson.modules];
+            const dropIndex = dropIndexRef.current !== undefined ? dropIndexRef.current : newModules.length;
+
+            if (window.dragOverContainerId == 'main') {
+                // Dropping into main container
+                newModules.splice(dropIndex, 0, dragData.module);
+            } else {
+                const dropContainer = document.querySelector(`.entry-modules[data-id="${window.dragOverContainerId}"]`);
+                if (!dropContainer) return;
+                const allContainers = getModuleHierarchyFromNode(dropContainer);
+                const allContainerModules = getAllContainerModules(allContainers);
+                newModules = addModuleToHierarchy(newModules, allContainerModules, dragData.module, dropIndex);
+            }
+
+            //remove module from source container
+            if (dragData.sourceContainerId == 'main') {
+                newModules = newModules.filter(m => m.id != dragData.moduleId);
+            } else {
+                newModules = removeModuleFromHierarchy(newModules, dragData.allContainerModules, dragData.moduleId);
+            }
+
+            // Update this container
+            if (droppedModule) {
+                const updatedEntryJson = { ...entryJson, modules: newModules };
+                droppedModule(updatedEntryJson);
+            }
+
+            // Clean up
+            handleDragEnd();
+            return;
+        }
+
+        // Handle same-container drop
+        if (!draggedModuleIdRef.current) return;
+
         const dragIndex = dragStartIndexRef.current;
         const dropIndex = dropIndexRef.current;
-        
+
         // Only update if the position actually changed
-        if (dragIndex !== dropIndex && draggedModuleIdRef.current !== dropModuleId) {
+        if (dragIndex !== dropIndex) {
             const newModules = [...entryJson.modules];
             const draggedModule = newModules[dragIndex];
-            
+
             // Remove from old position
             newModules.splice(dragIndex, 1);
-            
+
+            // Adjust drop index if dragging down
+            const adjustedDropIndex = dragIndex < dropIndex ? dropIndex - 1 : dropIndex;
+
             // Insert at new position
-            newModules.splice(dropIndex, 0, draggedModule);
-            
+            newModules.splice(adjustedDropIndex, 0, draggedModule);
+
             // Update the entry JSON with new module order
-            if (updatedModule) {
+            if (droppedModule) {
                 const updatedEntryJson = { ...entryJson, modules: newModules };
-                updatedModule(updatedEntryJson);
+                droppedModule(updatedEntryJson);
             }
 
             // Call API to resort modules in the database
@@ -536,20 +600,20 @@ export default function ModuleList({
                         JournalEntryId: m.entryId || entryId,
                         ModuleId: String(m.id)
                     }));
-                    
+
                     await api.resortModules(parseInt(journalId, 10), modulesToSort);
                 } catch (err) {
                     console.error('Error resorting modules:', err);
                 }
             }
         }
-        
+
         // Remove drag-over classes
         try {
             e.target.classList.remove('drag-over-left');
             e.target.classList.remove('drag-over-right');
         } catch (err) { }
-        
+
         // Reset drag state
         draggedModuleIdRef.current = null;
         dragOverModuleIdRef.current = null;
@@ -558,25 +622,192 @@ export default function ModuleList({
 
     const handleDragEnd = (e) => {
         if (!canDragDrop) return;
-        
+
         // Remove dragging class
-        e.currentTarget.classList.remove('dragging');
-        
+        if (e && e.currentTarget) {
+            e.currentTarget.classList.remove('dragging');
+        } else {
+            // If no event, remove from all elements
+            document.querySelectorAll('.module.dragging').forEach(el => {
+                el.classList.remove('dragging');
+            });
+        }
+
         // Remove any remaining drag-over classes
         document.querySelectorAll('.module.drag-over-left, .module.drag-over-right').forEach(el => {
             el.classList.remove('drag-over-left');
             el.classList.remove('drag-over-right');
         });
-        
+
         // Reset drag state
         draggedModuleIdRef.current = null;
         dragOverModuleIdRef.current = null;
         dragStartIndexRef.current = null;
+        dropIndexRef.current = null;
+        window.dragOverContainerModuleId = null;
+        window.dragOverContainerId = null;
+
+        // Remove all drag-over-container classes
+        document.querySelectorAll('.entry-modules.drag-over-container').forEach(el => {
+            el.classList.remove('drag-over-container');
+        });
+    };
+
+    const handleContainerDragOver = (e) => {
+        if (!canDragDrop) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        //find container from e.target
+        let node = e.target;
+        while (node && !node.classList?.contains('entry-modules')) {
+            node = node.parentNode;
+        }
+        const containerId = node?.getAttribute('data-id');
+        // Only handle if dragging over the container itself, not over a module
+        if (containerId) {
+            //find parent module
+            let moduleNode = node;
+            while (moduleNode && !moduleNode.classList?.contains('module')) {
+                moduleNode = moduleNode.parentNode;
+            }
+            if (moduleNode || containerId == 'main') {
+                const id = moduleNode?.getAttribute('data-id') || null;
+                if (window.dragOverContainerModuleId == id && window.dragOverContainerId == containerId) return;
+                window.dragOverContainerModuleId = id;
+                window.dragOverContainerId = containerId;
+
+                // Remove drag-over-container class from all entry-modules
+                document.querySelectorAll('.entry-modules.drag-over-container').forEach(el => {
+                    el.classList.remove('drag-over-container');
+                });
+
+                // Add drag-over-container class to current container
+                node.classList.add('drag-over-container');
+            }
+        }
+    };
+
+    const addModuleToHierarchy = (modules, moduleIdPath, moduleToAdd, dropIndex) => {
+        // Clone the modules array to avoid mutation
+        const newModules = JSON.parse(JSON.stringify(modules));
+
+        // If no path or empty path, add to root
+        if (!moduleIdPath || moduleIdPath.length === 0) {
+            newModules.splice(dropIndex, 0, moduleToAdd);
+            return newModules;
+        }
+
+        // Traverse the hierarchy following the path
+        let currentLevel = newModules;
+        let targetModule = null;
+        for (let i = 0; i < moduleIdPath.length; i++) {
+            const moduleId = moduleIdPath[i];
+            targetModule = currentLevel.find(m => m.id == moduleId);
+
+            if (!targetModule) {
+                console.error(`Module with id ${moduleId} not found in hierarchy`);
+                return modules; // Return original if path is invalid
+            }
+
+            // If this is the last module in the path, add to its modules array
+            if (i === moduleIdPath.length - 1) {
+                if (!targetModule.modules) {
+                    targetModule.modules = [];
+                }
+                targetModule.modules.splice(dropIndex, 0, moduleToAdd);
+            } else {
+                // Otherwise, continue traversing
+                if (!targetModule.modules) {
+                    console.error(`Module ${moduleId} has no modules array to traverse`);
+                    return modules;
+                }
+                currentLevel = targetModule.modules;
+            }
+        }
+
+        return newModules;
+    };
+
+    const removeModuleFromHierarchy = (modules, moduleIdPath, moduleIdToRemove) => {
+        // Clone the modules array to avoid mutation
+        const newModules = JSON.parse(JSON.stringify(modules));
+
+        // If no path, remove from root
+        if (!moduleIdPath || moduleIdPath.length === 0) {
+            return newModules.filter(m => m.id != moduleIdToRemove);
+        }
+
+        // Traverse to the parent module
+        let currentLevel = newModules;
+        let targetModule = null;
+
+        for (let i = 0; i < moduleIdPath.length; i++) {
+            const moduleId = moduleIdPath[i];
+            targetModule = currentLevel.find(m => m.id == moduleId);
+
+            if (!targetModule) {
+                console.error(`Module with id ${moduleId} not found in hierarchy`);
+                return modules;
+            }
+
+            // If this is the last module in the path, remove from its modules array
+            if (i === moduleIdPath.length - 1) {
+                if (targetModule.modules) {
+                    targetModule.modules = targetModule.modules.filter(m => m.id != moduleIdToRemove);
+                }
+            } else {
+                // Otherwise, continue traversing
+                if (!targetModule.modules) {
+                    console.error(`Module ${moduleId} has no modules array to traverse`);
+                    return modules;
+                }
+                currentLevel = targetModule.modules;
+            }
+        }
+
+        return newModules;
+    };
+
+    const getModuleHierarchyFromNode = (moduleNode) => {
+        let node = moduleNode;
+        const allContainers = [];
+        while (node != null) {
+            //get all containers in the hierarchy
+            if (node.classList?.contains('entry-modules')) {
+                const id = node.getAttribute('data-id');
+                if(id != 'main') allContainers.push(id);
+            }
+            node = node.parentNode;
+        }
+        return allContainers;
+    };
+
+    const getAllContainerModules = (containers) => {
+        return containers.map(c => {
+            let containerNode = document.querySelector(`.entry-modules[data-id="${c}"]`);
+            while(containerNode){
+                if(containerNode.classList.contains('module')){
+                    return containerNode.getAttribute('data-id');
+                }
+                containerNode = containerNode.parentElement;
+            }
+            return null;
+        }).filter(m => m != null);
     };
     //#endregion
 
+    const handleTabButtons = (buttons) => {
+        setTabButtons(buttons);
+    };
+
     return (
-        <div className="entry-modules">
+        <div
+            className={`entry-modules container-${containerId}`}
+            ref={containerRef}
+            data-id={containerId}
+            onDragOver={handleContainerDragOver}
+        >
             {entryJson.modules.map((module, index) => {
                 if (!module.type) return;
 
@@ -592,7 +823,7 @@ export default function ModuleList({
                             `module-id-${module.id} ${isEditing ? 'editable' : ''} ` +
                             `${!showHoverOutline ? 'no-hover-outline' : ''} ` +
                             `${getWidthClass(module.width)} ` +
-                            `${module.right ? 'right' : ''} ` +
+                            //`${module.right ? 'right' : ''} ` +
                             `${canDragDrop ? 'draggable' : ''} ` +
                             (module.manuallyAdded ? 'manually-added' : '')
                         }
@@ -601,16 +832,16 @@ export default function ModuleList({
                         onDragStart={canDragDrop ? (e) => handleDragStart(e, module.id, index) : undefined}
                         onDragOver={canDragDrop ? (e) => handleDragOver(e, module.id) : undefined}
                         onDragLeave={canDragDrop ? handleDragLeave : undefined}
-                        onDrop={canDragDrop ? (e) => handleDrop(e, module.id) : undefined}
+                        onDrop={canDragDrop ? handleDrop : undefined}
                         onDragEnd={canDragDrop ? handleDragEnd : undefined}
                     >
                         {isEditing && canResize && (
                             <>
-                                <div 
+                                <div
                                     className="module-resize-handle left"
                                     onMouseDown={(e) => handleResizeStart(e, module.id, 'left')}
                                 />
-                                <div 
+                                <div
                                     className="module-resize-handle right"
                                     onMouseDown={(e) => handleResizeStart(e, module.id, 'right')}
                                 />
@@ -622,46 +853,55 @@ export default function ModuleList({
                                     {showLabel && <div className="module-type">{moduleType?.name}</div>}
                                     <div className="box">
                                         <div className="tool-bar vertical">
-                                            {canAddAbove == true && (<>
-                                                <button
-                                                    className="icon"
-                                                    ref={module.id == currentModuleId ? moduleDropdownButtonRef : null}
-                                                    onClick={() => {
-                                                        setCurrentModuleId(module.id);
-                                                        setShowModuleAboveDropdown(!showModuleAboveDropdown || currentModuleId != module.id);
-                                                    }}
-                                                >
-                                                    <Icon name="add" />
-                                                </button>
-                                                {showModuleAboveDropdown && currentModuleId != module.id && (
-                                                    <div
-                                                        className="module-dropdown module-dropdown-left"
-                                                        ref={moduleDropdownRef}
+                                            {canAddAbove == true &&
+                                                //Add above button
+                                                (<>
+                                                    <button
+                                                        className="icon"
+                                                        ref={module.id == currentModuleId ? moduleDropdownButtonRef : null}
+                                                        onClick={() => {
+                                                            setCurrentModuleId(module.id);
+                                                            setShowModuleAboveDropdown(!showModuleAboveDropdown || currentModuleId != module.id);
+                                                        }}
                                                     >
-                                                        {modules.map(moduleOption => (
-                                                            <div
-                                                                key={moduleOption.id}
-                                                                className="module-option"
-                                                                onClick={() => addModuleAbove(moduleOption.type)}
-                                                            >
-                                                                <Icon name={moduleOption.icon} />
-                                                                <span>{moduleOption.name}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </>)}
-                                            {canUnpin && (isModulePinned(module.id) && (
+                                                        <Icon name="add" />
+                                                    </button>
+                                                    {showModuleAboveDropdown && currentModuleId != module.id && (
+                                                        <div
+                                                            className="module-dropdown module-dropdown-left"
+                                                            ref={moduleDropdownRef}
+                                                        >
+                                                            {modules.map(moduleOption => (
+                                                                <div
+                                                                    key={moduleOption.id}
+                                                                    className="module-option"
+                                                                    onClick={() => addModuleAbove(moduleOption.type)}
+                                                                >
+                                                                    <Icon name={moduleOption.icon} />
+                                                                    <span>{moduleOption.name}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </>)}
+                                            {canUnpin && (isModulePinned(module.id) && ( //unpin button
                                                 <button className="icon" onClick={() => unpinModule(module)} title="Unpin from journal">
                                                     <Icon name="keep_off" />
                                                 </button>
                                             ))}
-                                            {canPin && (!isModulePinned(module.id) && (
+                                            {canPin && (!isModulePinned(module.id) && ( //pin button
                                                 <button className="icon" onClick={() => pinModule(module)} title="Pin to journal">
                                                     <Icon name="push_pin" />
                                                 </button>
                                             ))}
-                                            {canDelete && (
+                                            {tabButtons.length > 0 && ( //module-defined buttons
+                                                tabButtons.map((button, index) => (
+                                                    <button key={'usertab_' + index} className="icon" onClick={() => button.callback()} title={button.title}>
+                                                        <Icon name={button.icon} />
+                                                    </button>
+                                                ))
+                                            )}
+                                            {canDelete && ( //Delete button
                                                 <button className="icon" onClick={() => removeModule(module.id)} title="Delete module">
                                                     <Icon name="delete" />
                                                 </button>
@@ -678,6 +918,7 @@ export default function ModuleList({
                             onUpdate={handleUpdatedModule}
                             isEditable={isEditing}
                             manuallyAdded={module.manuallyAdded}
+                            tabButtons={handleTabButtons}
                         />
                     </div>
                 )
