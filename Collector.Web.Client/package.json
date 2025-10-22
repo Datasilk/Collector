@@ -13,6 +13,7 @@
     "@ckeditor/ckeditor5-react": "^9.5.0",
     "@editorjs/editorjs": "^2.30.8",
     "@editorjs/paragraph": "^2.11.7",
+    "@monaco-editor/react": "^4.7.0",
     "@rickx/ckeditor5-line-height": "^44.0.0",
     "axios": "^1.8.2",
     "canvas-confetti": "^1.9.3",
