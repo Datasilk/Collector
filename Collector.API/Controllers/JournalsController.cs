@@ -1119,6 +1119,57 @@ namespace Collector.API.Controllers
             }
         }
 
+        [HttpPost("settings/entry-list/update")]
+        public async Task<IActionResult> UpdateEntryListSettings([FromBody] UpdateEntryListSettingsModel request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var journal = _journalsRepository.GetById(request.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found or not authorized" });
+
+                var filePath = $"journal_{request.JournalId}.json";
+                
+                // Load existing settings or create new dictionary
+                Dictionary<string, object> settings;
+                try
+                {
+                    var existingContent = Files.GetFile(Files.Paths.Journal, filePath);
+                    
+                    if (!string.IsNullOrEmpty(existingContent))
+                    {
+                        settings = JsonSerializer.Deserialize<Dictionary<string, object>>(existingContent);
+                    }
+                    else
+                    {
+                        settings = new Dictionary<string, object>();
+                    }
+                }
+                catch
+                {
+                    // File doesn't exist yet, create new settings dictionary
+                    settings = new Dictionary<string, object>();
+                }
+
+                // Update EntryList property (preserving existing CSS and other settings)
+                settings["entryList"] = request.EntryList;
+
+                // Save back to file
+                var jsonContent = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+                await Files.SaveFileAsync(Files.Paths.Journal, filePath, jsonContent);
+
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
         #endregion
     }
 }

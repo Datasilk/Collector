@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '@/components/ui/icon';
+import Modal from '@/components/ui/modal';
+import Select from '@/components/forms/select';
+import Checkbox from '@/components/forms/checkbox';
 import { useSession } from '@/context/session';
 import { Journals } from '@/api/user/journals';
 
-export default function EntriesListModule({ module, journalId, isEditable = false }) {
+export default function EntriesListModule({ module, journalId, isEditable = false, tabButtons }) {
     const navigate = useNavigate();
     const session = useSession();
     
@@ -12,10 +15,31 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
     const [entries, setEntries] = useState([]);
     const [loading, setLoading] = useState(true);
     const [sort, setSort] = useState('Title_asc');
+    const [showSettingsModal, setShowSettingsModal] = useState(false);
+    const [viewType, setViewType] = useState('Details');
+    const [columns, setColumns] = useState({
+        created: true,
+        modified: true,
+        status: true
+    });
+    const [tempViewType, setTempViewType] = useState('Details');
+    const [tempColumns, setTempColumns] = useState({
+        created: true,
+        modified: true,
+        status: true
+    });
 
     // effect
     useEffect(() => {
         fetchEntries();
+        loadSettings();
+        if(tabButtons) tabButtons([
+            {
+                icon: 'settings',
+                title: 'Settings',
+                callback: handleShowSettingsModal
+            }
+        ]);
     }, [journalId]);
 
     // actions
@@ -40,6 +64,54 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
 
     const handleNewEntry = () => {
         navigate(`/journal/${journalId}/entry/new`);
+    };
+
+    // Settings
+    const loadSettings = async () => {
+        try {
+            const api = Journals(session);
+            const response = await api.getJournalSettings(journalId);
+            if (response.data.success && response.data.data.entryList) {
+                const settings = response.data.data.entryList;
+                setViewType(settings.viewType || 'Details');
+                setColumns(settings.columns || { created: true, modified: true, status: true });
+            }
+        } catch (err) {
+            console.error('Error loading entry list settings:', err);
+        }
+    };
+
+    const handleShowSettingsModal = () => {
+        setTempViewType(viewType);
+        setTempColumns({ ...columns });
+        setShowSettingsModal(true);
+    };
+
+    const handleCloseSettingsModal = () => {
+        setShowSettingsModal(false);
+    };
+
+    const handleSaveSettings = async () => {
+        try {
+            const api = Journals(session);
+            const entryListSettings = {
+                viewType: tempViewType,
+                columns: tempColumns
+            };
+            await api.updateEntryListSettings(journalId, entryListSettings);
+            setViewType(tempViewType);
+            setColumns(tempColumns);
+            setShowSettingsModal(false);
+        } catch (err) {
+            console.error('Error saving entry list settings:', err);
+        }
+    };
+
+    const handleColumnToggle = (columnName, checked) => {
+        setTempColumns({
+            ...tempColumns,
+            [columnName]: checked
+        });
     };
 
     // Format date for display
@@ -137,15 +209,21 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
                                 <th onClick={() => setSort(handleSort('Title', sort))}>
                                     Title {getSortIcon('Title', sort) && <Icon name={getSortIcon('Title', sort)} />}
                                 </th>
-                                <th onClick={() => setSort(handleSort('Created', sort))}>
-                                    Created {getSortIcon('Created', sort) && <Icon name={getSortIcon('Created', sort)} />}
-                                </th>
-                                <th onClick={() => setSort(handleSort('Modified', sort))}>
-                                    Modified {getSortIcon('Modified', sort) && <Icon name={getSortIcon('Modified', sort)} />}
-                                </th>
-                                <th onClick={() => setSort(handleSort('Status', sort))}>
-                                    Status {getSortIcon('Status', sort) && <Icon name={getSortIcon('Status', sort)} />}
-                                </th>
+                                {columns.created && (
+                                    <th onClick={() => setSort(handleSort('Created', sort))}>
+                                        Created {getSortIcon('Created', sort) && <Icon name={getSortIcon('Created', sort)} />}
+                                    </th>
+                                )}
+                                {columns.modified && (
+                                    <th onClick={() => setSort(handleSort('Modified', sort))}>
+                                        Modified {getSortIcon('Modified', sort) && <Icon name={getSortIcon('Modified', sort)} />}
+                                    </th>
+                                )}
+                                {columns.status && (
+                                    <th onClick={() => setSort(handleSort('Status', sort))}>
+                                        Status {getSortIcon('Status', sort) && <Icon name={getSortIcon('Status', sort)} />}
+                                    </th>
+                                )}
                                 <th></th>
                             </tr>
                         </thead>
@@ -156,13 +234,15 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
                                     onClick={() => handleViewEntry(entry.id)}
                                 >
                                     <td>{entry.title}</td>
-                                    <td>{formatDate(entry.created)}</td>
-                                    <td>{formatDate(entry.modified)}</td>
-                                    <td>
-                                        <span className={`entry-status ${getStatusClass(entry)}`}>
-                                            {getStatusText(entry)}
-                                        </span>
-                                    </td>
+                                    {columns.created && <td className="entry-created">{formatDate(entry.created)}</td>}
+                                    {columns.modified && <td className="entry-modified">{formatDate(entry.modified)}</td>}
+                                    {columns.status && (
+                                        <td>
+                                            <span className={`entry-status ${getStatusClass(entry)}`}>
+                                                {getStatusText(entry)}
+                                            </span>
+                                        </td>
+                                    )}
                                     <td className="tool-bar align-right">
                                         <button
                                             className="icon"
@@ -180,6 +260,47 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
                         </tbody>
                     </table>
                 </div>
+            )}
+            {showSettingsModal && (
+                <Modal title="Entry List Settings" onClose={handleCloseSettingsModal}>
+                    <Select
+                        label="View"
+                        name="view-type"
+                        value={tempViewType}
+                        onChange={(e) => setTempViewType(e.target.value)}
+                        options={[
+                            { label: 'Details', value: 'Details' },
+                            { label: 'Cards', value: 'Cards' }
+                        ]}
+                    />
+                    {tempViewType === 'Details' && (
+                        <div className="column-settings">
+                            <h4>Visible Columns</h4>
+                            <Checkbox
+                                label="Date Created"
+                                name="column-created"
+                                checked={tempColumns.created}
+                                onChange={(checked) => handleColumnToggle('created', checked)}
+                            />
+                            <Checkbox
+                                label="Date Modified"
+                                name="column-modified"
+                                checked={tempColumns.modified}
+                                onChange={(checked) => handleColumnToggle('modified', checked)}
+                            />
+                            <Checkbox
+                                label="Status"
+                                name="column-status"
+                                checked={tempColumns.status}
+                                onChange={(checked) => handleColumnToggle('status', checked)}
+                            />
+                        </div>
+                    )}
+                    <div className="buttons">
+                        <button onClick={handleSaveSettings}>Save</button>
+                        <button className="cancel" onClick={handleCloseSettingsModal}>Cancel</button>
+                    </div>
+                </Modal>
             )}
         </div>
     );

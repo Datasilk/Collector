@@ -176,3 +176,9 @@
 .modal.modal-for-settings{
     overflow-y:visible;
 }
+
+.module td.entry-created,
+.module td.entry-modified{
+    opacity:0.65;
+    font-size:0.8em;
+}

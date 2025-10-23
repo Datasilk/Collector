@@ -49,7 +49,14 @@ const Journals = (args) => Api({...args, useToken:true}).endpoints(({api}) => {
         
         // Journal Settings
         getJournalSettings: (journalId) => api.get(`${apiPath}/settings/${journalId}`),
-        updateJournalSettings: (journalId, settings) => api.post(`${apiPath}/settings/update`, { JournalId: journalId, Css: settings.css })
+        updateJournalSettings: (journalId, settings) => api.post(`${apiPath}/settings/update`, { 
+            JournalId: journalId, 
+            Css: settings.css
+        }),
+        updateEntryListSettings: (journalId, entryListSettings) => api.post(`${apiPath}/settings/entry-list/update`, {
+            JournalId: journalId,
+            EntryList: entryListSettings
+        })
     };
 });
 

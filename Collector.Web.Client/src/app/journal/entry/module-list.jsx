@@ -54,6 +54,8 @@ export default function ModuleList({
     const dragStartIndexRef = useRef(null);
     const dropIndexRef = useRef(null);
     const containerRef = useRef(null);
+    const tabButtonsRef = useRef([]);
+    const tabButtonsTimer = useRef(null);
 
     //effect
     useEffect(() => {
@@ -176,33 +178,36 @@ export default function ModuleList({
                 // Update pinned modules list
                 await fetchPinnedModules();
 
-                // Create and show tooltip
-                const moduleElement = document.querySelector(`.module-id-${moduleId}`);
-                if (moduleElement) {
-                    const tabContainer = moduleElement.querySelector('.module-tab-container');
-                    if (tabContainer) {
-                        // Create tooltip element
-                        const tooltip = document.createElement('div');
-                        tooltip.className = 'pin-tooltip';
-                        tooltip.textContent = 'Module added to journal';
+                // Wait for DOM to update before showing tooltip
+                setTimeout(() => {
+                    // Create and show tooltip
+                    const moduleElement = document.querySelector(`.module-id-${moduleId}`);
+                    if (moduleElement) {
+                        const tabContainer = moduleElement.querySelector('.module-tab-container');
+                        if (tabContainer) {
+                            // Create tooltip element
+                            const tooltip = document.createElement('div');
+                            tooltip.className = 'pin-tooltip';
+                            tooltip.textContent = 'Module added to journal';
 
-                        // Insert tooltip at the beginning of tab container
-                        tabContainer.insertBefore(tooltip, tabContainer.firstChild);
+                            // Insert tooltip at the beginning of tab container
+                            tabContainer.insertBefore(tooltip, tabContainer.firstChild);
 
-                        // Trigger fade-in animation
-                        setTimeout(() => {
-                            tooltip.style.opacity = '1';
-                        }, 10);
-
-                        // Fade out and remove after 3 seconds
-                        setTimeout(() => {
-                            tooltip.style.opacity = '0';
+                            // Trigger fade-in animation
                             setTimeout(() => {
-                                tooltip.remove();
-                            }, 300);
-                        }, 3000);
+                                tooltip.style.opacity = '1';
+                            }, 10);
+
+                            // Fade out and remove after 3 seconds
+                            setTimeout(() => {
+                                tooltip.style.opacity = '0';
+                                setTimeout(() => {
+                                    tooltip.remove();
+                                }, 300);
+                            }, 3000);
+                        }
                     }
-                }
+                }, 100);
             } else {
                 console.error('Failed to pin module:', response.data.message);
             }
@@ -225,33 +230,36 @@ export default function ModuleList({
                 // Update pinned modules list
                 if (entryId) await fetchPinnedModules();
 
-                // Create and show tooltip
-                const moduleElement = document.querySelector(`.module-id-${moduleId}`);
-                if (moduleElement) {
-                    const tabContainer = moduleElement.querySelector('.module-tab-container');
-                    if (tabContainer) {
-                        // Create tooltip element
-                        const tooltip = document.createElement('div');
-                        tooltip.className = 'pin-tooltip';
-                        tooltip.textContent = 'Module removed from journal';
+                // Wait for DOM to update before showing tooltip
+                setTimeout(() => {
+                    // Create and show tooltip
+                    const moduleElement = document.querySelector(`.module-id-${moduleId}`);
+                    if (moduleElement) {
+                        const tabContainer = moduleElement.querySelector('.module-tab-container');
+                        if (tabContainer) {
+                            // Create tooltip element
+                            const tooltip = document.createElement('div');
+                            tooltip.className = 'pin-tooltip';
+                            tooltip.textContent = 'Module removed from journal';
 
-                        // Insert tooltip at the beginning of tab container
-                        tabContainer.insertBefore(tooltip, tabContainer.firstChild);
+                            // Insert tooltip at the beginning of tab container
+                            tabContainer.insertBefore(tooltip, tabContainer.firstChild);
 
-                        // Trigger fade-in animation
-                        setTimeout(() => {
-                            tooltip.style.opacity = '1';
-                        }, 10);
-
-                        // Fade out and remove after 3 seconds
-                        setTimeout(() => {
-                            tooltip.style.opacity = '0';
+                            // Trigger fade-in animation
                             setTimeout(() => {
-                                tooltip.remove();
-                            }, 300);
-                        }, 3000);
+                                tooltip.style.opacity = '1';
+                            }, 10);
+
+                            // Fade out and remove after 3 seconds
+                            setTimeout(() => {
+                                tooltip.style.opacity = '0';
+                                setTimeout(() => {
+                                    tooltip.remove();
+                                }, 300);
+                            }, 3000);
+                        }
                     }
-                }
+                }, 100);
             } else {
                 console.error('Failed to unpin module:', response.data.message);
             }
@@ -450,22 +458,24 @@ export default function ModuleList({
 
     //#region Drag and Drop
     const handleDragStart = (e, moduleId, index) => {
-        if (!canDragDrop) return;
+        if (!canDragDrop || window.noDrag == true) {
+            e.preventDefault();
+            return;
+        }
         e.stopPropagation();
 
         draggedModuleIdRef.current = moduleId;
         dragStartIndexRef.current = index;
         e.dataTransfer.effectAllowed = 'move';
         //find container based on moduleId
-        let node = e.target;
-        let sourceContainerId = null;
+        const node = e.target;
         const allContainers = getModuleHierarchyFromNode(node);
         const allContainerModules = getAllContainerModules(allContainers);
 
         // Store drag data including container info
         const dragData = {
             moduleId: moduleId,
-            sourceContainerId: allContainers[0],
+            sourceContainerId: allContainers[0] ?? 'main',
             sourceIndex: index,
             module: entryJson.modules[index],
             allContainers: allContainers,
@@ -478,9 +488,11 @@ export default function ModuleList({
     };
 
     const handleDragOver = (e, moduleId) => {
-        if (!canDragDrop) return;
-        e.preventDefault();
-        e.stopPropagation();
+        if (!canDragDrop || window.noDrag == true) {
+            e.preventDefault();
+            return;
+        }
+        //NOTE: Do not stop propogation!
         e.dataTransfer.dropEffect = 'move';
 
         // Allow drag over even if draggedModuleIdRef is not set (for cross-container drops)
@@ -516,7 +528,10 @@ export default function ModuleList({
     };
 
     const handleDragLeave = (e) => {
-        if (!canDragDrop) return;
+        if (!canDragDrop || window.noDrag == true) {
+            e.preventDefault();
+            return;
+        }
         try {
             e.target.classList.remove('drag-over-left');
             e.target.classList.remove('drag-over-right');
@@ -524,15 +539,15 @@ export default function ModuleList({
     };
 
     const handleDrop = async (e) => {
-        if (!canDragDrop) return;
-        e.preventDefault();
+        if (!canDragDrop || window.noDrag == true) {
+            e.preventDefault();
+            return;
+        }
         e.stopPropagation();
         // Try to get drag data for cross-container drops
         let dragData = window.dragData;
-
         // Handle cross-container drop
-        if (dragData && dragData.sourceContainerId != window.dragOverContainerId) {
-
+        if (dragData && dragData.sourceContainerId != window.dragOverContainerId && dragData.sourceContainerId != 'main') {
             // If dropping into a nested container (tab or module-list)
             let newModules = [...entryJson.modules];
             const dropIndex = dropIndexRef.current !== undefined ? dropIndexRef.current : newModules.length;
@@ -776,7 +791,7 @@ export default function ModuleList({
             //get all containers in the hierarchy
             if (node.classList?.contains('entry-modules')) {
                 const id = node.getAttribute('data-id');
-                if(id != 'main') allContainers.push(id);
+                if (id != 'main') allContainers.push(id);
             }
             node = node.parentNode;
         }
@@ -786,8 +801,8 @@ export default function ModuleList({
     const getAllContainerModules = (containers) => {
         return containers.map(c => {
             let containerNode = document.querySelector(`.entry-modules[data-id="${c}"]`);
-            while(containerNode){
-                if(containerNode.classList.contains('module')){
+            while (containerNode) {
+                if (containerNode.classList.contains('module')) {
                     return containerNode.getAttribute('data-id');
                 }
                 containerNode = containerNode.parentElement;
@@ -795,11 +810,50 @@ export default function ModuleList({
             return null;
         }).filter(m => m != null);
     };
-    //#endregion
 
-    const handleTabButtons = (buttons) => {
-        setTabButtons(buttons);
+    const handleMouseOver = (e) => {
+        e.stopPropagation();
+        let node = e.target;
+        if(window.mouseOverElem == node) return;
+        window.mouseOverElem = node;
+        let foundDrag = false;
+        while (node && !node.classList?.contains('module')) {
+            if(node?.classList?.contains('module-tab-container')) return;
+            if(node?.classList?.contains('no-drag')) {
+                window.noDrag = true;
+                foundDrag = true;
+            }
+            node = node.parentNode;
+        }
+        if(!foundDrag) window.noDrag = false;
+        if(node && window.mouseOverNode?.getAttribute('data-id') == node.getAttribute('data-id')) return;
+        window.mouseOverNode = node;
+        document.querySelectorAll('.module.hover').forEach(el => {
+            if (el != node) el.classList.remove('hover');
+        });
+        if (node == null) return;
+        node.classList.add('hover');
     };
+
+    const handleMouseLeave = (e) => {
+        e.stopPropagation();
+        window.mouseOverElem = null;
+        window.mouseOverNode = null;
+        document.querySelectorAll('.module.hover').forEach(el => {
+            el.classList.remove('hover');
+        });
+    };
+
+    const handleSetTabButtons = (buttons, moduleId) => {
+        tabButtonsRef.current = [...tabButtonsRef.current, {moduleId:moduleId, buttons:buttons}];
+        if(tabButtonsTimer.current) clearTimeout(tabButtonsTimer.current);
+        tabButtonsTimer.current = setTimeout(() => {
+            setTabButtons(tabButtonsRef.current);
+            tabButtonsTimer.current = null;
+        }, 100);
+    };
+
+    //#endregion
 
     return (
         <div
@@ -807,6 +861,7 @@ export default function ModuleList({
             ref={containerRef}
             data-id={containerId}
             onDragOver={handleContainerDragOver}
+            onMouseLeave={isEditing ? handleMouseLeave : undefined}
         >
             {entryJson.modules.map((module, index) => {
                 if (!module.type) return;
@@ -815,6 +870,7 @@ export default function ModuleList({
                 const modulesList = modulesRegistry ? [...modules, ...modulesRegistry] : modules;
                 const moduleType = modulesList.find(m => m.type === module.type);
                 const ModuleComponent = moduleType?.module;
+                const filteredButtons = tabButtons.filter(a => a.moduleId == module.id)[0] ?? null;
                 return (
                     <div
                         key={'module-' + module.id}
@@ -834,6 +890,7 @@ export default function ModuleList({
                         onDragLeave={canDragDrop ? handleDragLeave : undefined}
                         onDrop={canDragDrop ? handleDrop : undefined}
                         onDragEnd={canDragDrop ? handleDragEnd : undefined}
+                        onMouseOver={isEditing ? handleMouseOver : undefined}
                     >
                         {isEditing && canResize && (
                             <>
@@ -852,7 +909,7 @@ export default function ModuleList({
                                 <div className="module-tab">
                                     {showLabel && <div className="module-type">{moduleType?.name}</div>}
                                     <div className="box">
-                                        <div className="tool-bar vertical">
+                                        <div className="tool-bar">
                                             {canAddAbove == true &&
                                                 //Add above button
                                                 (<>
@@ -884,22 +941,24 @@ export default function ModuleList({
                                                         </div>
                                                     )}
                                                 </>)}
-                                            {canUnpin && (isModulePinned(module.id) && ( //unpin button
+                                            {canUnpin && module.showPinned !== false && (isModulePinned(module.id) && ( //unpin button
                                                 <button className="icon" onClick={() => unpinModule(module)} title="Unpin from journal">
                                                     <Icon name="keep_off" />
                                                 </button>
                                             ))}
-                                            {canPin && (!isModulePinned(module.id) && ( //pin button
+                                            {canPin && module.showPinned !== false && (!isModulePinned(module.id) && ( //pin button
                                                 <button className="icon" onClick={() => pinModule(module)} title="Pin to journal">
                                                     <Icon name="push_pin" />
                                                 </button>
                                             ))}
-                                            {tabButtons.length > 0 && ( //module-defined buttons
-                                                tabButtons.map((button, index) => (
-                                                    <button key={'usertab_' + index} className="icon" onClick={() => button.callback()} title={button.title}>
-                                                        <Icon name={button.icon} />
-                                                    </button>
-                                                ))
+                                            {filteredButtons && ( //module-defined buttons
+                                                filteredButtons.buttons.map((button, index) => {
+                                                    return (
+                                                        <button key={'usertab_' + module.id + '_' + index} className="icon" onClick={() => button.callback()} title={button.title}>
+                                                            <Icon name={button.icon} />
+                                                        </button>
+                                                    );
+                                                })
                                             )}
                                             {canDelete && ( //Delete button
                                                 <button className="icon" onClick={() => removeModule(module.id)} title="Delete module">
@@ -918,7 +977,7 @@ export default function ModuleList({
                             onUpdate={handleUpdatedModule}
                             isEditable={isEditing}
                             manuallyAdded={module.manuallyAdded}
-                            tabButtons={handleTabButtons}
+                            tabButtons={(buttons) => handleSetTabButtons(buttons, module.id)}
                         />
                     </div>
                 )

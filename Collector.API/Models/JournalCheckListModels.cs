@@ -24,6 +24,7 @@ namespace Collector.API.Models
         public int Icon { get; set; }
         public DateTime Created { get; set; }
         public int Status { get; set; }
+        public int Sort { get; set; }
     }
 
     public class AddCheckListModel
@@ -84,5 +85,16 @@ namespace Collector.API.Models
     {
         public int Id { get; set; }
         public int Status { get; set; }
+    }
+
+    public class ResortCheckListItemsModel
+    {
+        public List<CheckListItemSortModel> Items { get; set; }
+    }
+
+    public class CheckListItemSortModel
+    {
+        public int Id { get; set; }
+        public int Sort { get; set; }
     }
 }

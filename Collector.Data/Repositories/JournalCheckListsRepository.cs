@@ -21,7 +21,7 @@ namespace Collector.Data.Repositories
         {
             var sql = @"
                 SELECT * FROM JournalCheckLists WHERE Id = @Id;
-                SELECT * FROM JournalCheckListItems WHERE CheckListId = @Id ORDER BY Created ASC;
+                SELECT * FROM JournalCheckListItems WHERE CheckListId = @Id ORDER BY Sort ASC;
             ";
             
             using (var multi = await _db.QueryMultipleAsync(sql, new { Id = id }))
@@ -43,7 +43,7 @@ namespace Collector.Data.Repositories
                 SELECT i.* FROM JournalCheckListItems i
                 INNER JOIN JournalCheckLists c ON i.CheckListId = c.Id
                 WHERE c.EntryId = @EntryId
-                ORDER BY i.CheckListId, i.Created ASC;
+                ORDER BY i.CheckListId, i.Sort ASC;
             ";
             
             using (var multi = await _db.QueryMultipleAsync(sql, new { EntryId = entryId }))

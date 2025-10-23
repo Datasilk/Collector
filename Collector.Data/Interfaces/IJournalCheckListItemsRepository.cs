@@ -14,5 +14,6 @@ namespace Collector.Data.Interfaces
         Task<bool> UpdateIcon(int id, int icon);
         Task<bool> UpdateStatus(int id, int status);
         Task<bool> Delete(int id);
+        Task<bool> ResortItems(List<JournalCheckListItem> items);
     }
 }

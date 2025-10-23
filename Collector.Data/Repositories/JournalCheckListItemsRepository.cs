@@ -24,7 +24,7 @@ namespace Collector.Data.Repositories
 
         public async Task<List<JournalCheckListItem>> GetByCheckListId(int checkListId)
         {
-            var sql = @"SELECT * FROM JournalCheckListItems WHERE CheckListId = @CheckListId ORDER BY Created ASC";
+            var sql = @"SELECT * FROM JournalCheckListItems WHERE CheckListId = @CheckListId ORDER BY Sort ASC";
             var result = await _db.QueryAsync<JournalCheckListItem>(sql, new { CheckListId = checkListId });
             return result.AsList();
         }
@@ -78,6 +78,14 @@ namespace Collector.Data.Repositories
             var sql = @"DELETE FROM JournalCheckListItems WHERE Id = @Id";
             var rowsAffected = await _db.ExecuteAsync(sql, new { Id = id });
             return rowsAffected > 0;
+        }
+
+        public async Task<bool> ResortItems(List<JournalCheckListItem> items)
+        {
+            if (items == null || !items.Any()) return false;
+            var sql = @"UPDATE JournalCheckListItems SET Sort = @Sort WHERE Id = @Id";
+            var rowsAffected = await _db.ExecuteAsync(sql, items);
+            return rowsAffected == items.Count;
         }
     }
 }

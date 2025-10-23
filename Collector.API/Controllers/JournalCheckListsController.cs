@@ -499,6 +499,51 @@ namespace Collector.API.Controllers
             }
         }
 
+        [HttpPost("items/resort")]
+        public async Task<IActionResult> ResortItems([FromBody] ResortCheckListItemsModel model)
+        {
+            try
+            {
+                if (model.Items == null || !model.Items.Any())
+                {
+                    return Json(new ApiResponse { success = false, message = "No items provided" });
+                }
+
+                // Verify user has access to the parent checklist
+                var firstItem = await _checkListItemsRepo.GetById(model.Items[0].Id);
+                if (firstItem == null)
+                {
+                    return Json(new ApiResponse { success = false, message = "Checklist item not found" });
+                }
+
+                var checkList = await _checkListsRepo.GetById(firstItem.CheckListId);
+                if (checkList == null)
+                {
+                    return Json(new ApiResponse { success = false, message = "Parent checklist not found" });
+                }
+
+                var userId = GetUserId();
+                if (checkList.AppUserId != userId)
+                {
+                    return Json(new ApiResponse { success = false, message = "Access denied" });
+                }
+
+                // Map the model items to entity items
+                var items = model.Items.Select(i => new JournalCheckListItem
+                {
+                    Id = i.Id,
+                    Sort = i.Sort
+                }).ToList();
+
+                var success = await _checkListItemsRepo.ResortItems(items);
+                return Json(new ApiResponse { success = success });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
         #endregion
     }
 }

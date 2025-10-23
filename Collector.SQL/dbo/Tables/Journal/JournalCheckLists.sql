@@ -7,5 +7,5 @@
     [Title] NVARCHAR(64) NOT NULL, 
     [Description] NVARCHAR(512) NULL,
     [Created] DATETIME2 NOT NULL DEFAULT GETUTCDATE(), 
-    [Status] INT NOT NULL DEFAULT 1, 
+    [Status] INT NOT NULL DEFAULT 1
 )

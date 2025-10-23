@@ -98,7 +98,8 @@ export default function JournalDetailsPage() {
                     const entriesListModule = {
                         id: 'entries-list',
                         type: 'entries-list',
-                        showTab: false,
+                        showTab: true,
+                        showPinned: false,
                         pinned: true,
                         sort: 999
                     };

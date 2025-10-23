@@ -21,7 +21,8 @@ const JournalChecklists = (args) => Api({...args, useToken:true}).endpoints(({ap
         updateChecklistItemTitle: (id, title) => api.post(`${apiPath}/items/update-title`, { Id: id, Title: title }),
         updateChecklistItemIcon: (id, icon) => api.post(`${apiPath}/items/update-icon`, { Id: id, Icon: icon }),
         updateChecklistItemStatus: (id, status) => api.post(`${apiPath}/items/update-status`, { Id: id, Status: status }),
-        deleteChecklistItem: (id) => api.delete(`${apiPath}/items/${id}`)
+        deleteChecklistItem: (id) => api.delete(`${apiPath}/items/${id}`),
+        resortChecklistItems: (items) => api.post(`${apiPath}/items/resort`, { Items: items })
     };
 });
 
