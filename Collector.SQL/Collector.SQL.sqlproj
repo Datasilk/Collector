@@ -318,6 +318,7 @@
     <Build Include="dbo\Tables\Journal\JournalCheckListItems.sql" />
     <Build Include="dbo\Tables\Journal\JournalCheckLists.sql" />
     <Build Include="dbo\Tables\Journal\JournalModules.sql" />
+    <Build Include="dbo\Tables\Journal\JournalChapters.sql" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Collector.SQL.publish.xml" />

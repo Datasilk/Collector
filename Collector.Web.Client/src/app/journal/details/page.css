@@ -182,3 +182,36 @@
     opacity:0.65;
     font-size:0.8em;
 }
+
+/* Journal Settings Modal - Chapters Tab */
+.tab-chapters .spreadsheet th:first-child {
+    width: 3.75em;
+}
+
+.tab-chapters .spreadsheet th:nth-child(3) {
+    width: 6.25em;
+}
+
+.tab-chapters .spreadsheet th:last-child {
+    width: 3.75em;
+}
+
+.tab-chapters .spreadsheet tbody tr {
+    cursor: grab;
+}
+
+.tab-chapters .spreadsheet tbody tr.dragging {
+    opacity: 0.5;
+}
+
+.tab-chapters .spreadsheet tbody tr:active {
+    cursor: grabbing;
+}
+
+.tab-chapters .spreadsheet tbody tr.drag-over-top td {
+    border-top: 3px solid #7037de;
+}
+
+.tab-chapters .spreadsheet tbody tr.drag-over-bottom td {
+    border-bottom: 3px solid #7037de;
+}

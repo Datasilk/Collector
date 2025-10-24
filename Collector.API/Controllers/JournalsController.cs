@@ -18,6 +18,7 @@ namespace Collector.API.Controllers
         private readonly IJournalsRepository _journalsRepository;
         private readonly IJournalEntriesRepository _entriesRepository;
         private readonly IJournalModulesRepository _modulesRepository;
+        private readonly IJournalChaptersRepository _chaptersRepository;
         private readonly IAppUserRepository _userRepository;
 
         public JournalsController(
@@ -25,12 +26,14 @@ namespace Collector.API.Controllers
             IJournalsRepository journalsRepository,
             IJournalEntriesRepository entriesRepository,
             IJournalModulesRepository modulesRepository,
+            IJournalChaptersRepository chaptersRepository,
             IAppUserRepository userRepository)
         {
             _categoriesRepository = categoriesRepository;
             _journalsRepository = journalsRepository;
             _entriesRepository = entriesRepository;
             _modulesRepository = modulesRepository;
+            _chaptersRepository = chaptersRepository;
             _userRepository = userRepository;
         }
 
@@ -779,6 +782,32 @@ namespace Collector.API.Controllers
             }
         }
 
+        [HttpPost("entries/update-created")]
+        public IActionResult UpdateEntryCreated([FromBody] UpdateEntryCreatedModel request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var entry = _entriesRepository.GetById(request.Id);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
+
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized to update this entry" });
+
+                _entriesRepository.UpdateCreated(request.Id, request.Created);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
         #endregion
 
         #region Journal Entry Content
@@ -1162,6 +1191,220 @@ namespace Collector.API.Controllers
                 var jsonContent = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
                 await Files.SaveFileAsync(Files.Paths.Journal, filePath, jsonContent);
 
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        #endregion
+
+        #region Journal Chapters
+
+        [HttpPost("{journalId}/chapters/add")]
+        public IActionResult AddChapter(int journalId, [FromBody] JournalChapterModel request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var journal = _journalsRepository.GetById(journalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found or not authorized" });
+
+                var chapter = new JournalChapter
+                {
+                    JournalId = journalId,
+                    Title = request.Title,
+                    Icon = request.Icon,
+                    Color = request.Color,
+                    Description = request.Description
+                };
+
+                _chaptersRepository.Add(chapter);
+                return Json(new ApiResponse { success = true, data = chapter });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpGet("{journalId}/chapters")]
+        public IActionResult GetChapters(int journalId)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var journal = _journalsRepository.GetById(journalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found or not authorized" });
+
+                var chapters = _chaptersRepository.GetAllByJournalId(journalId);
+                return Json(new ApiResponse { success = true, data = chapters });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpGet("{journalId}/chapters/{chapterId}")]
+        public IActionResult GetChapter(int journalId, int chapterId)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var journal = _journalsRepository.GetById(journalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found or not authorized" });
+
+                var chapter = _chaptersRepository.GetById(journalId, chapterId);
+                if (chapter == null)
+                    return Json(new ApiResponse { success = false, message = "Chapter not found" });
+
+                return Json(new ApiResponse { success = true, data = chapter });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("chapters/rename")]
+        public IActionResult RenameChapter([FromBody] JournalChapterModel request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var journal = _journalsRepository.GetById(request.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found or not authorized" });
+
+                _chaptersRepository.Rename(request.JournalId, request.ChapterId, request.Title);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("chapters/update-description")]
+        public IActionResult UpdateChapterDescription([FromBody] JournalChapterModel request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var journal = _journalsRepository.GetById(request.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found or not authorized" });
+
+                _chaptersRepository.UpdateDescription(request.JournalId, request.ChapterId, request.Description);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("chapters/change-color")]
+        public IActionResult ChangeChapterColor([FromBody] JournalChapterModel request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var journal = _journalsRepository.GetById(request.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found or not authorized" });
+
+                _chaptersRepository.ChangeColor(request.JournalId, request.ChapterId, request.Color);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("chapters/change-icon")]
+        public IActionResult ChangeChapterIcon([FromBody] JournalChapterModel request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var journal = _journalsRepository.GetById(request.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found or not authorized" });
+
+                _chaptersRepository.ChangeIcon(request.JournalId, request.ChapterId, request.Icon);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("chapters/update-sort")]
+        public IActionResult UpdateChapterSort([FromBody] JournalChapterModel request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var journal = _journalsRepository.GetById(request.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found or not authorized" });
+
+                _chaptersRepository.UpdateSort(request.JournalId, request.ChapterId, request.Sort);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("chapters/delete")]
+        public IActionResult DeleteChapter([FromBody] JournalChapterModel request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var journal = _journalsRepository.GetById(request.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found or not authorized" });
+
+                _chaptersRepository.Delete(request.JournalId, request.ChapterId);
                 return Json(new ApiResponse { success = true });
             }
             catch (Exception ex)

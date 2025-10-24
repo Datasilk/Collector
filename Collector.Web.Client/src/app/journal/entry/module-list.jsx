@@ -63,10 +63,6 @@ export default function ModuleList({
     }, [entryId]);
 
     useEffect(() => {
-        setTimeout(getRightAlignedModules, 1);
-    }, [entryJson]);
-
-    useEffect(() => {
         const handleClickOutside = (event) => {
             if (showModuleAboveDropdown &&
                 moduleDropdownRef.current &&
@@ -296,60 +292,6 @@ export default function ModuleList({
         return 0.1;
     };
 
-    const getRightAlignedModules = () => {
-        //get all modules that are less than 100% width and are on the right side of the row
-        const moduleDivs = document.querySelectorAll('.module');
-        const updatedModules = [...entryJson.modules];
-        let hasChanges = false;
-
-        moduleDivs.forEach(moduleDiv => {
-            const rect = moduleDiv.getBoundingClientRect();
-            const moduleId = moduleDiv.getAttribute('data-id');
-
-            //check next module to see if it is to the right of this module
-            //if not, add this module to the right aligned modules list
-            const nextModule = moduleDiv.nextElementSibling;
-            let rightAligned = false;
-            if (nextModule) {
-                const nextRect = nextModule.getBoundingClientRect();
-                if (nextRect.left < rect.right) {
-                    rightAligned = true;
-                }
-            } else {
-                rightAligned = true;
-            }
-
-            // Update CSS class
-            if (rightAligned) {
-                moduleDiv.classList.add('right');
-            } else {
-                moduleDiv.classList.remove('right');
-            }
-
-            // Update module state
-            const moduleIndex = updatedModules.findIndex(m => m.id == moduleId);
-            if (moduleIndex !== -1) {
-                const currentModule = updatedModules[moduleIndex];
-                const hadRightProperty = currentModule.right === true;
-
-                if (rightAligned && !hadRightProperty) {
-                    updatedModules[moduleIndex] = { ...currentModule, right: true };
-                    hasChanges = true;
-                } else if (!rightAligned && hadRightProperty) {
-                    const { right, ...moduleWithoutRight } = currentModule;
-                    updatedModules[moduleIndex] = moduleWithoutRight;
-                    hasChanges = true;
-                }
-            }
-        });
-
-        // Only call updatedModule if there were changes
-        if (hasChanges && updatedModule) {
-            const updatedEntryJson = { ...entryJson, modules: updatedModules };
-            updatedModule(updatedEntryJson);
-        }
-    };
-
     const handleResizeStart = (e, moduleId, side) => {
         e.preventDefault();
         e.stopPropagation();
@@ -539,6 +481,7 @@ export default function ModuleList({
     };
 
     const handleDrop = async (e) => {
+        console.log('handleDrop', canDragDrop, window.noDrag);
         if (!canDragDrop || window.noDrag == true) {
             e.preventDefault();
             return;
@@ -547,8 +490,11 @@ export default function ModuleList({
         // Try to get drag data for cross-container drops
         let dragData = window.dragData;
         // Handle cross-container drop
-        if (dragData && dragData.sourceContainerId != window.dragOverContainerId && dragData.sourceContainerId != 'main') {
+        console.log('dragData', dragData, window.dragOverContainerId);
+
+        if (dragData && dragData.sourceContainerId != window.dragOverContainerId) {
             // If dropping into a nested container (tab or module-list)
+            console.log('cross-container drop', dragData, window.dragOverContainerId);
             let newModules = [...entryJson.modules];
             const dropIndex = dropIndexRef.current !== undefined ? dropIndexRef.current : newModules.length;
 
@@ -557,10 +503,14 @@ export default function ModuleList({
                 newModules.splice(dropIndex, 0, dragData.module);
             } else {
                 const dropContainer = document.querySelector(`.entry-modules[data-id="${window.dragOverContainerId}"]`);
+                console.log('dropContainer', dropContainer);
                 if (!dropContainer) return;
                 const allContainers = getModuleHierarchyFromNode(dropContainer);
+                console.log('allContainers', allContainers);
                 const allContainerModules = getAllContainerModules(allContainers);
+                console.log('allContainerModules', allContainerModules);
                 newModules = addModuleToHierarchy(newModules, allContainerModules, dragData.module, dropIndex);
+                console.log('newModules', newModules);
             }
 
             //remove module from source container
@@ -702,7 +652,9 @@ export default function ModuleList({
             }
         }
     };
+    //#endregion
 
+    //#region Add/Remove Module in Hierarchy
     const addModuleToHierarchy = (modules, moduleIdPath, moduleToAdd, dropIndex) => {
         // Clone the modules array to avoid mutation
         const newModules = JSON.parse(JSON.stringify(modules));
@@ -810,23 +762,26 @@ export default function ModuleList({
             return null;
         }).filter(m => m != null);
     };
+    //#endregion
 
+    //#region Mouse Over / Leave
     const handleMouseOver = (e) => {
         e.stopPropagation();
         let node = e.target;
-        if(window.mouseOverElem == node) return;
+        if (window.mouseOverElem == node) return;
         window.mouseOverElem = node;
         let foundDrag = false;
         while (node && !node.classList?.contains('module')) {
-            if(node?.classList?.contains('module-tab-container')) return;
-            if(node?.classList?.contains('no-drag')) {
+            if (node?.classList?.contains('module-tab-container')) return;
+            if (node?.classList?.contains('no-drag') ||
+                node?.classList?.contains('ck')) {
                 window.noDrag = true;
                 foundDrag = true;
             }
             node = node.parentNode;
         }
-        if(!foundDrag) window.noDrag = false;
-        if(node && window.mouseOverNode?.getAttribute('data-id') == node.getAttribute('data-id')) return;
+        if (!foundDrag) window.noDrag = false;
+        if (node && window.mouseOverNode?.getAttribute('data-id') == node.getAttribute('data-id')) return;
         window.mouseOverNode = node;
         document.querySelectorAll('.module.hover').forEach(el => {
             if (el != node) el.classList.remove('hover');
@@ -843,10 +798,12 @@ export default function ModuleList({
             el.classList.remove('hover');
         });
     };
+    //#endregion
 
+    //#region Tab Buttons
     const handleSetTabButtons = (buttons, moduleId) => {
-        tabButtonsRef.current = [...tabButtonsRef.current, {moduleId:moduleId, buttons:buttons}];
-        if(tabButtonsTimer.current) clearTimeout(tabButtonsTimer.current);
+        tabButtonsRef.current = [...tabButtonsRef.current, { moduleId: moduleId, buttons: buttons }];
+        if (tabButtonsTimer.current) clearTimeout(tabButtonsTimer.current);
         tabButtonsTimer.current = setTimeout(() => {
             setTabButtons(tabButtonsRef.current);
             tabButtonsTimer.current = null;

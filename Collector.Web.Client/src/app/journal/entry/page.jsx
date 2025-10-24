@@ -5,9 +5,11 @@ import './page.css';
 //components
 import Icon from '@/components/ui/icon';
 import Input from '@/components/forms/input';
+import Select from '@/components/forms/select';
 import ToggleSwitch from '@/components/ui/toggle-switch';
 import Modal from '@/components/ui/modal';
 import ModuleList from './module-list';
+import JournalChapters from '@/components/journal/journal-chapters';
 //context
 import { useSession } from '@/context/session';
 //api
@@ -39,8 +41,10 @@ export default function JournalEntryPage() {
     const [showBottomModuleDropdown, setShowBottomModuleDropdown] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
-    const [settings, setSettings] = useState({ encrypted: false, published: false });
+    const [settings, setSettings] = useState({ encrypted: false, published: false, chapterId: null });
     const [settingsChanged, setSettingsChanged] = useState(false);
+    const [chapters, setChapters] = useState([]);
+    const [showChapterManagement, setShowChapterManagement] = useState(false);
 
     // refs
     const entryRef = useRef(null);
@@ -53,7 +57,7 @@ export default function JournalEntryPage() {
     const secretsTimerRef = useRef(null);
 
     //apis
-    const { addEntry, renameEntry, setEntryEncrypted, setEntryPublished } = Journals(session);
+    const { addEntry, renameEntry, setEntryEncrypted, setEntryPublished, updateEntryCreated } = Journals(session);
 
     //effect
     useEffect(() => {
@@ -441,17 +445,44 @@ export default function JournalEntryPage() {
     //#endregion
 
     //#region Settings
-    const handleOpenSettings = () => {
+    const handleOpenSettings = async () => {
         setSettings({
             encrypted: entry.encrypted,
-            published: entry.status === 2
+            published: entry.status === 2,
+            created: entry.created ? new Date(entry.created).toISOString().slice(0, 16) : '',
+            chapterId: entry.chapterId || null
         });
         setSettingsChanged(false);
+        
+        // Load chapters
+        try {
+            const api = Journals(session);
+            const response = await api.getChapters(journalId);
+            if (response.data?.success && response.data.data) {
+                setChapters(response.data.data);
+            }
+        } catch (err) {
+            console.error('Error loading chapters:', err);
+        }
+        
         setShowSettingsModal(true);
     };
 
     const handleCloseSettings = () => {
         setShowSettingsModal(false);
+        setShowChapterManagement(false);
+    };
+
+    const handleShowChapterManagement = () => {
+        setShowChapterManagement(true);
+    };
+
+    const handleBackFromChapterManagement = () => {
+        setShowChapterManagement(false);
+    };
+
+    const handleChaptersChanged = async (updatedChapters) => {
+        setChapters(updatedChapters);
     };
 
     const handleSettingChange = (setting, value) => {
@@ -466,6 +497,34 @@ export default function JournalEntryPage() {
         setSettingsChanged(true);
     };
 
+    const handleDatePaste = (e) => {
+        e.preventDefault();
+        const pastedText = e.clipboardData.getData('text');
+        
+        try {
+            // Try to parse the pasted text as a date
+            const parsedDate = new Date(pastedText);
+            
+            // Check if the date is valid
+            if (!isNaN(parsedDate.getTime())) {
+                // Convert to local datetime-local format (YYYY-MM-DDTHH:mm)
+                const year = parsedDate.getFullYear();
+                const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+                const day = String(parsedDate.getDate()).padStart(2, '0');
+                const hours = String(parsedDate.getHours()).padStart(2, '0');
+                const minutes = String(parsedDate.getMinutes()).padStart(2, '0');
+                
+                const formattedDate = `${year}-${month}-${day}T${hours}:${minutes}`;
+                handleSettingChange('created', formattedDate);
+            } else {
+                // If parsing fails, just use the original value
+                console.warn('Could not parse date:', pastedText);
+            }
+        } catch (err) {
+            console.error('Error parsing pasted date:', err);
+        }
+    };
+
     const handleSaveSettings = async () => {
         if (!settingsChanged) return;
 
@@ -473,6 +532,7 @@ export default function JournalEntryPage() {
         try {
             let promises = [];
             const originalPublished = entry.status === 2;
+            const originalCreated = entry.created ? new Date(entry.created).toISOString().slice(0, 16) : '';
 
             if (settings.encrypted !== entry.encrypted) {
                 promises.push(setEntryEncrypted(entry.id, settings.encrypted));
@@ -482,13 +542,25 @@ export default function JournalEntryPage() {
                 promises.push(setEntryPublished(entry.id, settings.published));
             }
 
+            if (settings.created !== originalCreated) {
+                // Convert local datetime to UTC before sending to API
+                const localDate = new Date(settings.created);
+                const utcDate = new Date(localDate.getTime() - (localDate.getTimezoneOffset() * 60000));
+                promises.push(updateEntryCreated(entry.id, utcDate.toISOString()));
+            }
+
             await Promise.all(promises);
 
             // Manually update local entry state to reflect changes immediately
             const updatedEntry = {
                 ...entry,
                 encrypted: settings.encrypted,
-                status: settings.published ? 2 : 1
+                status: settings.published ? 2 : 1,
+                created: settings.created ? (() => {
+                    const localDate = new Date(settings.created);
+                    const utcDate = new Date(localDate.getTime() - (localDate.getTimezoneOffset() * 60000));
+                    return utcDate.toISOString();
+                })() : entry.created
             };
             setEntry(updatedEntry);
             entryRef.current = updatedEntry;
@@ -591,37 +663,81 @@ export default function JournalEntryPage() {
         <div className={"journal-entry-page " + (isEditing ? " editing" : "preview")}>
             {showSettingsModal && (
                 <Modal title="Entry Settings" onClose={handleCloseSettings}>
-                    <div className="settings-modal-content">
-                        <div className="col-2">
-                            <ToggleSwitch
-                                name="encrypted"
-                                label="Encrypted"
-                                checked={settings.encrypted}
-                                title="Encrypted entries are only visible to you and cannot be shared with others."
-                                onChange={(isChecked) => handleSettingChange('encrypted', isChecked)}
+                    {!showChapterManagement ? (
+                        <>
+                            <div className="settings-modal-content">
+                                <div className="col-2">
+                                    <ToggleSwitch
+                                        name="encrypted"
+                                        label="Encrypted"
+                                        checked={settings.encrypted}
+                                        title="Encrypted entries are only visible to you and cannot be shared with others."
+                                        onChange={(isChecked) => handleSettingChange('encrypted', isChecked)}
+                                    />
+                                </div>
+                                <div className="col-2">
+                                    <ToggleSwitch
+                                        name="published"
+                                        label="Published"
+                                        checked={settings.published}
+                                        title="Published entries are visible to anyone who has access to the journal."
+                                        onChange={(isChecked) => handleSettingChange('published', isChecked)}
+                                        disabled={settings.encrypted} // disable if encrypted is on
+                                    />
+                                </div>
+                                <div className="col-1">
+                                    <Input
+                                        name="created"
+                                        label="Creation Date"
+                                        type="datetime-local"
+                                        value={settings.created}
+                                        onInput={(e) => handleSettingChange('created', e.target.value)}
+                                        onPaste={handleDatePaste}
+                                    />
+                                </div>
+                                <div className="col-1">
+                                    <div className="form-group chapter-selection">
+                                        <label>Chapter</label>
+                                        <div style={{ display: 'flex', gap: '0.5em' }}>
+                                            <Select
+                                                name="chapter"
+                                                value={settings.chapterId || ''}
+                                                onChange={(e) => handleSettingChange('chapterId', e.target.value ? parseInt(e.target.value) : null)}
+                                                options={[
+                                                    { value: '', label: 'No Chapter' },
+                                                    ...chapters.map(ch => ({ value: ch.chapterId, label: ch.title }))
+                                                ]}
+                                            />
+                                            <button onClick={handleShowChapterManagement}>
+                                                <Icon name="add" /> Add Chapter
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="buttons">
+                                {entry.status !== 0 && (
+                                    <button className="btn" style={{ backgroundColor: '#c62828', color: 'white' }} onClick={handleArchiveEntry}>Archive Entry</button>
+                                )}
+                                {settingsChanged && (
+                                    <button className="btn primary" onClick={handleSaveSettings}>Save Changes</button>
+                                )}
+                                <button className="btn cancel" onClick={handleCloseSettings}>Cancel</button>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="tool-bar">
+                                <button onClick={handleBackFromChapterManagement}>
+                                    <Icon name="arrow_back" /> Back
+                                </button>
+                            </div>
+                            <JournalChapters 
+                                journalId={journalId} 
+                                onChaptersChanged={handleChaptersChanged}
                             />
-                        </div>
-                        <div className="col-2">
-                            <ToggleSwitch
-                                name="published"
-                                label="Published"
-                                checked={settings.published}
-                                title="Published entries are visible to anyone who has access to the journal."
-                                onChange={(isChecked) => handleSettingChange('published', isChecked)}
-                                disabled={settings.encrypted} // disable if encrypted is on
-                            />
-                        </div>
-                    </div>
-                    <div className="buttons">
-                        {entry.status !== 0 && (
-                            <button className="btn" style={{ backgroundColor: '#c62828', color: 'white' }} onClick={handleArchiveEntry}>Archive Entry</button>
-                        )}
-                        {settingsChanged && (
-                            <button className="btn primary" onClick={handleSaveSettings}>Save Changes</button>
-                        )}
-                        <button className="btn cancel" onClick={handleCloseSettings}>Cancel</button>
-
-                    </div>
+                        </>
+                    )}
                 </Modal>
             )}
             <div className="entry-header">

@@ -31,6 +31,7 @@ const Journals = (args) => Api({...args, useToken:true}).endpoints(({api}) => {
         renameEntry: (id, title) => api.post(`${apiPath}/entries/rename`, { Id: id, Title: title }),
         updateEntryDescription: (id, description) => api.post(`${apiPath}/entries/update-description`, { Id: id, Description: description }),
         updateEntryContent: (id, content) => api.post(`${apiPath}/entries/update-entry`, { Id: id, Content: content }),
+        updateEntryCreated: (id, created) => api.post(`${apiPath}/entries/update-created`, { Id: id, Created: created }),
         archiveEntry: (id) => api.get(`${apiPath}/entries/archive/${id}`),
         unarchiveEntry: (id) => api.get(`${apiPath}/entries/unarchive/${id}`),
         publishEntry: (id) => api.get(`${apiPath}/entries/publish/${id}`),
@@ -56,7 +57,18 @@ const Journals = (args) => Api({...args, useToken:true}).endpoints(({api}) => {
         updateEntryListSettings: (journalId, entryListSettings) => api.post(`${apiPath}/settings/entry-list/update`, {
             JournalId: journalId,
             EntryList: entryListSettings
-        })
+        }),
+        
+        // Journal Chapters
+        addChapter: (journalId, chapter) => api.post(`${apiPath}/${journalId}/chapters/add`, chapter),
+        getChapters: (journalId) => api.get(`${apiPath}/${journalId}/chapters`),
+        getChapter: (journalId, chapterId) => api.get(`${apiPath}/${journalId}/chapters/${chapterId}`),
+        renameChapter: (journalId, chapterId, title) => api.post(`${apiPath}/chapters/rename`, { JournalId: journalId, ChapterId: chapterId, Title: title }),
+        updateChapterDescription: (journalId, chapterId, description) => api.post(`${apiPath}/chapters/update-description`, { JournalId: journalId, ChapterId: chapterId, Description: description }),
+        changeChapterColor: (journalId, chapterId, color) => api.post(`${apiPath}/chapters/change-color`, { JournalId: journalId, ChapterId: chapterId, Color: color }),
+        changeChapterIcon: (journalId, chapterId, icon) => api.post(`${apiPath}/chapters/change-icon`, { JournalId: journalId, ChapterId: chapterId, Icon: icon }),
+        updateChapterSort: (journalId, chapterId, sort) => api.post(`${apiPath}/chapters/update-sort`, { JournalId: journalId, ChapterId: chapterId, Sort: sort }),
+        deleteChapter: (journalId, chapterId) => api.post(`${apiPath}/chapters/delete`, { JournalId: journalId, ChapterId: chapterId })
     };
 });
 

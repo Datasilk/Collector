@@ -83,7 +83,7 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
 
         // Add event listener for AI generator button click from CK Editor AI plugin toolbar button
         document.addEventListener('aiGeneratorRequest', handleAIGeneratorRequest);
-        
+
         // Auto-focus if this module was manually added
         if (module.manuallyAdded) {
             setTimeout(() => {
@@ -147,11 +147,11 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
 
 
     const loadHtml = (newhtml) => {
-        if(!newhtml && manuallyAdded && (htmlRef.current == null || htmlRef.current == '')) {
+        if (!newhtml && manuallyAdded && (htmlRef.current == null || htmlRef.current == '')) {
             newhtml = defaultHtml;
         }
         if (!newhtml) newhtml = htmlRef.current;
-        if(editorRef.current) return;
+        if (editorRef.current) return;
         const elem = getTextElement();
         if (!elem) return;
         elem.innerHTML = newhtml;
@@ -194,13 +194,13 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
     };
 
     const handleKeyDown = (input) => {
-        if(timerSave.current != null) handlePostponeSave();
+        if (timerSave.current != null) handlePostponeSave();
     };
 
     const handleClickOutside = (event) => {
         if (inModal.current) return;
         const editorContainer = document.querySelector(`.module-id-${module.id}`);
-        if(!editorContainer) { hideEditor(); return; }
+        if (!editorContainer) { hideEditor(); return; }
         const toolbar = document.querySelector('.ck-toolbar');
         let elem = event.target;
         while (elem && elem != null) {
@@ -218,7 +218,7 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
     const showEditor = () => {
         // Don't show editor if editing is disabled
         if (isEditorActive.current == false) return;
-        
+
         // Don't initialize again if already initialized
         if (editorRef.current) return;
 
@@ -233,7 +233,7 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
         if (allModules) Object.keys(allModules).forEach(key => allModules[key]());
         window.entry.textEditors = {};
         window.entry.textEditors[module.id] = hideEditor;
-        
+
         setShowToolbar(true);
 
         //add event listener to hide editor
@@ -287,10 +287,10 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                     {
                         label: 'Advanced',
                         icon: 'threeVerticalDots',
-                        items: [ 
+                        items: [
                             'specialCharacters',
-                            'subscript', 
-                            'superscript', 
+                            'subscript',
+                            'superscript',
                             'blockQuote'
                         ]
                     },
@@ -441,17 +441,17 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                     {
                         name: 'Button Outlined',
                         element: 'a',
-                        classes: ['button','outline']
+                        classes: ['button', 'outline']
                     },
                     {
                         name: 'Button Inline',
                         element: 'a',
-                        classes: ['button','inline']
+                        classes: ['button', 'inline']
                     },
                     {
                         name: 'Note',
                         element: 'p',
-                        classes: ['note','grey']
+                        classes: ['note', 'grey']
                     },
                     {
                         name: 'Note - Red',
@@ -508,6 +508,11 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                         element: 'span',
                         classes: ['secret-content']
                     },
+                    {
+                        name: 'Inline Code',
+                        element: 'span',
+                        classes: ['inline-code']
+                    },
                 ]
             },
             lineHeight: {
@@ -532,7 +537,16 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                     { language: 'javascript', label: 'JavaScript' }
                 ],
                 indentSequence: '    ' // Example: 4 spaces for indentation
-            }
+            },
+            table: {
+                contentToolbar: [
+                    'tableColumn',
+                    'tableRow',
+                    'mergeTableCells',
+                    'tableProperties',
+                    'tableCellProperties',
+                ],
+            },
         };
 
         [...document.querySelectorAll('.ck-body')].forEach(a => a.remove());
@@ -545,7 +559,7 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                 elem.appendChild(container);
 
                 editor.model.document.on('change:data', handleDataChange);
-                editor.editing.view.document.on( 'keydown', handleKeyDown);
+                editor.editing.view.document.on('keydown', handleKeyDown);
                 editor.focus();
                 editorRef.current = editor;
             });
@@ -570,13 +584,13 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
     const disableEditorEvents = () => {
         document.removeEventListener('mousedown', handleClickOutside);
         if (editorRef.current) editorRef.current.model.document.off('change:data', handleDataChange);
-        if (editorRef.current) editorRef.current.editing.view.document.off( 'keydown', handleKeyDown);
+        if (editorRef.current) editorRef.current.editing.view.document.off('keydown', handleKeyDown);
     };
 
     const enableEditorEvents = () => {
         document.addEventListener('mousedown', handleClickOutside);
         if (editorRef.current) editorRef.current.model.document.on('change:data', handleDataChange);
-        if (editorRef.current) editorRef.current.editing.view.document.on( 'keydown', handleKeyDown);
+        if (editorRef.current) editorRef.current.editing.view.document.on('keydown', handleKeyDown);
     };
 
     // AI Generator handlers
@@ -614,10 +628,10 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
     return (
         <>
             <div className={"text-editor" + (showToolbar ? ' active' : '')}><div className="text"></div></div>
-            {showAIModal && <AIGeneratorModal 
-                module={module} 
-                onClose={handleCloseAIModal} 
-                onGenerated={handleContentGenerated} 
+            {showAIModal && <AIGeneratorModal
+                module={module}
+                onClose={handleCloseAIModal}
+                onGenerated={handleContentGenerated}
             />}
         </>
     );

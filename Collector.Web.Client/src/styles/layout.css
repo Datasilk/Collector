@@ -104,20 +104,20 @@
   background-color: transparent;
 }
 
-.tool-bar .tabs-row {
+.tabs-row {
   position: relative;
   bottom:-10px;
   padding:0 0 0 2em;
 }
 
-.tool-bar .tabs-row::after {
+.tabs-row::after {
   content: '';
   display: block;
   height: 0;
   clear: both;
 }
 
-.tool-bar .tab-label {
+.tab-label {
   background-color: #dcdcdc;
   color: #444;
   border-top: 2px solid transparent;
@@ -134,7 +134,7 @@
   border-top-right-radius: 8px;
 }
 
-.tool-bar .tab-label.selected {
+.tab-label.selected {
   background-color: #f5f5f5;
   color: #292929;
   border-top: 2px solid #dcdcdc;
@@ -143,7 +143,7 @@
   border-left: 2px solid #dcdcdc;
 }
 
-.tool-bar .tab-label .material-symbols-rounded{
+.tab-label .material-symbols-rounded{
   margin:-0.1em 0.3em 0 0;
 }
 

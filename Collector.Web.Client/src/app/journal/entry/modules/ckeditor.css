@@ -59,7 +59,7 @@
 }
 
 .editable .text-editor:not(.active){
-    cursor:pointer;
+    cursor:grab;
 }
 
 .text-editor > .text{

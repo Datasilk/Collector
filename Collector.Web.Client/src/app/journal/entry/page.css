@@ -340,12 +340,12 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
 }
 
 .module-resize-handle.left {
-    left: 0;
+    left: -0.5em;
     background: linear-gradient(to right, #7c62e4, transparent);
 }
 
 .module-resize-handle.right {
-    right: 0;
+    right: -0.5em;
     background: linear-gradient(to left, #7c62e4, transparent);
 }
 
@@ -384,7 +384,7 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
 }
 
 /* Drag and drop styles */
-.module.draggable {
+.module.draggable:not(.module-text-editor) {
     cursor: move;
 }
 
@@ -768,23 +768,39 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
 
 .entry-modules pre{    
     padding: 1em;
-    color: hsl(0, 0%, 20.8%);
-    background: hsla(0, 0%, 78%, 0.3);
-    border: 1px solid hsl(0, 0%, 77%);
-    border-radius: 2px;
+    color: #333;
+    background-color: #d5dbeb;
+    border: 1px solid #8ca2ee;
     text-align: left;
     direction: ltr;
     tab-size: 4;
     white-space: pre-wrap;
+    font-family:'Courier New', Courier, monospace;
     font-style: normal;
+    font-weight: 500;
     min-width: 200px;
+    border-radius:0.25em;
+    font-size:0.9em;
+}
+
+.entry-modules .inline-code{
+    padding:0.25em 0.5em;
+    color: #333;
+    background-color: #d5dbeb;
+    border:1px solid #8ca2ee;
+    display:inline-block;
+    font-family:'Courier New', Courier, monospace;
+    font-style: normal;
+    font-weight: 500;
+    border-radius:0.25em;
+    font-size:0.9em;
 }
 
 .entry-modules .ai-generated{
     display:block;
 }
 
-.text-editor > .text > *:last-child{margin-bottom:0 !important}
+/*.text-editor > .text > *:last-child{margin-bottom:0 !important}*/
 .text-editor > .text > *:first-child{margin-top:0 !important}
 .text-editor > .text > p:last-child{margin-bottom:0 !important}
 .text-editor > .text > p:first-child{margin-top:0 !important}
@@ -1196,16 +1212,19 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     margin-bottom: 0;
 }
 
-/* masonry grid */
-.my-masonry-grid {
-  display: -webkit-box; /* Not needed if autoprefixing */
-  display: -ms-flexbox; /* Not needed if autoprefixing */
-  display: flex;
-  margin-left: -30px; /* gutter size offset */
-  width: auto;
+/* spreadsheets */
+.module table.ck-table-resized{
+    table-layout: fixed;
+    border-collapse: collapse;
+    border-spacing: 0;
+    width: 100%;
+    height: 100%;
+    border: 1px double hsl(0, 0%, 70%);
 }
-.my-masonry-grid_column {
-  padding-left: 30px; /* gutter size */
-  background-clip: padding-box;
+.module table.ck-table-resized td, 
+.module table.ck-table-resized th {
+    min-width: 2em;
+    padding: .4em;
+    border: 1px solid hsl(0, 0%, 75%);
 }
     

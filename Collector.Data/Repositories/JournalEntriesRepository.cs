@@ -112,6 +112,14 @@ namespace Collector.Data.Repositories
                 new { journalEntryId });
         }
 
+        public void UpdateCreated(Guid journalEntryId, DateTime created)
+        {
+            _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
+                SET [Created] = @created 
+                WHERE [Id] = @journalEntryId", 
+                new { journalEntryId, created });
+        }
+
         public void SetEncrypted(Guid journalEntryId, bool encrypted)
         {
             _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
