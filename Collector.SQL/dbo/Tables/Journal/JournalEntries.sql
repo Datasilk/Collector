@@ -2,6 +2,7 @@ CREATE TABLE [dbo].[JournalEntries]
 (
 	[Id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWID(),
     [JournalId] INT NOT NULL, 
+    [ChapterId] INT NULL, 
     [Title] NVARCHAR(128) NOT NULL, 
     [Description] NVARCHAR(512) NOT NULL, 
     [Created] DATETIME2 NOT NULL DEFAULT GETUTCDATE(), 

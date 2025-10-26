@@ -20,5 +20,6 @@ namespace Collector.Data.Interfaces
         void UpdateCreated(Guid journalEntryId, DateTime created);
         void SetEncrypted(Guid journalEntryId, bool encrypted);
         void SetPublished(Guid journalEntryId, bool isPublished);
+        void SetChapter(Guid journalEntryId, int? chapterId);
     }
 }

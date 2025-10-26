@@ -812,6 +812,7 @@ export default function ModuleList({
 
     //#endregion
 
+    //#region Render
     return (
         <div
             className={`entry-modules container-${containerId}`}
@@ -838,6 +839,7 @@ export default function ModuleList({
                             `${getWidthClass(module.width)} ` +
                             //`${module.right ? 'right' : ''} ` +
                             `${canDragDrop ? 'draggable' : ''} ` +
+                            `${showLabel ? 'show-label' : ''} ` +
                             (module.manuallyAdded ? 'manually-added' : '')
                         }
                         data-id={module.id}
@@ -941,4 +943,5 @@ export default function ModuleList({
             })}
         </div>
     );
+    //#endregion
 }

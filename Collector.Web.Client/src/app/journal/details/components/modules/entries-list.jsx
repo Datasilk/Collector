@@ -14,24 +14,32 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
     // state
     const [entries, setEntries] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [sort, setSort] = useState('Title_asc');
+    const [sort, setSort] = useState(() => {
+        // Load sort from localStorage
+        const savedSort = localStorage.getItem(`collector:journal:${journalId}:sort`);
+        return savedSort || 'Title_asc';
+    });
     const [showSettingsModal, setShowSettingsModal] = useState(false);
     const [viewType, setViewType] = useState('Details');
     const [columns, setColumns] = useState({
         created: true,
         modified: true,
-        status: true
+        status: true,
+        chapter: true
     });
     const [tempViewType, setTempViewType] = useState('Details');
     const [tempColumns, setTempColumns] = useState({
         created: true,
         modified: true,
-        status: true
+        status: true,
+        chapter: true
     });
+    const [chapters, setChapters] = useState([]);
 
     // effect
     useEffect(() => {
         fetchEntries();
+        fetchChapters();
         loadSettings();
         if(tabButtons) tabButtons([
             {
@@ -58,6 +66,19 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
         }
     };
 
+    const fetchChapters = async () => {
+        try {
+            const api = Journals(session);
+            const response = await api.getChapters(journalId);
+            if (response.data?.success && response.data.data) {
+                setChapters(response.data.data);
+                console.log(response.data.data);
+            }
+        } catch (err) {
+            console.error('Error fetching chapters:', err);
+        }
+    };
+
     const handleViewEntry = (entryId) => {
         navigate(`/journal/${journalId}/entry/${entryId}`);
     };
@@ -74,7 +95,12 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
             if (response.data.success && response.data.data.entryList) {
                 const settings = response.data.data.entryList;
                 setViewType(settings.viewType || 'Details');
-                setColumns(settings.columns || { created: true, modified: true, status: true });
+                setColumns(settings.columns || { 
+                    created: true, 
+                    modified: true, 
+                    status: true, 
+                    chapter: true 
+                });
             }
         } catch (err) {
             console.error('Error loading entry list settings:', err);
@@ -125,11 +151,22 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
         });
     };
 
+    // Get chapter display text
+    const getChapterText = (entry) => {
+        console.log(entry);
+        if (!entry.chapterId) return '';
+        const chapter = chapters.find(ch => ch.chapterId === entry.chapterId);
+        if (!chapter) return '';
+        return `${chapter.sort}: ${chapter.title}`;
+    };
+
     // Handle sorting
     const handleSort = (field, currentSort) => {
         const [currentField, currentDirection] = currentSort.split('_');
         const direction = currentField === field && currentDirection === 'asc' ? 'desc' : 'asc';
-        return `${field}_${direction}`;
+        const newSort = `${field}_${direction}`;
+        localStorage.setItem(`collector:journal:${journalId}:sort`, newSort);
+        return newSort;
     };
 
     // Get sort icon
@@ -206,21 +243,24 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
                     <table className="spreadsheet">
                         <thead>
                             <tr>
-                                <th onClick={() => setSort(handleSort('Title', sort))}>
+                                <th className="entry-title" onClick={() => setSort(handleSort('Title', sort))}>
                                     Title {getSortIcon('Title', sort) && <Icon name={getSortIcon('Title', sort)} />}
                                 </th>
+                                {columns.chapter && (
+                                    <th className="entry-chapter">Chapter</th>
+                                )}
                                 {columns.created && (
-                                    <th onClick={() => setSort(handleSort('Created', sort))}>
+                                    <th className="entry-created" onClick={() => setSort(handleSort('Created', sort))}>
                                         Created {getSortIcon('Created', sort) && <Icon name={getSortIcon('Created', sort)} />}
                                     </th>
                                 )}
                                 {columns.modified && (
-                                    <th onClick={() => setSort(handleSort('Modified', sort))}>
+                                    <th className="entry-modified" onClick={() => setSort(handleSort('Modified', sort))}>
                                         Modified {getSortIcon('Modified', sort) && <Icon name={getSortIcon('Modified', sort)} />}
                                     </th>
                                 )}
                                 {columns.status && (
-                                    <th onClick={() => setSort(handleSort('Status', sort))}>
+                                    <th className="entry-status-column" onClick={() => setSort(handleSort('Status', sort))}>
                                         Status {getSortIcon('Status', sort) && <Icon name={getSortIcon('Status', sort)} />}
                                     </th>
                                 )}
@@ -233,17 +273,18 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
                                     key={entry.id}
                                     onClick={() => handleViewEntry(entry.id)}
                                 >
-                                    <td>{entry.title}</td>
+                                    <td className="entry-title">{entry.title}</td>
+                                    {columns.chapter && <td className="entry-chapter">{getChapterText(entry)}</td>}
                                     {columns.created && <td className="entry-created">{formatDate(entry.created)}</td>}
                                     {columns.modified && <td className="entry-modified">{formatDate(entry.modified)}</td>}
                                     {columns.status && (
-                                        <td>
+                                        <td className="entry-status-column">
                                             <span className={`entry-status ${getStatusClass(entry)}`}>
                                                 {getStatusText(entry)}
                                             </span>
                                         </td>
                                     )}
-                                    <td className="tool-bar align-right">
+                                    <td className="entry-tool-bar tool-bar align-right">
                                         <button
                                             className="icon"
                                             onClick={(e) => {
@@ -293,6 +334,12 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
                                 name="column-status"
                                 checked={tempColumns.status}
                                 onChange={(checked) => handleColumnToggle('status', checked)}
+                            />
+                            <Checkbox
+                                label="Chapter"
+                                name="column-chapter"
+                                checked={tempColumns.chapter}
+                                onChange={(checked) => handleColumnToggle('chapter', checked)}
                             />
                         </div>
                     )}

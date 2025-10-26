@@ -808,6 +808,32 @@ namespace Collector.API.Controllers
             }
         }
 
+        [HttpPost("entries/set-chapter")]
+        public IActionResult SetEntryChapter([FromBody] SetEntryChapterModel request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var entry = _entriesRepository.GetById(request.Id);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
+
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized to update this entry" });
+
+                _entriesRepository.SetChapter(request.Id, request.ChapterId);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
         #endregion
 
         #region Journal Entry Content

@@ -39,6 +39,7 @@ const Journals = (args) => Api({...args, useToken:true}).endpoints(({api}) => {
         moveEntry: (entryId, targetJournalId) => api.post(`${apiPath}/entry/move`, { EntryId: entryId, TargetJournalId: targetJournalId }),
         setEntryEncrypted: (id, isSet) => api.post(`${apiPath}/entries/set-encrypted`, { Id: id, IsSet: isSet }),
         setEntryPublished: (id, isSet) => api.post(`${apiPath}/entries/set-published`, { Id: id, IsSet: isSet }),
+        setEntryChapter: (id, chapterId) => api.post(`${apiPath}/entries/set-chapter`, { Id: id, ChapterId: chapterId }),
         
         // Modules
         addModule: (module) => api.post(`${apiPath}/modules/add`, module),

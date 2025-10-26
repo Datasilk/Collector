@@ -11,6 +11,12 @@
     gap: 1rem;
 }
 
+.form-row-block {
+    display: block;
+    white-space: nowrap;
+    margin-bottom:1.5em;
+}
+
 .form-group {
     display: flex;
     flex-direction: column;

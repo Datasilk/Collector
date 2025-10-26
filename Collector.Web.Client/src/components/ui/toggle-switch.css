@@ -84,9 +84,3 @@
 .toggle-switch input:checked:hover + .slider {
     background-color: #6652dc;
 }
-
-@media screen and (max-width: 1350px) {
-    .entry-modules > .editable{
-        margin-left:5em;
-    }
-}

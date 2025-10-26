@@ -4,6 +4,10 @@
     margin: 0 auto;
 }
 
+.journal-details-page > .tool-bar{
+    white-space: nowrap;
+}
+
 .journal-header {
     display: flex;
     justify-content: space-between;
@@ -183,6 +187,15 @@
     font-size:0.8em;
 }
 
+.module td.entry-chapter {
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0.75;
+    font-size: 0.9em;
+}
+
 /* Journal Settings Modal - Chapters Tab */
 .tab-chapters .spreadsheet th:first-child {
     width: 3.75em;
@@ -215,3 +228,47 @@
 .tab-chapters .spreadsheet tbody tr.drag-over-bottom td {
     border-bottom: 3px solid #7037de;
 }
+
+/* Entries List */
+.entries-table td.entry-created,
+.entries-table td.entry-modified{
+    white-space:nowrap;
+}
+.entries-table thead th{
+    white-space: nowrap;
+}
+
+@media screen and (max-width: 1150px) {
+    .entries-table .entry-status-column,
+    .entries-table .entry-modified{
+        display:none;
+    }
+}  
+
+@media screen and (max-width: 680px) {
+    .entries-table .entry-chapter{
+        display:none;
+    }
+    .journal-details-page > .tool-bar > .title{
+        width:100%;
+        padding-bottom:0.5em;
+    }
+    .journal-details-page > .tool-bar > .right-side{
+        padding-bottom:0.75em;
+    }
+} 
+
+@media screen and (max-width: 525px) {
+    .journal-details-page{
+        padding:1.25em 0;
+    }
+    .journal-details-page > .tool-bar > .title{
+        padding-left:1em;
+    }
+} 
+
+@media screen and (max-width: 445px) {
+    .journal-metadata .status{
+        display:none;
+    }
+} 

@@ -29,9 +29,29 @@ body.scrolled .entry-content{
 }
 
 .entry-status-badge {
-    display: flex;
+    display: block;
+    width:100%;
     align-items: center;
     gap: 0.5em;
+}
+
+.chapter-label {
+    padding: 0.3125em 0.625em;
+    border-radius: 0.9375em;
+    font-size: 0.85rem;
+    font-weight: 500;
+    background-color: #f5ede5;
+    color: #784600;
+    cursor: default;
+    display: inline-block;
+    align-items: center;
+    gap: 0.25em;
+    white-space: nowrap;
+    margin-right:0.25em;
+}
+
+.chapter-label .material-symbols-rounded {
+    font-size: 1rem;
 }
 
 .status-indicator {
@@ -40,6 +60,7 @@ body.scrolled .entry-content{
     font-size: 0.85rem;
     font-weight: 500;
     cursor:default;
+    margin-right:0.25em;
 }
 
 .toggle-switch-edit-entry{
@@ -1228,3 +1249,9 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     border: 1px solid hsl(0, 0%, 75%);
 }
     
+
+@media screen and (max-width: 1350px) {
+    .entry-modules > .editable.show-label{
+        margin-left:5em;
+    }
+}

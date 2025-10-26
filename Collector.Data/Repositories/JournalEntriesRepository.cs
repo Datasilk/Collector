@@ -136,5 +136,13 @@ namespace Collector.Data.Repositories
                 WHERE [Id] = @journalEntryId",
                 new { journalEntryId, status });
         }
+
+        public void SetChapter(Guid journalEntryId, int? chapterId)
+        {
+            _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
+                SET [ChapterId] = @chapterId
+                WHERE [Id] = @journalEntryId",
+                new { journalEntryId, chapterId });
+        }
     }
 }
