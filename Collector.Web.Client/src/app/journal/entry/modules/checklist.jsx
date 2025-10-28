@@ -162,15 +162,20 @@ export default function ChecklistModule({ module, onUpdate, isEditable = true, m
     // Drag and Drop handlers
     const handleDragStart = (e, item, index) => {
         if (!isEditable) return;
-        e.stopPropagation(); // Prevent module drag
-        window.noDrag = true;
+        if(window.noDragChecklistItem == true) {
+            e.stopPropagation();
+            e.preventDefault();
+            return;
+        };
+        window.noDragChecklistItem = false;
+        e.stopPropagation();
         draggedItemRef.current = { item, index };
         e.dataTransfer.effectAllowed = 'move';
         e.currentTarget.classList.add('dragging');
     };
 
     const handleDragOver = (e, item, index) => {
-        if (!isEditable || !draggedItemRef.current) return;
+        if (!isEditable || !draggedItemRef.current || window.noDragChecklistItem) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
 
@@ -246,6 +251,7 @@ export default function ChecklistModule({ module, onUpdate, isEditable = true, m
     };
 
     const handleDragEnd = (e) => {
+        window.noDragChecklistItem = false;
         if (e && e.currentTarget) {
             e.currentTarget.classList.remove('dragging');
         }
@@ -257,6 +263,20 @@ export default function ChecklistModule({ module, onUpdate, isEditable = true, m
         
         draggedItemRef.current = null;
         dragOverItemRef.current = null;
+    };
+
+    const cancelDragEvent = (e) => {
+        window.noDragChecklistItem = true;
+        e.target.setAttribute('draggable', false);
+        e.stopPropagation();
+        e.preventDefault();
+        return;
+    };
+
+    const resetDragEvent = (e) => {
+        window.noDragChecklistItem = false;
+        e.target.setAttribute('draggable', true);
+        return;
     };
 
     //#endregion
@@ -303,6 +323,8 @@ export default function ChecklistModule({ module, onUpdate, isEditable = true, m
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
                         onDragEnd={handleDragEnd}
+                        onMouseDown={resetDragEvent}
+                        onMouseUp={resetDragEvent}
                     >
                         <Checkbox
                             name={`checklist-item-${item.id}`}
@@ -319,6 +341,12 @@ export default function ChecklistModule({ module, onUpdate, isEditable = true, m
                                         onBlur={handleInputBlur}
                                         autoFocus
                                         onKeyDown={handleTitleKeyDown}
+                                        onDragStart={cancelDragEvent}
+                                        onDrag={cancelDragEvent}
+                                        onDragOver={cancelDragEvent}
+                                        onDragLeave={cancelDragEvent}
+                                        onDrop={cancelDragEvent}
+                                        onDragEnd={cancelDragEvent}
                                     />
                                 ) : (
                                     <span

@@ -19,6 +19,7 @@ namespace Collector.API.Controllers
         private readonly IJournalEntriesRepository _entriesRepository;
         private readonly IJournalModulesRepository _modulesRepository;
         private readonly IJournalChaptersRepository _chaptersRepository;
+        private readonly IJournalImagesRepository _imagesRepository;
         private readonly IAppUserRepository _userRepository;
 
         public JournalsController(
@@ -27,6 +28,7 @@ namespace Collector.API.Controllers
             IJournalEntriesRepository entriesRepository,
             IJournalModulesRepository modulesRepository,
             IJournalChaptersRepository chaptersRepository,
+            IJournalImagesRepository imagesRepository,
             IAppUserRepository userRepository)
         {
             _categoriesRepository = categoriesRepository;
@@ -34,6 +36,7 @@ namespace Collector.API.Controllers
             _entriesRepository = entriesRepository;
             _modulesRepository = modulesRepository;
             _chaptersRepository = chaptersRepository;
+            _imagesRepository = imagesRepository;
             _userRepository = userRepository;
         }
 
@@ -834,6 +837,32 @@ namespace Collector.API.Controllers
             }
         }
 
+        [HttpPost("entries/update-thumbnail")]
+        public IActionResult UpdateEntryThumbnail([FromBody] UpdateEntryThumbnailModel request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var entry = _entriesRepository.GetById(request.Id);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
+
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized to update this entry" });
+
+                _entriesRepository.UpdateThumbnail(request.Id, request.Thumbnail);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
         #endregion
 
         #region Journal Entry Content
@@ -1431,6 +1460,338 @@ namespace Collector.API.Controllers
                     return Json(new ApiResponse { success = false, message = "Journal not found or not authorized" });
 
                 _chaptersRepository.Delete(request.JournalId, request.ChapterId);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        #endregion
+
+        #region Journal Images
+
+        [HttpPost("images/add")]
+        public IActionResult AddImage([FromBody] JournalImage image)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var entry = _entriesRepository.GetById(image.JournalEntryId);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
+
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized" });
+
+                // Create thumbnail from the original image
+                var imagePath = $"journal-entries/{image.JournalEntryId}/{image.Filename}";
+                var imageBytes = Files.GetFileBytes(Files.Paths.Images, imagePath);
+                
+                // Generate thumbnail
+                var thumbnailBytes = Images.CreateThumbnail(imageBytes, 640, 80);
+                
+                // Create thumbnail filename with _thumb suffix before extension
+                var extension = Path.GetExtension(image.Filename);
+                var filenameWithoutExt = Path.GetFileNameWithoutExtension(image.Filename);
+                var thumbnailFilename = $"{filenameWithoutExt}_thumb{extension}";
+                var thumbnailPath = $"journal-entries/{image.JournalEntryId}/{thumbnailFilename}";
+                
+                // Save thumbnail
+                Files.SaveFileBytes(Files.Paths.Images, thumbnailPath, thumbnailBytes);
+
+                var id = _imagesRepository.Add(image);
+                image.Id = id;
+                return Json(new ApiResponse { success = true, data = image });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpGet("images/{id}")]
+        public IActionResult GetImageById(int id)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var image = _imagesRepository.GetById(id);
+                if (image == null)
+                    return Json(new ApiResponse { success = false, message = "Image not found" });
+
+                var entry = _entriesRepository.GetById(image.JournalEntryId);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
+
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized" });
+
+                return Json(new ApiResponse { success = true, data = image });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpGet("images/entry/{entryId}/module/{moduleId}")]
+        public IActionResult GetImageByModuleId(Guid entryId, string moduleId)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var entry = _entriesRepository.GetById(entryId);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
+
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized" });
+
+                var image = _imagesRepository.GetByModuleId(entryId, moduleId);
+                return Json(new ApiResponse { success = true, data = image });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpGet("images/entry/{entryId}")]
+        public IActionResult GetAllImagesByEntryId(Guid entryId)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var entry = _entriesRepository.GetById(entryId);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
+
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized" });
+
+                var images = _imagesRepository.GetAllByEntryId(entryId);
+                return Json(new ApiResponse { success = true, data = images });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpGet("images/journal/{journalId}")]
+        public IActionResult GetAllImagesByJournalId(int journalId)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var journal = _journalsRepository.GetById(journalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized" });
+
+                var images = _imagesRepository.GetAllByJournalId(journalId);
+                return Json(new ApiResponse { success = true, data = images });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("images/update")]
+        public IActionResult UpdateImage([FromBody] JournalImage image)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var existingImage = _imagesRepository.GetById(image.Id);
+                if (existingImage == null)
+                    return Json(new ApiResponse { success = false, message = "Image not found" });
+
+                var entry = _entriesRepository.GetById(existingImage.JournalEntryId);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
+
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized" });
+
+                // If filename changed, create new thumbnail
+                if (existingImage.Filename != image.Filename)
+                {
+                    // Create thumbnail from the original image
+                    var imagePath = $"journal-entries/{image.JournalEntryId}/{image.Filename}";
+                    var imageBytes = Files.GetFileBytes(Files.Paths.Images, imagePath);
+                    
+                    // Generate thumbnail
+                    var thumbnailBytes = Images.CreateThumbnail(imageBytes);
+                    
+                    // Create thumbnail filename with _thumb suffix before extension
+                    var extension = Path.GetExtension(image.Filename);
+                    var filenameWithoutExt = Path.GetFileNameWithoutExtension(image.Filename);
+                    var thumbnailFilename = $"{filenameWithoutExt}_thumb{extension}";
+                    var thumbnailPath = $"journal-entries/{image.JournalEntryId}/{thumbnailFilename}";
+                    
+                    // Save thumbnail
+                    Files.SaveFileBytes(Files.Paths.Images, thumbnailPath, thumbnailBytes);
+                    
+                    // Delete old thumbnail if it exists
+                    var oldExtension = Path.GetExtension(existingImage.Filename);
+                    var oldFilenameWithoutExt = Path.GetFileNameWithoutExtension(existingImage.Filename);
+                    var oldThumbnailFilename = $"{oldFilenameWithoutExt}_thumb{oldExtension}";
+                    var oldThumbnailPath = $"{existingImage.JournalEntryId}/{oldThumbnailFilename}";
+                    Files.DeleteFile(Files.Paths.Images, oldThumbnailPath);
+                }
+
+                _imagesRepository.Update(image);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("images/delete/{entryId}/{moduleId}")]
+        public IActionResult DeleteImage(Guid entryId, string moduleId)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var entry = _entriesRepository.GetById(entryId);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
+
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized" });
+
+                var image = _imagesRepository.GetByModuleId(entryId, moduleId);
+                if (image == null)
+                    return Json(new ApiResponse { success = false, message = "Image not found" });
+
+                // Delete image file
+                var imagePath = $"journal-entries/{image.JournalEntryId}/{image.Filename}";
+                Files.DeleteFile(Files.Paths.Images, imagePath);
+                
+                // Delete thumbnail file
+                var extension = Path.GetExtension(image.Filename);
+                var filenameWithoutExt = Path.GetFileNameWithoutExtension(image.Filename);
+                var thumbnailFilename = $"{filenameWithoutExt}_thumb{extension}";
+                var thumbnailPath = $"journal-entries/{image.JournalEntryId}/{thumbnailFilename}";
+                Files.DeleteFile(Files.Paths.Images, thumbnailPath);
+
+                _imagesRepository.DeleteByModuleId(entryId, moduleId);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("images/delete/entry/{entryId}/module/{moduleId}")]
+        public IActionResult DeleteImageByModuleId(Guid entryId, string moduleId)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var entry = _entriesRepository.GetById(entryId);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
+
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized" });
+
+                // Get image metadata before deleting
+                var image = _imagesRepository.GetByModuleId(entryId, moduleId);
+                if (image != null)
+                {
+                    // Delete image file
+                    var imagePath = $"journal-entries/{image.JournalEntryId}/{image.Filename}";
+                    Files.DeleteFile(Files.Paths.Images, imagePath);
+                    
+                    // Delete thumbnail file
+                    var extension = Path.GetExtension(image.Filename);
+                    var filenameWithoutExt = Path.GetFileNameWithoutExtension(image.Filename);
+                    var thumbnailFilename = $"{filenameWithoutExt}_thumb{extension}";
+                    var thumbnailPath = $"journal-entries/{image.JournalEntryId}/{thumbnailFilename}";
+                    Files.DeleteFile(Files.Paths.Images, thumbnailPath);
+                }
+
+                _imagesRepository.DeleteByModuleId(entryId, moduleId);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("images/delete/entry/{entryId}")]
+        public IActionResult DeleteAllImagesByEntryId(Guid entryId)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var entry = _entriesRepository.GetById(entryId);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
+
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized" });
+
+                // Get all images for this entry before deleting
+                var images = _imagesRepository.GetAllByEntryId(entryId);
+                foreach (var image in images)
+                {
+                    // Delete image file
+                    var imagePath = $"journal-entries/{image.JournalEntryId}/{image.Filename}";
+                    Files.DeleteFile(Files.Paths.Images, imagePath);
+                    
+                    // Delete thumbnail file
+                    var extension = Path.GetExtension(image.Filename);
+                    var filenameWithoutExt = Path.GetFileNameWithoutExtension(image.Filename);
+                    var thumbnailFilename = $"{filenameWithoutExt}_thumb{extension}";
+                    var thumbnailPath = $"journal-entries/{image.JournalEntryId}/{thumbnailFilename}";
+                    Files.DeleteFile(Files.Paths.Images, thumbnailPath);
+                }
+
+                _imagesRepository.DeleteAllByEntryId(entryId);
                 return Json(new ApiResponse { success = true });
             }
             catch (Exception ex)

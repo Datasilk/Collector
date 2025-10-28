@@ -202,6 +202,50 @@ namespace Collector.Common
             OptimizePngAsync(filePath, outputPath).GetAwaiter().GetResult();
         }
 
+        /// <summary>
+        /// Create a thumbnail from an image with a maximum dimension
+        /// </summary>
+        /// <param name="imageBytes">The original image as byte array</param>
+        /// <param name="maxDimension">Maximum width or height (maintains aspect ratio)</param>
+        /// <param name="quality">JPEG quality for the thumbnail (1-100)</param>
+        /// <returns>Thumbnail image as byte array</returns>
+        public static byte[] CreateThumbnail(byte[] imageBytes, int maxDimension = 300, int quality = 80)
+        {
+            using var image = Image.Load(imageBytes);
+            
+            int width = image.Width;
+            int height = image.Height;
+            
+            // Calculate new dimensions while maintaining aspect ratio
+            if (width > height)
+            {
+                if (width > maxDimension)
+                {
+                    height = (int)(height * (maxDimension / (double)width));
+                    width = maxDimension;
+                }
+            }
+            else
+            {
+                if (height > maxDimension)
+                {
+                    width = (int)(width * (maxDimension / (double)height));
+                    height = maxDimension;
+                }
+            }
+            
+            // Only resize if the image is larger than maxDimension
+            if (width != image.Width || height != image.Height)
+            {
+                image.Mutate(x => x.Resize(width, height));
+            }
+            
+            using var ms = new MemoryStream();
+            var jpegEncoder = new JpegEncoder { Quality = quality };
+            image.Save(ms, jpegEncoder);
+            return ms.ToArray();
+        }
+
         // Helper class for TinyPNG API response
         private class TinyPngResponse
         {

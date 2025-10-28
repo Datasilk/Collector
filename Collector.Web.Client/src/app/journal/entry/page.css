@@ -30,7 +30,6 @@ body.scrolled .entry-content{
 
 .entry-status-badge {
     display: block;
-    width:100%;
     align-items: center;
     gap: 0.5em;
 }
@@ -112,6 +111,7 @@ body.scrolled .entry-title-section {
     align-items: center;
     gap: 0.625em;
     padding: 0.5em;
+    margin:1em 0 1em 0;
     cursor:default;
     transition: all 0.3s ease;
 }
@@ -284,7 +284,7 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     border: 1px solid #ddd;
     border-radius: 4px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    z-index: 300;
+    z-index: 500;
     margin-top: 0.5em;
 }
 
@@ -304,8 +304,8 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
 
 .module-dropdown-left {
     right: auto;
-    left: 3em;
-    top:-0.5em;
+    left: 0;
+    top:2em;
     white-space: nowrap;
 }
 
@@ -333,19 +333,6 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
 .module.editable:not(.no-hover-outline).hover{
     outline:1px dashed #a6bfff;
     z-index:110;
-}
-
-/* Module padding */
-.module.width-10,
-.module.width-20,
-.module.width-30,
-.module.width-40,
-.module.width-50,
-.module.width-60,
-.module.width-70,
-.module.width-80,
-.module.width-90{
-    padding:0 0.5em 0 0;
 }
 
 /* Module resize handles */
@@ -402,6 +389,19 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     0% { outline: 2px solid rgba(166, 191, 255, 1); }
     50% { outline: 2px solid rgba(166, 191, 255, 1); }
     100% { outline: 2px solid rgba(166, 191, 255, 0);  }
+}
+
+/* Module padding */
+.module.width-10,
+.module.width-20,
+.module.width-30,
+.module.width-40,
+.module.width-50,
+.module.width-60,
+.module.width-70,
+.module.width-80,
+.module.width-90{
+    padding:0 0.5em 0 0;
 }
 
 /* Drag and drop styles */
@@ -566,6 +566,24 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
 }
 
 /* text editor styling */
+.entry-modules h1{
+    margin:1em 0 2em 0;
+}
+.entry-modules h2{
+    margin:0.75em 0 1.5em 0;
+}
+.entry-modules h3{
+    margin:0.5em 0 1em 0;
+}
+.entry-modules h4{
+    margin:0.25em 0 0.5em 0;
+}
+.entry-modules h5{
+    margin:0.25em 0 0.5em 0;
+}
+.entry-modules h6{
+    margin:0.25em 0 0.5em 0;
+}
 .entry-modules p{
     margin:0;
     padding:0 0 1em 0;
@@ -574,7 +592,7 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
 
 .entry-modules ul{
     margin:0;
-    padding:0;
+    padding:0 0 1em 0;
     padding-inline-start:1em;
 }
 
@@ -821,11 +839,11 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     display:block;
 }
 
-/*.text-editor > .text > *:last-child{margin-bottom:0 !important}*/
+/*.text-editor > .text > *:last-child{margin-bottom:0 !important}
 .text-editor > .text > *:first-child{margin-top:0 !important}
 .text-editor > .text > p:last-child{margin-bottom:0 !important}
 .text-editor > .text > p:first-child{margin-top:0 !important}
-
+*/
 /* secret content */
 .journal-entry-page.preview .entry-modules .secret-content,
 .ck-button .secret-content {
@@ -1254,4 +1272,69 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     .entry-modules > .editable.show-label{
         margin-left:5em;
     }
+}
+
+/* Video Player Module */
+.video-player-module .upload-progress-container {
+    margin-top: 10px;
+}
+
+.video-player-module .processing-text {
+    margin-bottom: 5px;
+    color: #9333ea;
+    font-weight: bold;
+}
+
+.video-player-module .progress-bar {
+    width: 100%;
+    height: 30px;
+    background-color: #f0f0f0;
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+}
+
+.video-player-module .progress-fill {
+    height: 100%;
+    background-color: #9333ea;
+    transition: width 0.3s ease;
+}
+
+.video-player-module .progress-text {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.video-player-module .url-input-container {
+    margin-top: 10px;
+}
+
+.video-player-module .url-input-container .buttons {
+    margin-top: 10px;
+}
+
+.video-player-module .error-message {
+    color: red;
+    margin-top: 0.5em;
+}
+
+.video-player-module .video-preview video {
+    width: 100%;
+    max-width: 100%;
+}
+
+.video-player-module .video-embed iframe {
+    width: 100%;
+    height: 400px;
+    border: none;
+    border-radius: 4px;
 }

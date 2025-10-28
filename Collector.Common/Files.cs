@@ -14,13 +14,15 @@ namespace Collector.Common
         public static string JournalPath {get;set; } = "";
         public static string ImagesPath {get;set; } = "";
         public static string FilesPath {get;set; } = "";
+        public static string VideosPath {get;set; } = "";
 
         public enum Paths
         {
             Articles,
             Journal,
             Images,
-            Files
+            Files,
+            Videos
         }
 
 
@@ -36,6 +38,8 @@ namespace Collector.Common
                     return ImagesPath;
                 case Paths.Files:
                     return FilesPath;
+                case Paths.Videos:
+                    return VideosPath;
                 default:
                     return "";
             }

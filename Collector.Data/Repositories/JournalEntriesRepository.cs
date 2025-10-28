@@ -144,5 +144,13 @@ namespace Collector.Data.Repositories
                 WHERE [Id] = @journalEntryId",
                 new { journalEntryId, chapterId });
         }
+
+        public void UpdateThumbnail(Guid journalEntryId, string thumbnail)
+        {
+            _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
+                SET [Thumbnail] = @thumbnail
+                WHERE [Id] = @journalEntryId",
+                new { journalEntryId, thumbnail });
+        }
     }
 }

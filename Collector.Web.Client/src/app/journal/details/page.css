@@ -238,6 +238,68 @@
     white-space: nowrap;
 }
 
+/* Entries Cards */
+.module-entries-list .entry-cards{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(20em, 1fr));
+    gap:1em;
+}
+
+.module-entries-list .entry-card{
+    border-radius:1em;
+    box-shadow:0 0 0.5em rgba(0, 0, 0, 0.1);
+    transition:all 0.2s ease-in-out;
+    padding:1em;
+    cursor:pointer;
+    overflow:hidden;
+}
+
+.module-entries-list .entry-card:hover{
+    box-shadow:0 0 0.5em rgba(0, 0, 0, 0.2);
+}
+
+.module-entries-list .entry-card h3{
+    margin:0 0 0.5em 0;
+    font-size:1em;
+}
+
+.module-entries-list .entry-card .entry-chapter{
+    display:block;
+    opacity:0.65;
+    font-size:0.9em;
+}
+
+.module-entries-list .entry-card .entry-created,
+.module-entries-list .entry-card .entry-modified{
+    display:inline-block;
+    opacity:0.65;
+    font-size:0.9em;
+    padding:0 1em 0 0;
+}
+
+.module-entries-list .entry-card .entry-status{
+    display:inline-block;
+    font-size:0.8em;
+}
+.module-entries-list .entry-card.has-thumbnail .entry-card-info{
+    width:70%;
+    float:left;
+}
+.module-entries-list .entry-card .entry-card-thumbnail{
+    width:30%;
+    height:calc(100% + 2em);
+    float:right;
+    background-size:cover;
+    background-position:center;
+    position:relative;
+    top:-1em;
+    right:-1em;
+}
+
+.module-entries-list .cards-tool-bar{
+    padding:0.5em 0 1em 0;
+}
+
 @media screen and (max-width: 1150px) {
     .entries-table .entry-status-column,
     .entries-table .entry-modified{

@@ -162,15 +162,50 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
     const handleDataChange = () => {
         let newhtml = editorRef.current.getData();
 
-        // Strip all style attributes from the HTML
+        // Filter style attributes to only allow specific properties
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = newhtml;
 
-        // Find all elements with style attributes and remove them
+        // Allowed style properties
+        const allowedStyles = [
+            'color',
+            'font-family',
+            'font-size',
+            'background',
+            'background-color',
+            'background-image',
+            'font-weight',
+            'line-height',
+            'text-decoration'
+        ];
+
+        // Find all elements with style attributes and filter them
         const elementsWithStyle = tempDiv.querySelectorAll('[style]');
         elementsWithStyle.forEach(element => {
-            element.removeAttribute('style');
+            const currentStyle = element.getAttribute('style');
+            if (currentStyle) {
+                // Parse the style attribute
+                const styleObj = {};
+                currentStyle.split(';').forEach(rule => {
+                    const [property, value] = rule.split(':').map(s => s.trim());
+                    if (property && value && allowedStyles.includes(property.toLowerCase())) {
+                        styleObj[property] = value;
+                    }
+                });
+
+                // Rebuild the style attribute with only allowed properties
+                const newStyle = Object.entries(styleObj)
+                    .map(([prop, val]) => `${prop}: ${val}`)
+                    .join('; ');
+
+                if (newStyle) {
+                    element.setAttribute('style', newStyle);
+                } else {
+                    element.removeAttribute('style');
+                }
+            }
         });
+
         const elementsWidthData = tempDiv.querySelectorAll('[data-placeholder]');
         elementsWidthData.forEach(element => {
             element.removeAttribute('data-placeholder');

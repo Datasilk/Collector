@@ -56,6 +56,7 @@ export default function ModuleList({
     const containerRef = useRef(null);
     const tabButtonsRef = useRef([]);
     const tabButtonsTimer = useRef(null);
+    const deleteListenersRef = useRef([]);
 
     //effect
     useEffect(() => {
@@ -64,13 +65,12 @@ export default function ModuleList({
 
     useEffect(() => {
         const handleClickOutside = (event) => {
-            if (showModuleAboveDropdown &&
-                moduleDropdownRef.current &&
-                !moduleDropdownRef.current.contains(event.target) &&
-                moduleDropdownButtonRef.current &&
-                !moduleDropdownButtonRef.current.contains(event.target)) {
-                setShowModuleAboveDropdown(false);
+            var node = event.target;
+            while (node && node != null) {
+                if (node.classList?.contains('module-dropdown')) return;
+                node = node.parentNode;
             }
+            setShowModuleAboveDropdown(false);
         };
 
         document.addEventListener('mousedown', handleClickOutside);
@@ -104,9 +104,18 @@ export default function ModuleList({
         }
     };
 
-    const removeModule = (moduleId) => {
-        if (removedModule) {
-            removedModule(moduleId);
+    const removeModule = async (moduleId) => {
+        //find listener associated with module used to call unmount method
+        const listener = deleteListenersRef.current.find(listener => listener.moduleId == moduleId);
+        if (listener) {
+            // Wait for the callback promise to resolve (e.g., user confirmation)
+            const moduleItem = entryJson.modules.find(module => module.id == moduleId);
+            listener.callback(moduleItem, () => {
+                deleteListenersRef.current = deleteListenersRef.current.filter(listener => listener.moduleId != moduleId);
+                removedModule(moduleId); //notify parent
+            });
+        }else if (removedModule) {
+            removedModule(moduleId); //notify parent
         }
     };
 
@@ -481,7 +490,6 @@ export default function ModuleList({
     };
 
     const handleDrop = async (e) => {
-        console.log('handleDrop', canDragDrop, window.noDrag);
         if (!canDragDrop || window.noDrag == true) {
             e.preventDefault();
             return;
@@ -490,11 +498,9 @@ export default function ModuleList({
         // Try to get drag data for cross-container drops
         let dragData = window.dragData;
         // Handle cross-container drop
-        console.log('dragData', dragData, window.dragOverContainerId);
 
         if (dragData && dragData.sourceContainerId != window.dragOverContainerId) {
             // If dropping into a nested container (tab or module-list)
-            console.log('cross-container drop', dragData, window.dragOverContainerId);
             let newModules = [...entryJson.modules];
             const dropIndex = dropIndexRef.current !== undefined ? dropIndexRef.current : newModules.length;
 
@@ -503,14 +509,10 @@ export default function ModuleList({
                 newModules.splice(dropIndex, 0, dragData.module);
             } else {
                 const dropContainer = document.querySelector(`.entry-modules[data-id="${window.dragOverContainerId}"]`);
-                console.log('dropContainer', dropContainer);
                 if (!dropContainer) return;
                 const allContainers = getModuleHierarchyFromNode(dropContainer);
-                console.log('allContainers', allContainers);
                 const allContainerModules = getAllContainerModules(allContainers);
-                console.log('allContainerModules', allContainerModules);
                 newModules = addModuleToHierarchy(newModules, allContainerModules, dragData.module, dropIndex);
-                console.log('newModules', newModules);
             }
 
             //remove module from source container
@@ -800,7 +802,7 @@ export default function ModuleList({
     };
     //#endregion
 
-    //#region Tab Buttons
+    //#region Events
     const handleSetTabButtons = (buttons, moduleId) => {
         tabButtonsRef.current = [...tabButtonsRef.current, { moduleId: moduleId, buttons: buttons }];
         if (tabButtonsTimer.current) clearTimeout(tabButtonsTimer.current);
@@ -808,6 +810,10 @@ export default function ModuleList({
             setTabButtons(tabButtonsRef.current);
             tabButtonsTimer.current = null;
         }, 100);
+    };
+
+    const handleDeleteListener = (module, callback) => {
+        deleteListenersRef.current = [...deleteListenersRef.current, { moduleId: module.id, callback: callback }];
     };
 
     //#endregion
@@ -877,12 +883,12 @@ export default function ModuleList({
                                                         ref={module.id == currentModuleId ? moduleDropdownButtonRef : null}
                                                         onClick={() => {
                                                             setCurrentModuleId(module.id);
-                                                            setShowModuleAboveDropdown(!showModuleAboveDropdown || currentModuleId != module.id);
+                                                            setShowModuleAboveDropdown(true);
                                                         }}
                                                     >
                                                         <Icon name="add" />
                                                     </button>
-                                                    {showModuleAboveDropdown && currentModuleId != module.id && (
+                                                    {showModuleAboveDropdown && (
                                                         <div
                                                             className="module-dropdown module-dropdown-left"
                                                             ref={moduleDropdownRef}
@@ -937,6 +943,7 @@ export default function ModuleList({
                             isEditable={isEditing}
                             manuallyAdded={module.manuallyAdded}
                             tabButtons={(buttons) => handleSetTabButtons(buttons, module.id)}
+                            setDeleteListener={handleDeleteListener}
                         />
                     </div>
                 )

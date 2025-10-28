@@ -5,10 +5,11 @@ import Icon from '@/components/ui/icon';
 import { useSession } from '@/context/session';
 //api
 import { Images } from '@/api/user/images';
+import { JournalImages } from '@/api/user/journalImages';
 //helpers
 import { apiBasePath } from '@/helpers/endpoints.js';
 
-export default function ImageModule({ module, entryId, onUpdate, isEditable = true, manuallyAdded = false }) {
+export default function ImageModule({ module, entryId, journalId, onUpdate, isEditable = true, manuallyAdded = false, setDeleteListener }) {
     //state
     const [isUploading, setIsUploading] = useState(false);
     const [uploadError, setUploadError] = useState(null);
@@ -19,6 +20,7 @@ export default function ImageModule({ module, entryId, onUpdate, isEditable = tr
     //context
     const session = useSession();
     const { upload } = Images(session);
+    const { add: addImageMetadata, delete: deleteImageMetadata } = JournalImages(session);
     
     // Auto-trigger file dialog when module is manually added
     useEffect(() => {
@@ -31,6 +33,11 @@ export default function ImageModule({ module, entryId, onUpdate, isEditable = tr
             return () => clearTimeout(timer);
         }
     }, [manuallyAdded, isEditable]);
+
+    useEffect(() => {
+        if (!setDeleteListener) return;
+        setDeleteListener(module, removeModule);
+    }, [module.id]);
     
     const handleFileChange = async (e) => {
         if (!isEditable) return;
@@ -59,8 +66,35 @@ export default function ImageModule({ module, entryId, onUpdate, isEditable = tr
             const response = await upload(path, file);
             
             if (response.data.success) {
-                // Update the module with the image path
-                onUpdate({ ...module, image: fileName });
+                // Get image dimensions
+                const img = new Image();
+                img.onload = async () => {
+                    try {
+                        // Save image metadata to JournalImages table
+                        const imageMetadata = {
+                            JournalId: journalId,
+                            JournalEntryId: entryId,
+                            ModuleId: module.id,
+                            FileName: fileName,
+                            Width: img.width,
+                            Height: img.height
+                        };
+                        
+                        await addImageMetadata(imageMetadata);
+                        
+                        // Update the module with the image path
+                        onUpdate({ ...module, image: fileName });
+                    } catch (error) {
+                        console.error('Error saving image metadata:', error);
+                        // Still update the module even if metadata save fails
+                        onUpdate({ ...module, image: fileName });
+                    }
+                };
+                img.onerror = () => {
+                    // If image fails to load, still update the module
+                    onUpdate({ ...module, image: fileName });
+                };
+                img.src = URL.createObjectURL(file);
             } else {
                 setUploadError(response.data.message || 'Failed to upload image');
             }
@@ -69,6 +103,12 @@ export default function ImageModule({ module, entryId, onUpdate, isEditable = tr
             setUploadError('An error occurred while uploading the image');
         } finally {
             setIsUploading(false);
+        }
+    };
+
+    const removeModule = (moduleItem) => {
+        if (deleteImageMetadata) {
+            deleteImageMetadata(entryId, moduleItem.id);
         }
     };
     

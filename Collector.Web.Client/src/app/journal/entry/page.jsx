@@ -5,11 +5,9 @@ import './page.css';
 //components
 import Icon from '@/components/ui/icon';
 import Input from '@/components/forms/input';
-import Select from '@/components/forms/select';
 import ToggleSwitch from '@/components/ui/toggle-switch';
-import Modal from '@/components/ui/modal';
 import ModuleList from './module-list';
-import JournalChapters from '@/components/journal/journal-chapters';
+import SettingsModal from './components/settings-modal';
 //context
 import { useSession } from '@/context/session';
 //api
@@ -41,10 +39,7 @@ export default function JournalEntryPage() {
     const [showBottomModuleDropdown, setShowBottomModuleDropdown] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
-    const [settings, setSettings] = useState({ encrypted: false, published: false, chapterId: null });
-    const [settingsChanged, setSettingsChanged] = useState(false);
     const [chapters, setChapters] = useState([]);
-    const [showChapterManagement, setShowChapterManagement] = useState(false);
 
     // refs
     const entryRef = useRef(null);
@@ -59,13 +54,22 @@ export default function JournalEntryPage() {
     const currentChapter = useRef(null);
 
     //apis
-    const { addEntry, renameEntry, setEntryEncrypted, setEntryPublished, updateEntryCreated, setEntryChapter } = Journals(session);
+    const { addEntry, renameEntry, getChapters } = Journals(session);
 
     //effect
     useEffect(() => {
         if (!entry || entry.id != entryId && entryId != 'new') {
             fetchEntryDetails();
+            
+        // Load chapters
+            getChapters(journalId).then(response => {
+                if (response.data?.success && response.data.data) {
+                    setChapters(response.data.data);
+                }
+            });
         }
+        //scroll to top of page
+        window.scrollTo(0, 0);
     }, [journalId, entryId]);
 
     useEffect(() => {
@@ -168,10 +172,6 @@ export default function JournalEntryPage() {
                 entryRef.current = entryData;
                 setEditedTitle(entryData.title);
                 setEditedDescription(entryData.description);
-                setSettings({
-                    encrypted: entryData.encrypted,
-                    published: entryData.status === 2
-                });
 
                 // Fetch entry content (JSON data)
                 try {
@@ -182,6 +182,7 @@ export default function JournalEntryPage() {
                             contentJson.modules.forEach(module => {
                                 //remove unneccessary properties
                                 delete module.manuallyAdded;
+                                if(module.id == null) module.id = generateRandomId();
                             });
                             setEntryJson(contentJson || { modules: [] });
                             entryJsonRef.current = contentJson || { modules: [] };
@@ -230,9 +231,9 @@ export default function JournalEntryPage() {
             setSaveStatus('saved');
 
             // Clear the "saved" status after a few seconds
-            setTimeout(() => {
-                setSaveStatus(null);
-            }, 3000);
+            //setTimeout(() => {
+            //    setSaveStatus(null);
+            //}, 3000);
 
         } catch (err) {
             console.error('Error saving entry content:', err);
@@ -369,7 +370,6 @@ export default function JournalEntryPage() {
         if (currentChapter.current) return currentChapter.current;
         if (!entry || !entry.chapterId || chapters.length === 0) return null;
         const chapter = chapters.find(ch => ch.chapterId === entry.chapterId);
-        console.log(chapter);
         chapter.name = chapter ? `${chapter.sort}: ${chapter.title}` : null;
         currentChapter.current = chapter;
         return chapter;
@@ -463,174 +463,24 @@ export default function JournalEntryPage() {
     //#endregion
 
     //#region Settings
-    const handleOpenSettings = async () => {
-        setSettings({
-            encrypted: entry.encrypted,
-            published: entry.status === 2,
-            created: entry.created ? new Date(entry.created).toISOString().slice(0, 16) : '',
-            chapterId: entry.chapterId || null
-        });
-        setSettingsChanged(false);
-
-        // Load chapters
-        try {
-            const api = Journals(session);
-            const response = await api.getChapters(journalId);
-            if (response.data?.success && response.data.data) {
-                setChapters(response.data.data);
-            }
-        } catch (err) {
-            console.error('Error loading chapters:', err);
-        }
-
+    const handleOpenSettings = () => {
         setShowSettingsModal(true);
     };
 
     const handleCloseSettings = () => {
         setShowSettingsModal(false);
-        setShowChapterManagement(false);
     };
 
-    const handleShowChapterManagement = () => {
-        setShowChapterManagement(true);
+    const handleSettingsSaved = (updatedEntry) => {
+        setEntry(updatedEntry);
+        entryRef.current = updatedEntry;
+        currentChapterName.current = null; // Reset cached chapter name
+        setSaveStatus('saved');
+        setTimeout(() => setSaveStatus(null), 3000);
     };
 
-    const handleBackFromChapterManagement = () => {
-        setShowChapterManagement(false);
-    };
-
-    const handleChaptersChanged = async (updatedChapters) => {
+    const handleChaptersChanged = (updatedChapters) => {
         setChapters(updatedChapters);
-    };
-
-    const handleSettingChange = (setting, value) => {
-        const newSettings = { ...settings, [setting]: value };
-
-        // if encrypted is turned on, turn published off
-        if (setting === 'encrypted' && value && newSettings.published) {
-            newSettings.published = false;
-        }
-
-        setSettings(newSettings);
-        setSettingsChanged(true);
-    };
-
-    const handleDatePaste = (e) => {
-        e.preventDefault();
-        const pastedText = e.clipboardData.getData('text');
-
-        try {
-            // Try to parse the pasted text as a date
-            const parsedDate = new Date(pastedText);
-
-            // Check if the date is valid
-            if (!isNaN(parsedDate.getTime())) {
-                // Convert to local datetime-local format (YYYY-MM-DDTHH:mm)
-                const year = parsedDate.getFullYear();
-                const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
-                const day = String(parsedDate.getDate()).padStart(2, '0');
-                const hours = String(parsedDate.getHours()).padStart(2, '0');
-                const minutes = String(parsedDate.getMinutes()).padStart(2, '0');
-
-                const formattedDate = `${year}-${month}-${day}T${hours}:${minutes}`;
-                handleSettingChange('created', formattedDate);
-            } else {
-                // If parsing fails, just use the original value
-                console.warn('Could not parse date:', pastedText);
-            }
-        } catch (err) {
-            console.error('Error parsing pasted date:', err);
-        }
-    };
-
-    const handleSaveSettings = async () => {
-        if (!settingsChanged) return;
-
-        setSaveStatus('saving');
-        try {
-            let promises = [];
-            const originalPublished = entry.status === 2;
-            const originalCreated = entry.created ? new Date(entry.created).toISOString().slice(0, 16) : '';
-            const originalChapterId = entry.chapterId || null;
-
-            console.log('Saving settings:', {
-                originalChapterId,
-                newChapterId: settings.chapterId,
-                areEqual: settings.chapterId === originalChapterId,
-                willSave: settings.chapterId !== originalChapterId
-            });
-
-            if (settings.encrypted !== entry.encrypted) {
-                promises.push(setEntryEncrypted(entry.id, settings.encrypted));
-            }
-
-            if (settings.published !== originalPublished) {
-                promises.push(setEntryPublished(entry.id, settings.published));
-            }
-
-            if (settings.created !== originalCreated) {
-                // Convert local datetime to UTC before sending to API
-                const localDate = new Date(settings.created);
-                const utcDate = new Date(localDate.getTime() - (localDate.getTimezoneOffset() * 60000));
-                promises.push(updateEntryCreated(entry.id, utcDate.toISOString()));
-            }
-
-            if (settings.chapterId !== originalChapterId) {
-                console.log('Adding setEntryChapter to promises:', entry.id, settings.chapterId);
-                promises.push(setEntryChapter(entry.id, settings.chapterId));
-            }
-
-            console.log('Total promises to execute:', promises.length);
-
-            await Promise.all(promises);
-
-            // Manually update local entry state to reflect changes immediately
-            const updatedEntry = {
-                ...entry,
-                encrypted: settings.encrypted,
-                status: settings.published ? 2 : 1,
-                created: settings.created ? (() => {
-                    const localDate = new Date(settings.created);
-                    const utcDate = new Date(localDate.getTime() - (localDate.getTimezoneOffset() * 60000));
-                    return utcDate.toISOString();
-                })() : entry.created,
-                chapterId: settings.chapterId
-            };
-            setEntry(updatedEntry);
-            entryRef.current = updatedEntry;
-            currentChapterName.current = null; // Reset cached chapter name
-
-            setSaveStatus('saved');
-            setTimeout(() => setSaveStatus(null), 3000);
-            handleCloseSettings();
-
-        } catch (err) {
-            console.error('Error saving settings:', err);
-            setSaveStatus('error');
-        }
-    };
-
-    const handleArchiveEntry = async () => {
-        if (!window.confirm('Are you sure you want to archive this entry?')) return;
-
-        setSaveStatus('saving');
-        try {
-            const api = Journals(session);
-            await api.archiveEntry(entry.id);
-
-            // Update local entry state
-            const updatedEntry = { ...entry, status: 0 };
-            setEntry(updatedEntry);
-            entryRef.current = updatedEntry;
-
-            setSaveStatus('saved');
-            setTimeout(() => setSaveStatus(null), 3000);
-            handleCloseSettings();
-
-        } catch (err) {
-            console.error('Error archiving entry:', err);
-            setSaveStatus('error');
-        }
     };
     //#endregion
 
@@ -697,85 +547,15 @@ export default function JournalEntryPage() {
     return (
         <div className={"journal-entry-page " + (isEditing ? " editing" : "preview")}>
             {showSettingsModal && (
-                <Modal title="Entry Settings" onClose={handleCloseSettings} width="600px">
-                    {!showChapterManagement ? (
-                        <>
-                            <div className="settings-modal-content">
-                                <div className="form-row-block">
-                                    <div className="form-group chapter-selection">
-                                        <label>Chapter</label>
-                                        <div className="flex tool-bar">
-                                            <Select
-                                                name="chapter"
-                                                value={settings.chapterId || ''}
-                                                onChange={(e) => handleSettingChange('chapterId', e.target.value ? parseInt(e.target.value) : null)}
-                                                options={[
-                                                    { value: '', label: 'No Chapter' },
-                                                    ...chapters.map(ch => ({ value: ch.chapterId, label: ch.sort + ': ' + ch.title }))
-                                                ]}
-                                            ></Select>
-                                            <button onClick={handleShowChapterManagement}>
-                                                <Icon name="add" /> Add Chapter
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="form-row-block">
-                                    <Input
-                                        name="created"
-                                        label="Creation Date"
-                                        type="datetime-local"
-                                        value={settings.created}
-                                        onInput={(e) => handleSettingChange('created', e.target.value)}
-                                        onPaste={handleDatePaste}
-                                    />
-                                </div>
-                                <div className="form-row-block">
-                                    <div className="col-2">
-                                        <ToggleSwitch
-                                            name="encrypted"
-                                            label="Encrypted"
-                                            checked={settings.encrypted}
-                                            title="Encrypted entries are only visible to you and cannot be shared with others."
-                                            onChange={(isChecked) => handleSettingChange('encrypted', isChecked)}
-                                        />
-                                    </div>
-                                    <div className="col-2">
-                                        <ToggleSwitch
-                                            name="published"
-                                            label="Published"
-                                            checked={settings.published}
-                                            title="Published entries are visible to anyone who has access to the journal."
-                                            onChange={(isChecked) => handleSettingChange('published', isChecked)}
-                                            disabled={settings.encrypted} // disable if encrypted is on
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="buttons">
-                                {entry.status !== 0 && (
-                                    <button className="btn" style={{ backgroundColor: '#c62828', color: 'white' }} onClick={handleArchiveEntry}>Archive Entry</button>
-                                )}
-                                {settingsChanged && (
-                                    <button className="btn primary" onClick={handleSaveSettings}>Save Changes</button>
-                                )}
-                                <button className="btn cancel" onClick={handleCloseSettings}>Cancel</button>
-                            </div>
-                        </>
-                    ) : (
-                        <>
-                            <div className="tool-bar">
-                                <button onClick={handleBackFromChapterManagement}>
-                                    <Icon name="arrow_back" /> Back
-                                </button>
-                            </div>
-                            <JournalChapters
-                                journalId={journalId}
-                                onChaptersChanged={handleChaptersChanged}
-                            />
-                        </>
-                    )}
-                </Modal>
+                <SettingsModal
+                    entry={entry}
+                    entryJson={entryJson}
+                    journalId={journalId}
+                    chapters={chapters}
+                    onClose={handleCloseSettings}
+                    onSaved={handleSettingsSaved}
+                    onChaptersChanged={handleChaptersChanged}
+                />
             )}
             <div className="entry-header">
                 <div className="entry-navigation tool-bar">
@@ -785,11 +565,11 @@ export default function JournalEntryPage() {
 
                     <div className="right-side entry-status-badge">
                         {saveStatus && (
-                            <div className={`right-side save-status-message ${saveStatus === 'error' ? 'error' : 'success'}`}>
+                            <div className={`save-status-message ${saveStatus === 'error' ? 'error' : 'success'}`}>
                                 {getSaveStatusMessage()}
                             </div>
                         )}
-                        {getChapterName() && (
+                        {chapters.length > 0 && getChapterName() != '' && (
                             <span className="chapter-label" title={'Chapter #' + getChapter().sort}>
                                 <Icon name="book" /> {getChapterName()}
                             </span>

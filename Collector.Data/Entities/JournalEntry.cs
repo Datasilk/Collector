@@ -13,5 +13,6 @@ namespace Collector.Data.Entities
         public int Status { get; set; }
         public int? ChapterId { get; set; }
         public bool Encrypted { get; set; }
+        public string Thumbnail { get; set; }
     }
 }

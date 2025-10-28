@@ -4,6 +4,7 @@ import ChecklistModule from './modules/checklist';
 import ImageModule from './modules/image';
 import TabsModule from './modules/tabs';
 import ModuleListModule from './modules/module-list';
+import VideoPlayerModule from './modules/video-player';
 
 const modules = [
     {
@@ -40,6 +41,13 @@ const modules = [
         icon: 'list',
         type: 'module-list',
         module: ModuleListModule
+    },
+    {
+        id: 'video-player',
+        name: 'Video Player',
+        icon: 'play_circle',
+        type: 'video-player',
+        module: VideoPlayerModule
     }
 ];
 

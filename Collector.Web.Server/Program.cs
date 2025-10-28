@@ -87,7 +87,7 @@ Files.ArticlesPath = builder.Configuration["Storage:Articles"] ?? Path.Combine(A
 Files.FilesPath = builder.Configuration["Storage:Files"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content", "files");
 Files.ImagesPath = builder.Configuration["Storage:Images"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content", "images");
 Files.JournalPath = builder.Configuration["Storage:Journal"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content", "journal-entries");
-
+Files.VideosPath = builder.Configuration["Storage:Videos"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content", "videos");
 var app = builder.Build();
 
 //Response Headers

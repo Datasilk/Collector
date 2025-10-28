@@ -1,16 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '@/components/ui/icon';
 import Modal from '@/components/ui/modal';
 import Select from '@/components/forms/select';
 import Checkbox from '@/components/forms/checkbox';
+import Input from '@/components/forms/input';
 import { useSession } from '@/context/session';
 import { Journals } from '@/api/user/journals';
+import { apiBasePath } from '@/helpers/endpoints.js';
 
 export default function EntriesListModule({ module, journalId, isEditable = false, tabButtons }) {
     const navigate = useNavigate();
     const session = useSession();
-    
+
     // state
     const [entries, setEntries] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -20,28 +22,28 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
         return savedSort || 'Title_asc';
     });
     const [showSettingsModal, setShowSettingsModal] = useState(false);
-    const [viewType, setViewType] = useState('Details');
+    const [viewType, setViewType] = useState(null);
     const [columns, setColumns] = useState({
         created: true,
         modified: true,
         status: true,
         chapter: true
     });
-    const [tempViewType, setTempViewType] = useState('Details');
-    const [tempColumns, setTempColumns] = useState({
-        created: true,
-        modified: true,
-        status: true,
-        chapter: true
-    });
+    const [tempViewType, setTempViewType] = useState(null);
+    const [tempColumns, setTempColumns] = useState(null);
     const [chapters, setChapters] = useState([]);
+    const [searchQuery, setSearchQuery] = useState('');
+
+    //refs
+    const viewTypeRef = useRef(null);
+    const columnsRef = useRef(null);
 
     // effect
     useEffect(() => {
         fetchEntries();
         fetchChapters();
         loadSettings();
-        if(tabButtons) tabButtons([
+        if (tabButtons) tabButtons([
             {
                 icon: 'settings',
                 title: 'Settings',
@@ -51,6 +53,8 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
     }, [journalId]);
 
     // actions
+
+    //#region "Entries"
     const fetchEntries = async () => {
         try {
             setLoading(true);
@@ -72,7 +76,6 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
             const response = await api.getChapters(journalId);
             if (response.data?.success && response.data.data) {
                 setChapters(response.data.data);
-                console.log(response.data.data);
             }
         } catch (err) {
             console.error('Error fetching chapters:', err);
@@ -86,21 +89,24 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
     const handleNewEntry = () => {
         navigate(`/journal/${journalId}/entry/new`);
     };
+    //#endregion
 
-    // Settings
+    //#region "Settings"
     const loadSettings = async () => {
         try {
             const api = Journals(session);
             const response = await api.getJournalSettings(journalId);
             if (response.data.success && response.data.data.entryList) {
                 const settings = response.data.data.entryList;
-                setViewType(settings.viewType || 'Details');
-                setColumns(settings.columns || { 
-                    created: true, 
-                    modified: true, 
-                    status: true, 
-                    chapter: true 
-                });
+                viewTypeRef.current = settings.viewType.toLowerCase();
+                columnsRef.current = settings.columns || {
+                    created: true,
+                    modified: true,
+                    status: true,
+                    chapter: true
+                };
+                setViewType(viewTypeRef.current);
+                setColumns(columnsRef.current);
             }
         } catch (err) {
             console.error('Error loading entry list settings:', err);
@@ -108,8 +114,8 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
     };
 
     const handleShowSettingsModal = () => {
-        setTempViewType(viewType);
-        setTempColumns({ ...columns });
+        setTempViewType(viewTypeRef.current);
+        setTempColumns({ ...columnsRef.current });
         setShowSettingsModal(true);
     };
 
@@ -127,12 +133,16 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
             await api.updateEntryListSettings(journalId, entryListSettings);
             setViewType(tempViewType);
             setColumns(tempColumns);
+            viewTypeRef.current = tempViewType;
+            columnsRef.current = tempColumns;
             setShowSettingsModal(false);
         } catch (err) {
             console.error('Error saving entry list settings:', err);
         }
     };
+    //#endregion
 
+    //#region Details View
     const handleColumnToggle = (columnName, checked) => {
         setTempColumns({
             ...tempColumns,
@@ -140,7 +150,33 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
         });
     };
 
-    // Format date for display
+    const handleSort = (field, currentSort) => {
+        const [currentField, currentDirection] = currentSort.split('_');
+        const direction = currentField === field && currentDirection === 'asc' ? 'desc' : 'asc';
+        const newSort = `${field}_${direction}`;
+        localStorage.setItem(`collector:journal:${journalId}:sort`, newSort);
+        return newSort;
+    };
+
+    const getSortIcon = (field, currentSort) => {
+        const [currentField, currentDirection] = currentSort.split('_');
+        if (currentField !== field) return null;
+        return currentDirection === 'asc' ? 'arrow_upward' : 'arrow_downward';
+    };
+
+    if (loading) {
+        return (
+            <div className="entries-list-module loading">
+                <Icon name="progress_activity" spin={true} />
+                <span>Loading entries...</span>
+            </div>
+        );
+    }
+
+    //#endregion
+
+    //#region Helpers
+
     const formatDate = (dateString) => {
         if (!dateString) return 'N/A';
         const date = new Date(dateString);
@@ -151,32 +187,13 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
         });
     };
 
-    // Get chapter display text
     const getChapterText = (entry) => {
-        console.log(entry);
         if (!entry.chapterId) return '';
         const chapter = chapters.find(ch => ch.chapterId === entry.chapterId);
         if (!chapter) return '';
         return `${chapter.sort}: ${chapter.title}`;
     };
 
-    // Handle sorting
-    const handleSort = (field, currentSort) => {
-        const [currentField, currentDirection] = currentSort.split('_');
-        const direction = currentField === field && currentDirection === 'asc' ? 'desc' : 'asc';
-        const newSort = `${field}_${direction}`;
-        localStorage.setItem(`collector:journal:${journalId}:sort`, newSort);
-        return newSort;
-    };
-
-    // Get sort icon
-    const getSortIcon = (field, currentSort) => {
-        const [currentField, currentDirection] = currentSort.split('_');
-        if (currentField !== field) return null;
-        return currentDirection === 'asc' ? 'arrow_upward' : 'arrow_downward';
-    };
-
-    // Get status text
     const getStatusText = (entry) => {
         if (entry.status > 0 && entry.encrypted) {
             return 'Private';
@@ -190,7 +207,7 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
     };
 
     const getStatusClass = (entry) => {
-        if (entry.encrypted && entry.status > 0) {
+        if (entry.status > 0 && entry.encrypted) {
             return 'status-private';
         }
         switch (entry.status) {
@@ -201,8 +218,31 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
         }
     };
 
+    const getThumbnailPath = (entry) => {
+        if (!entry.thumbnail) return '';
+
+        // Get the file extension
+        const lastDotIndex = entry.thumbnail.lastIndexOf('.');
+        if (lastDotIndex === -1) return entry.thumbnail; // No extension found
+
+        // Insert "_thumb" before the extension
+        const filenameWithoutExt = entry.thumbnail.substring(0, lastDotIndex);
+        const extension = entry.thumbnail.substring(lastDotIndex);
+        const thumbnailFilename = `${filenameWithoutExt}_thumb${extension}`;
+
+        return apiBasePath() + `/image/journal-entries/${entry.id}/${thumbnailFilename}`;
+    };
+
+    // Filter entries based on search query
+    const filteredEntries = entries.filter(entry => {
+        if (!searchQuery) return true;
+        const query = searchQuery.toLowerCase();
+        return entry.title.toLowerCase().includes(query) ||
+            (entry.description && entry.description.toLowerCase().includes(query));
+    });
+
     // Sort entries based on current sort setting
-    const sortedEntries = [...entries].sort((a, b) => {
+    const sortedEntries = [...filteredEntries].sort((a, b) => {
         const [field, direction] = sort.split('_');
         const multiplier = direction === 'asc' ? 1 : -1;
 
@@ -220,25 +260,79 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
         }
     });
 
-    if (loading) {
-        return (
-            <div className="entries-list-module loading">
-                <Icon name="progress_activity" spin={true} />
-                <span>Loading entries...</span>
-            </div>
-        );
-    }
+    //#endregion
 
-    return (
-        <div className="entries-list-module">
-            {entries.length === 0 ? (
+
+    //#region "Settings Modal"
+    if (showSettingsModal && tempViewType !== null && tempColumns !== null) {
+        return (
+            <Modal title="Entry List Settings" onClose={handleCloseSettingsModal}>
+                <Select
+                    label="View"
+                    name="view-type"
+                    value={tempViewType}
+                    onChange={(e) => setTempViewType(e.target.value)}
+                    options={[
+                        { label: 'Details', value: 'details' },
+                        { label: 'Cards', value: 'cards' }
+                    ]}
+                />
+                {tempViewType === 'details' && (
+                    <div className="column-settings">
+                        <h4>Visible Columns</h4>
+                        <Checkbox
+                            label="Date Created"
+                            name="column-created"
+                            checked={tempColumns.created}
+                            onChange={(checked) => handleColumnToggle('created', checked)}
+                        />
+                        <Checkbox
+                            label="Date Modified"
+                            name="column-modified"
+                            checked={tempColumns.modified}
+                            onChange={(checked) => handleColumnToggle('modified', checked)}
+                        />
+                        <Checkbox
+                            label="Status"
+                            name="column-status"
+                            checked={tempColumns.status}
+                            onChange={(checked) => handleColumnToggle('status', checked)}
+                        />
+                        <Checkbox
+                            label="Chapter"
+                            name="column-chapter"
+                            checked={tempColumns.chapter}
+                            onChange={(checked) => handleColumnToggle('chapter', checked)}
+                        />
+                    </div>
+                )}
+                <div className="buttons">
+                    <button onClick={handleSaveSettings}>Save</button>
+                    <button className="cancel" onClick={handleCloseSettingsModal}>Cancel</button>
+                </div>
+            </Modal>);
+    }
+    //#endregion
+
+    //#region "Empty State"
+    if (entries.length === 0) {
+        return (
+            <div className="entries-list-module">
                 <div className="empty-state">
                     <p>No entries yet. Create your first entry to get started!</p>
                     <button onClick={handleNewEntry}>
                         <Icon name="add" /> New Entry
                     </button>
                 </div>
-            ) : (
+            </div>
+        );
+    }
+    //#endregion
+
+    //#region "Details View"
+    if (!viewType || viewType == 'details') {
+        return (
+            <div className="entries-list-module">
                 <div className="entries-table">
                     <table className="spreadsheet">
                         <thead>
@@ -301,54 +395,79 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
                         </tbody>
                     </table>
                 </div>
-            )}
-            {showSettingsModal && (
-                <Modal title="Entry List Settings" onClose={handleCloseSettingsModal}>
-                    <Select
-                        label="View"
-                        name="view-type"
-                        value={tempViewType}
-                        onChange={(e) => setTempViewType(e.target.value)}
-                        options={[
-                            { label: 'Details', value: 'Details' },
-                            { label: 'Cards', value: 'Cards' }
-                        ]}
-                    />
-                    {tempViewType === 'Details' && (
-                        <div className="column-settings">
-                            <h4>Visible Columns</h4>
-                            <Checkbox
-                                label="Date Created"
-                                name="column-created"
-                                checked={tempColumns.created}
-                                onChange={(checked) => handleColumnToggle('created', checked)}
-                            />
-                            <Checkbox
-                                label="Date Modified"
-                                name="column-modified"
-                                checked={tempColumns.modified}
-                                onChange={(checked) => handleColumnToggle('modified', checked)}
-                            />
-                            <Checkbox
-                                label="Status"
-                                name="column-status"
-                                checked={tempColumns.status}
-                                onChange={(checked) => handleColumnToggle('status', checked)}
-                            />
-                            <Checkbox
-                                label="Chapter"
-                                name="column-chapter"
-                                checked={tempColumns.chapter}
-                                onChange={(checked) => handleColumnToggle('chapter', checked)}
-                            />
-                        </div>
-                    )}
-                    <div className="buttons">
-                        <button onClick={handleSaveSettings}>Save</button>
-                        <button className="cancel" onClick={handleCloseSettingsModal}>Cancel</button>
+            </div>
+        );
+    }
+    //#endregion
+
+    //#region "Cards View"
+    if (viewType == 'cards') {
+        return (
+            <div className="entries-list-module">
+                <div className="tool-bar cards-tool-bar">
+                    <div className="left-side">
+                        <Input
+                            name="search"
+                            type="text"
+                            value={searchQuery}
+                            placeholder="Search entries..."
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            buttons={[<button className="btn-search icon"><Icon name="search" /></button>]}
+                        />
                     </div>
-                </Modal>
-            )}
-        </div>
-    );
+                    <div className="right-side">
+                        <Select
+                            name="sort"
+                            value={sort}
+                            onChange={(e) => {
+                                const newSort = e.target.value;
+                                setSort(newSort);
+                                localStorage.setItem(`collector:journal:${journalId}:sort`, newSort);
+                            }}
+                            options={[
+                                { label: 'Title (A-Z)', value: 'Title_asc' },
+                                { label: 'Title (Z-A)', value: 'Title_desc' },
+                                { label: 'Created (Oldest)', value: 'Created_asc' },
+                                { label: 'Created (Newest)', value: 'Created_desc' },
+                                { label: 'Modified (Oldest)', value: 'Modified_asc' },
+                                { label: 'Modified (Newest)', value: 'Modified_desc' },
+                                { label: 'Status (Low-High)', value: 'Status_asc' },
+                                { label: 'Status (High-Low)', value: 'Status_desc' }
+                            ]}
+                        />
+                    </div>
+                </div>
+                <div className="entry-cards">
+                    {sortedEntries.map(entry => (
+                        <div
+                            key={entry.id}
+                            className={"entry-card" + (entry.thumbnail ? " has-thumbnail" : "")}
+                            onClick={() => handleViewEntry(entry.id)}
+                        >
+                            <div className="entry-card-info">
+                                <h3>{entry.title}</h3>
+                                {getChapterText(entry) && (
+                                    <span className="entry-chapter">
+                                        <div className="chapter-label">
+                                            <Icon name="book" />{getChapterText(entry)}
+                                        </div>
+                                    </span>)}
+                                <span className="entry-created">{formatDate(entry.created)}</span>
+                                <span className="entry-status">
+                                    <span className={`entry-status ${getStatusClass(entry)}`}>
+                                        {getStatusText(entry)}
+                                    </span>
+                                </span>
+                            </div>
+                            {entry.thumbnail && (
+                                <div className="entry-card-thumbnail" style={{ backgroundImage: `url(${getThumbnailPath(entry)})` }}>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+    //#endregion
 }

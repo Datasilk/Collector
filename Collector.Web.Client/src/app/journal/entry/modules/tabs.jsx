@@ -94,6 +94,10 @@ export default function TabsModule({ module, entryId, journalId, onUpdate, isEdi
     const handleTabMouseDown = (e, tabId, tabElement) => {
         if (!isEditable || editingTabId) return;
         
+        // Prevent the module from being dragged when dragging tabs
+        e.stopPropagation();
+        window.noDrag = true;
+        
         dragStartPosRef.current = { x: e.clientX, y: e.clientY };
         
         // Add temporary mouseup listener to cancel drag if released before 333ms
@@ -132,6 +136,7 @@ export default function TabsModule({ module, entryId, journalId, onUpdate, isEdi
 
     const handleGlobalMouseUp = () => {
         // Clear the drag delay timer
+        window.noDrag = false;
         if (dragDelayTimerRef.current) {
             clearTimeout(dragDelayTimerRef.current);
             dragDelayTimerRef.current = null;

@@ -13,10 +13,12 @@
     overflow:visible !important;
     min-height:fit-content;
 }
+/*
 .ck.ck-editor__editable_inline > *:last-child{margin-bottom:0 !important}
 .ck.ck-editor__editable_inline > *:first-child{margin-top:0 !important}
 .ck.ck-editor__editable_inline > p:last-child{margin-bottom:0 !important}
 .ck.ck-editor__editable_inline > p:first-child{margin-top:0 !important}
+*/
 
 .ck.ck-dropdown__panel {
     max-height: 60vh; /* Default value */
