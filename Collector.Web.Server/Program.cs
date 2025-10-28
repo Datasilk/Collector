@@ -88,6 +88,40 @@ Files.FilesPath = builder.Configuration["Storage:Files"] ?? Path.Combine(AppDoma
 Files.ImagesPath = builder.Configuration["Storage:Images"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content", "images");
 Files.JournalPath = builder.Configuration["Storage:Journal"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content", "journal-entries");
 Files.VideosPath = builder.Configuration["Storage:Videos"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content", "videos");
+
+// Download required tools (ffmpeg, ffprobe, yt-dlp) if not already present
+var downloadToolsScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "download-tools.bat");
+if (File.Exists(downloadToolsScript))
+{
+    try
+    {
+        var processInfo = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = downloadToolsScript,
+            WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+
+        using var process = System.Diagnostics.Process.Start(processInfo);
+        if (process != null)
+        {
+            process.WaitForExit();
+            
+            // Add application base directory to PATH for this process so it can access the tools
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            var currentPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+            Environment.SetEnvironmentVariable("PATH", $"{baseDir};{currentPath}");
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Warning: Failed to run download-tools.bat: {ex.Message}");
+    }
+}
+
 var app = builder.Build();
 
 //Response Headers
@@ -123,6 +157,10 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Map SignalR hubs BEFORE static files and controllers
+app.MapHub<TextEditorHub>("/text-editor");
+app.MapHub<VideoHub>("/video-download");
+
 // Configure static files with SVG support
 var provider = new FileExtensionContentTypeProvider();
 provider.Mappings[".svg"] = "image/svg+xml";
@@ -137,8 +175,5 @@ app.MapControllers();
 
 // SPA fallback to index.html for React app
 app.MapFallbackToFile("index.html");
-
-// Map SignalR hubs
-app.MapHub<TextEditorHub>("/text-editor");
 
 app.Run();

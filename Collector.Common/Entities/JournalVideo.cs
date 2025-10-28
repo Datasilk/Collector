@@ -10,6 +10,8 @@ namespace Collector.Common.Entities
         public string ModuleId { get; set; }
         public string Filename { get; set; }
         public string OriginalFilename { get; set; }
+        public string Url { get; set; }
+        public bool Downloaded { get; set; }
         public int Duration { get; set; }
         public int Width { get; set; }
         public int Height { get; set; }

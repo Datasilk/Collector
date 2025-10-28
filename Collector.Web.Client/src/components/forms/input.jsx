@@ -17,7 +17,7 @@ import '@/styles/forms.css';
  * @param {ReactNode} buttons - Button elements to display alongside the input field.
  * @param {...any} args - Additional properties to pass to the input element.
  */
-export default function Input({ children, label, name, type = 'text', value, autocomplete = null, required = false, isLabel = false, error, note, buttons, ...args }) {
+export default function Input({ children, label, name, type = 'text', value, autocomplete = null, required = false, isLabel = false, error, note, buttons, formGroupClassName, ...args }) {
     //set up optional properties
     const optional = {};
     if (autocomplete === true || (['email', 'password'].some(a => a == type) && autocomplete === null)) {
@@ -26,7 +26,7 @@ export default function Input({ children, label, name, type = 'text', value, aut
 
     //render input
     return (
-        <div className={"form-group input-" + name}>
+        <div className={"form-group input-" + name + ' ' + formGroupClassName}>
             <div className="form-label">
                 {label && <label htmlFor={name}>{label}{required ? ' *' : ''}</label>}
                 {error && <span className="error">{error}</span>}

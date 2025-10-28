@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import * as signalR from '@microsoft/signalr';
 //components
 import Icon from '@/components/ui/icon';
 import Input from '@/components/forms/input';
@@ -15,29 +16,21 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [uploadError, setUploadError] = useState(null);
-    const [showUrlInput, setShowUrlInput] = useState(false);
-    const [videoUrl, setVideoUrl] = useState(module.videoUrl || '');
+    const [videoUrl, setVideoUrl] = useState('');
+    const [isDownloading, setIsDownloading] = useState(false);
+    const [downloadProgress, setDownloadProgress] = useState(0);
+    const [downloadStatus, setDownloadStatus] = useState('');
+    const [downloadError, setDownloadError] = useState(null);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [pendingDeleteModuleId, setPendingDeleteModuleId] = useState(null);
 
     //refs
     const fileInputRef = useRef(null);
+    const hubConnectionRef = useRef(null);
 
     //context
     const session = useSession();
     const { uploadVideo, deleteVideo } = Videos(session);
-
-    // Auto-trigger file dialog when module is manually added
-    useEffect(() => {
-        if (manuallyAdded && isEditable && fileInputRef.current) {
-            // Small delay to ensure the DOM is fully rendered
-            const timer = setTimeout(() => {
-                fileInputRef.current.click();
-            }, 100);
-
-            return () => clearTimeout(timer);
-        }
-    }, [manuallyAdded, isEditable]);
 
     useEffect(() => {
         if (!setDeleteListener) return;
@@ -88,27 +81,117 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         }
     };
 
-    const handleUrlSubmit = () => {
+    const handleDownloadVideo = () => {
         if (!videoUrl.trim()) return;
 
-        // Update the module with the video URL
-        onUpdate({
-            ...module,
-            videoUrl: videoUrl.trim(),
-            videoPath: '', // Clear uploaded video if URL is set
-            thumbnailPath: ''
+        setIsDownloading(true);
+        setDownloadError(null);
+        setDownloadProgress(0);
+        setDownloadStatus('Connecting...');
+
+        // Create and setup SignalR connection
+        const conn = new signalR.HubConnectionBuilder()
+            .withUrl(apiBasePath() + '/video-download', {
+                withCredentials: true,
+                skipNegotiation: true,
+                transport: signalR.HttpTransportType.WebSockets
+            })
+            .withAutomaticReconnect([0, 1000, 5000, 10000])
+            .configureLogging(signalR.LogLevel.Information)
+            .build();
+
+        conn.start().then(() => {
+            // Listen for video record creation (before download starts)
+            conn.on('VideoRecordCreated', (data) => {
+                console.log('Video record created:', data);
+                // Update module with video ID and path immediately so entry can be saved
+                if(!data.exists){
+                    onUpdate({
+                        ...module,
+                        videoId: data.id,
+                        videoPath: data.videoPath,
+                        url: videoUrl.trim(),
+                        title: data.title,
+                        downloaded:false
+                    });
+                }
+                console.log({
+                    ...module,
+                    videoId: data.id,
+                    videoPath: data.videoPath,
+                    url: videoUrl.trim(),
+                    title: data.title,
+                    downloaded:false
+                });
+            });
+
+            // Listen for download progress
+            conn.on('DownloadProgress', (progress, status) => {
+                setDownloadProgress(progress);
+                setDownloadStatus(status);
+            });
+
+            // Listen for download completion
+            conn.on('DownloadComplete', (data) => {
+                setIsDownloading(false);
+                setDownloadProgress(0);
+                setDownloadStatus('');
+                setVideoUrl('');
+
+                // Update module with downloaded video data
+                onUpdate({
+                    ...module,
+                    thumbnailPath: data.thumbnailPath,
+                    downloaded:true
+                });
+
+                // Close connection after download completes
+                conn.stop();
+            });
+
+            // Listen for download errors
+            conn.on('DownloadError', (error) => {
+                setDownloadError(error);
+                setIsDownloading(false);
+                setDownloadProgress(0);
+                setDownloadStatus('');
+
+                // Close connection on error
+                conn.stop();
+            });
+
+            // Invoke download
+            console.log('Invoking DownloadVideo with:', {
+                url: videoUrl.trim(),
+                journalId: parseInt(journalId),
+                entryId: entryId,
+                moduleId: module.id
+            });
+            
+            conn.invoke('DownloadVideo', videoUrl.trim(), parseInt(journalId), entryId, module.id)
+                .then(() => {
+                    console.log('DownloadVideo invocation completed successfully');
+                })
+                .catch(err => {
+                    // Only show error if it's not a connection closed error after successful completion
+                    if (err.message && !err.message.includes('connection being closed')) {
+                        console.error('Error invoking DownloadVideo:', err);
+                        setDownloadError('Error sending request to download service. Please try again.');
+                        setIsDownloading(false);
+                    }
+                    // Don't try to stop connection here as it may already be stopped
+                });
+        }).catch(err => {
+            console.error('Error starting SignalR connection:', err);
+            setDownloadError('Error connecting to download service. Please try again.');
+            setIsDownloading(false);
         });
-        setShowUrlInput(false);
     };
 
     const handleUrlKeyDown = (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
-            handleUrlSubmit();
-        } else if (e.key === 'Escape') {
-            e.preventDefault();
-            setShowUrlInput(false);
-            setVideoUrl(module.videoUrl || '');
+            handleDownloadVideo();
         }
     };
 
@@ -151,11 +234,11 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         }
     };
 
-    const hasVideo = module.videoPath || module.videoUrl;
+    const hasVideo = module.videoPath;
 
     return (
         <div className="video-player-module">
-            {isEditable && !hasVideo && !isUploading && (
+            {isEditable && !hasVideo && !isUploading && !isDownloading && (
                 <div className="tool-bar">
                     <div className="left-side">
                         <div className="video-upload-button-container">
@@ -172,11 +255,17 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                             />
                         </div>
                     </div>
-                    <div className="left-side">
-                        <button onClick={() => setShowUrlInput(!showUrlInput)}>
-                            <Icon name="link" />
-                            Paste URL
-                        </button>
+                    <div className="left-side or">or</div>
+                    <div className="left-side tool-bar flex" style={{ width: 'calc(100% - 20em)' }}>
+                        <Input
+                            name="video-url"
+                            value={videoUrl}
+                            onChange={(e) => setVideoUrl(e.target.value)}
+                            onKeyDown={handleUrlKeyDown}
+                            placeholder="Paste video URL (YouTube, etc.)"
+                            style={{ width: '100%' }}
+                            formGroupClassName="width-100"
+                        />
                     </div>
                 </div>
             )}
@@ -195,22 +284,21 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                 </div>
             )}
 
-            {showUrlInput && !hasVideo && (
-                <div className="url-input-container">
-                    <Input
-                        name="video-url"
-                        value={videoUrl}
-                        onChange={(e) => setVideoUrl(e.target.value)}
-                        onKeyDown={handleUrlKeyDown}
-                        placeholder="Paste video URL (YouTube, Vimeo, etc.)"
-                        autoFocus
-                    />
-                    <div className="buttons">
-                        <button onClick={handleUrlSubmit}>Add URL</button>
-                        <button className="cancel" onClick={() => {
-                            setShowUrlInput(false);
-                            setVideoUrl(module.videoUrl || '');
-                        }}>Cancel</button>
+            {isDownloading && (
+                <div className="upload-progress-container">
+                    {downloadStatus && (
+                        <div className="processing-text">
+                            {downloadStatus}
+                        </div>
+                    )}
+                    <div className="progress-bar">
+                        <div
+                            className="progress-fill"
+                            style={{ width: `${downloadProgress}%` }}
+                        />
+                        <div className="progress-text">
+                            {downloadProgress}%
+                        </div>
                     </div>
                 </div>
             )}
@@ -221,8 +309,34 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                 </div>
             )}
 
-            {module.videoPath && (
+            {downloadError && (
+                <div className="error-message">
+                    {downloadError}
+                </div>
+            )}
+
+            {isEditable && !isDownloading && module.videoId && module.downloaded === false && module.url && (
+                <div className="video-not-downloaded">
+                    <p>The video has not been downloaded yet.</p>
+                    <button onClick={() => {
+                        setVideoUrl(module.url);
+                        handleDownloadVideo();
+                    }}>
+                        <Icon name="download" />
+                        Try Again
+                    </button>
+                </div>
+            )}
+
+            {!isDownloading && module.videoPath && module.downloaded !== false && (
                 <div className="video-preview">
+                    {module.url && (
+                        <div className="video-url-icon">
+                            <a href={module.url} target="_blank" rel="noopener noreferrer" title="Open original video URL">
+                                <Icon name="arrow_outward" />
+                            </a>
+                        </div>
+                    )}
                     <video
                         controls
                         poster={module.thumbnailPath ? apiBasePath() + `/video/thumb/${module.thumbnailPath}` : undefined}
@@ -233,16 +347,6 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                         />
                         Your browser does not support the video tag.
                     </video>
-                </div>
-            )}
-
-            {module.videoUrl && !module.videoPath && (
-                <div className="video-embed">
-                    <iframe
-                        src={module.videoUrl}
-                        allowFullScreen
-                        title="Video player"
-                    />
                 </div>
             )}
 

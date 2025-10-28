@@ -6,6 +6,8 @@ CREATE TABLE [dbo].[JournalVideos]
     [ModuleId] NVARCHAR(16) NOT NULL,
     [Filename] NVARCHAR(64) NOT NULL,
     [OriginalFilename] NVARCHAR(64) NOT NULL DEFAULT '',
+    [Url] NVARCHAR(128) NOT NULL DEFAULT '',
+    [Downloaded] BIT NOT NULL DEFAULT 0,
     [Duration] INT NOT NULL DEFAULT 0,
     [Width] INT NOT NULL DEFAULT 1, 
     [Height] INT NOT NULL DEFAULT 1, 
