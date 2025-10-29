@@ -8,10 +8,12 @@ import Input from '@/components/forms/input';
 import ToggleSwitch from '@/components/ui/toggle-switch';
 import ModuleList from './module-list';
 import SettingsModal from './components/settings-modal';
+import Modal from '@/components/ui/modal';
 //context
 import { useSession } from '@/context/session';
 //api
 import { Journals } from '@/api/user/journals';
+import { JournalSnapshots } from '@/api/user/journal-snapshots';
 //modules
 import modules from './modules';
 
@@ -40,6 +42,11 @@ export default function JournalEntryPage() {
     const [isEditing, setIsEditing] = useState(false);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
     const [chapters, setChapters] = useState([]);
+    const [showHistoryDropdown, setShowHistoryDropdown] = useState(false);
+    const [snapshots, setSnapshots] = useState([]);
+    const [showCreateSnapshotModal, setShowCreateSnapshotModal] = useState(false);
+    const [showSnapshotCreatedModal, setShowSnapshotCreatedModal] = useState(false);
+    const [loadingSnapshots, setLoadingSnapshots] = useState(false);
 
     // refs
     const entryRef = useRef(null);
@@ -52,9 +59,12 @@ export default function JournalEntryPage() {
     const secretsTimerRef = useRef(null);
     const currentChapterName = useRef(null);
     const currentChapter = useRef(null);
+    const historyDropdownRef = useRef(null);
+    const historyButtonRef = useRef(null);
 
     //apis
     const { addEntry, renameEntry, getChapters } = Journals(session);
+    const { getSnapshotsByEntry, createSnapshot } = JournalSnapshots(session);
 
     //effect
     useEffect(() => {
@@ -95,6 +105,14 @@ export default function JournalEntryPage() {
                     setShowBottomModuleDropdown(false);
                 }
             }
+
+            // Check if click is outside the history dropdown and its button
+            if (showHistoryDropdown && historyDropdownRef.current && !historyDropdownRef.current.contains(event.target)) {
+                const isOutsideHistoryButton = !historyButtonRef.current || !historyButtonRef.current.contains(event.target);
+                if (isOutsideHistoryButton) {
+                    setShowHistoryDropdown(false);
+                }
+            }
         };
 
         document.addEventListener('mousedown', handleClickOutside);
@@ -102,7 +120,7 @@ export default function JournalEntryPage() {
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [showTopModuleDropdown, showBottomModuleDropdown]);
+    }, [showTopModuleDropdown, showBottomModuleDropdown, showHistoryDropdown]);
 
     //actions
 
@@ -484,6 +502,71 @@ export default function JournalEntryPage() {
     };
     //#endregion
 
+    //#region Snapshots
+    const handleToggleHistoryDropdown = async () => {
+        if (!showHistoryDropdown) {
+            // Load snapshots when opening dropdown
+            setLoadingSnapshots(true);
+            try {
+                const response = await getSnapshotsByEntry(entryId);
+                if (response.data?.success && response.data.data) {
+                    setSnapshots(response.data.data);
+                }
+            } catch (err) {
+                console.error('Error loading snapshots:', err);
+            } finally {
+                setLoadingSnapshots(false);
+            }
+        }
+        setShowHistoryDropdown(!showHistoryDropdown);
+    };
+
+    const handleCreateSnapshotClick = () => {
+        setShowHistoryDropdown(false);
+        setShowCreateSnapshotModal(true);
+    };
+
+    const handleConfirmCreateSnapshot = async () => {
+        setShowCreateSnapshotModal(false);
+        try {
+            const response = await createSnapshot(entryId);
+            if (response.data?.success) {
+                setShowSnapshotCreatedModal(true);
+                // Refresh snapshots list
+                const snapshotsResponse = await getSnapshotsByEntry(entryId);
+                if (snapshotsResponse.data?.success && snapshotsResponse.data.data) {
+                    setSnapshots(snapshotsResponse.data.data);
+                }
+            }
+        } catch (err) {
+            console.error('Error creating snapshot:', err);
+        }
+    };
+
+    const handleCancelCreateSnapshot = () => {
+        setShowCreateSnapshotModal(false);
+    };
+
+    const handleCloseSnapshotCreated = () => {
+        setShowSnapshotCreatedModal(false);
+    };
+
+    const handleSnapshotClick = (snapshot) => {
+        // TODO: Implement viewing snapshot details
+    };
+
+    const formatSnapshotDate = (dateString) => {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+    //#endregion
+
     //#region Secrets
 
     const showSecret = (e) => {
@@ -557,6 +640,23 @@ export default function JournalEntryPage() {
                     onChaptersChanged={handleChaptersChanged}
                 />
             )}
+            {showCreateSnapshotModal && (
+                <Modal title="Create Snapshot" onClose={handleCancelCreateSnapshot}>
+                    <p className="snapshot-modal-text">Do you want to create a snapshot of the current state of this journal entry? It will create a copy of all current data & metadata related to this entry.</p>
+                    <div className="buttons">
+                        <button className="cancel" onClick={handleCancelCreateSnapshot}>Cancel</button>
+                        <button onClick={handleConfirmCreateSnapshot}>Create Snapshot</button>
+                    </div>
+                </Modal>
+            )}
+            {showSnapshotCreatedModal && (
+                <Modal title="Snapshot Created" onClose={handleCloseSnapshotCreated}>
+                    <p>Your journal entry has been copied to a snapshot. You can view it in the history dropdown and revert to it in the future if needed.</p>
+                    <div className="buttons">
+                        <button onClick={handleCloseSnapshotCreated}>Okay</button>
+                    </div>
+                </Modal>
+            )}
             <div className="entry-header">
                 <div className="entry-navigation tool-bar">
                     <button className="back-button" onClick={handleBackToJournal}>
@@ -583,6 +683,49 @@ export default function JournalEntryPage() {
                             onChange={setIsEditing}
                             label="Edit"
                         />
+                        <div className="right-side history-dropdown-container">
+                            <button 
+                                className="icon" 
+                                onClick={handleToggleHistoryDropdown}
+                                ref={historyButtonRef}
+                                title="View snapshot history"
+                            >
+                                <Icon name="history" />
+                            </button>
+                            {showHistoryDropdown && (
+                                <div className="dropdown-menu" ref={historyDropdownRef}>
+                                    <div 
+                                        className="dropdown-item" 
+                                        onClick={handleCreateSnapshotClick}
+                                        title="Record the current state of this journal entry for historical records"
+                                    >
+                                        <Icon name="add" /> Create Snapshot
+                                    </div>
+                                    {loadingSnapshots ? (
+                                        <div className="loading-snapshots">
+                                            <Icon name="progress_activity" spin={true} />
+                                        </div>
+                                    ) : snapshots.length === 0 ? (
+                                        <div className="no-snapshots">
+                                            No snapshots yet
+                                        </div>
+                                    ) : (
+                                        snapshots.map(snapshot => (
+                                            <div 
+                                                key={snapshot.id}
+                                                className="dropdown-item"
+                                                onClick={() => handleSnapshotClick(snapshot)}
+                                            >
+                                                <div className="snapshot-date">
+                                                    {formatSnapshotDate(snapshot.createdSnapshot)}
+                                                    <Icon name="history" />
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+                        </div>
                         <button className="icon" onClick={handleOpenSettings}>
                             <Icon name="settings" />
                         </button>

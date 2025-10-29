@@ -103,7 +103,6 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         conn.start().then(() => {
             // Listen for video record creation (before download starts)
             conn.on('VideoRecordCreated', (data) => {
-                console.log('Video record created:', data);
                 // Update module with video ID and path immediately so entry can be saved
                 if(!data.exists){
                     onUpdate({
@@ -115,14 +114,6 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                         downloaded:false
                     });
                 }
-                console.log({
-                    ...module,
-                    videoId: data.id,
-                    videoPath: data.videoPath,
-                    url: videoUrl.trim(),
-                    title: data.title,
-                    downloaded:false
-                });
             });
 
             // Listen for download progress
@@ -161,17 +152,9 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
             });
 
             // Invoke download
-            console.log('Invoking DownloadVideo with:', {
-                url: videoUrl.trim(),
-                journalId: parseInt(journalId),
-                entryId: entryId,
-                moduleId: module.id
-            });
             
             conn.invoke('DownloadVideo', videoUrl.trim(), parseInt(journalId), entryId, module.id)
-                .then(() => {
-                    console.log('DownloadVideo invocation completed successfully');
-                })
+                .then(() => { })
                 .catch(err => {
                     // Only show error if it's not a connection closed error after successful completion
                     if (err.message && !err.message.includes('connection being closed')) {

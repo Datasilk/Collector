@@ -321,6 +321,7 @@
     <Build Include="dbo\Tables\Journal\JournalChapters.sql" />
     <Build Include="dbo\Tables\Journal\JournalImages.sql" />
     <Build Include="dbo\Tables\Journal\JournalVideos.sql" />
+    <Build Include="dbo\Tables\Journal\JournalEntrySnapshots.sql" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Collector.SQL.publish.xml" />
