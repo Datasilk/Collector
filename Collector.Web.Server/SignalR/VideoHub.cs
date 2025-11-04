@@ -58,9 +58,9 @@ namespace Collector.Web.Server.SignalR
                     { 
                         id = videoId,
                         videoPath = relativePath.Replace("\\", "/"),
-                        title,
-                        exists = true
+                        title
                     });
+                    Thread.Sleep(250); //allow React state to update (if neccessary)
 
                     // If already downloaded, send completion immediately
                     if (existingVideo.Downloaded)
@@ -85,7 +85,7 @@ namespace Collector.Web.Server.SignalR
                                 thumbnailPath = thumbnailRelativePath2.Replace("\\", "/");
                             }
                         }
-                        
+                        await Clients.Caller.SendAsync("DownloadProgress", 100, "Already downloaded");
                         await Clients.Caller.SendAsync("DownloadComplete", new
                         {
                             id = videoId,

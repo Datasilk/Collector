@@ -60,6 +60,10 @@ const Journals = (args) => Api({...args, useToken:true}).endpoints(({api}) => {
             JournalId: journalId,
             EntryList: entryListSettings
         }),
+        updateJournalLayout: (journalId, layout) => api.post(`${apiPath}/layout/update`, {
+            JournalId: journalId,
+            Layout: layout
+        }),
         
         // Journal Chapters
         addChapter: (journalId, chapter) => api.post(`${apiPath}/${journalId}/chapters/add`, chapter),

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Icon from '@/components/ui/icon';
 import ToggleSwitch from '@/components/ui/toggle-switch';
@@ -29,6 +29,9 @@ export default function JournalDetailsPage() {
     const [canEditLayout, setCanEditLayout] = useState(false);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
 
+    //refs
+    const strippedModulesRef = useRef(null);
+
     //effect
     useEffect(() => {
         fetchJournalDetails();
@@ -39,13 +42,13 @@ export default function JournalDetailsPage() {
         if (journal?.settings?.css) {
             const styleId = `journal-${journalId}-styles`;
             let styleElement = document.getElementById(styleId);
-            
+
             if (!styleElement) {
                 styleElement = document.createElement('style');
                 styleElement.id = styleId;
                 document.head.appendChild(styleElement);
             }
-            
+
             styleElement.textContent = journal.settings.css;
         }
 
@@ -59,6 +62,8 @@ export default function JournalDetailsPage() {
         };
     }, [journal?.settings?.css, journalId]);
 
+
+
     //actions
     const fetchJournalDetails = () => {
         setLoading(true);
@@ -71,66 +76,117 @@ export default function JournalDetailsPage() {
             .then(response => {
                 if (response.data.success) {
                     const journalData = response.data.data;
-                    setJournal(journalData);
+                    const modulesLayout = journalData.layout;
 
                     // Parse modules from journal
-                    const parsedModules = [];
+                    let parsedModules = [];
+                    let foundEntriesList = false;
 
-                    if (journalData.modules && journalData.modules.length > 0) {
+                    if (journalData.modules && journalData.modules.length > 0 && !modulesLayout) {
                         journalData.modules.forEach(module => {
                             try {
-                                const json = JSON.parse(module.json);
-                                parsedModules.push({
+                                const json = module.json ? JSON.parse(module.json) : {};
+                                const mod = {
                                     ...module,
                                     ...json,
                                     entryId: module.journalEntryId,
                                     id: module.moduleId,
                                     pinned: true
-                                });
+                                };
+                                parsedModules.push(mod);
                             } catch (err) {
                                 console.error('Error parsing module JSON:', err);
                             }
                         });
+                    } else if (modulesLayout && modulesLayout.length > 0) {
+                        //get custom layout for journal's modules list
+                        const mergeModulesInHierarchy = (modulesList, parentEntryId) => {
+                            const newModules = [];
+                            modulesList.forEach(module => {
+                                try {
+                                    const moduleData = removeNullUndefined(journalData.modules.find(m => m.moduleId == module.id) ?? {});
+                                    const json = removeNullUndefined(moduleData.json ? JSON.parse(moduleData.json) : {});
+                                    var mod = {
+                                        ...moduleData,
+                                        ...json,
+                                        ...module,
+                                        entryId: moduleData.journalEntryId ?? module.entryId ?? parentEntryId,
+                                        id: module.id ?? moduleData.id ?? json.id,
+                                        pinned: true
+                                    };
+                                    mod.moduleId = mod.id;
+
+                                    if (mod.id == 'entries-list') {
+                                        // Insert or update entries-list module at the specified index
+                                        const entriesListModule = {
+                                            id: 'entries-list',
+                                            type: 'entries-list',
+                                            showTab: true,
+                                            showPinned: false,
+                                            pinned: true
+                                        };
+                                        foundEntriesList = true;
+                                        // Update existing entries-list module
+                                        mod = { ...mod, ...entriesListModule };
+                                    }
+                                    if (mod.modules && mod.modules.length > 0) {
+                                        mod.modules = mergeModulesInHierarchy(mod.modules, mod.entryId);
+                                    }
+                                    newModules.push(mod);
+                                } catch (err) {
+                                    console.error('Error parsing module JSON:', err);
+                                }
+                            });
+                            return newModules;
+                        };
+                        parsedModules = mergeModulesInHierarchy(modulesLayout);
                     }
 
-                    // Insert or update entries-list module at the specified index
-                    const entriesListIndex = journalData.entriesListIndex || 999;
-                    const entriesListModule = {
-                        id: 'entries-list',
-                        type: 'entries-list',
-                        showTab: true,
-                        showPinned: false,
-                        pinned: true,
-                        sort: 999
-                    };
+                    if (!foundEntriesList) {
+                        // Insert or update entries-list module at the specified index if it hasn't been added yet
+                        const entriesListIndex = journalData.entriesListIndex || -1;
+                        const entriesListModule = {
+                            id: 'entries-list',
+                            type: 'entries-list',
+                            showTab: true,
+                            showPinned: false,
+                            pinned: true,
+                            sort: -1
+                        };
 
-                    // Check if entries-list already exists
-                    const existingIndex = parsedModules.findIndex(m => m.id == 'entries-list');
-                    if (existingIndex > -1) {
-                        // Update existing entries-list module
-                        parsedModules[existingIndex] = { ...parsedModules[existingIndex], ...entriesListModule };
-                    } else {
-                        // Insert at the correct position
-                        if (entriesListIndex >= parsedModules.length) {
-                            parsedModules.push(entriesListModule);
+                        // Check if entries-list already exists
+                        const existingIndex = parsedModules.findIndex(m => m.id == 'entries-list');
+                        if (existingIndex > -1) {
+                            // Update existing entries-list module
+                            parsedModules[existingIndex] = { ...parsedModules[existingIndex], ...entriesListModule };
                         } else {
-                            parsedModules.splice(entriesListIndex, 0, entriesListModule);
+                            // Insert at the correct position
+                            if (entriesListIndex >= parsedModules.length) {
+                                parsedModules.push(entriesListModule);
+                            } else {
+                                parsedModules.splice(entriesListIndex, 0, entriesListModule);
+                            }
                         }
                     }
 
+                    setJournal(journalData);
                     setModules(parsedModules);
-                    
+
+                    // Store the original stripped modules for comparison
+                    const strippedModules = stripModulesData(parsedModules);
+                    strippedModulesRef.current = JSON.stringify(strippedModules);
+
                     // Inject CSS if settings exist
                     if (journalData.settings?.css) {
                         const styleId = `journal-${journalId}-styles`;
                         let styleElement = document.getElementById(styleId);
-                        
+
                         if (!styleElement) {
                             styleElement = document.createElement('style');
                             styleElement.id = styleId;
                             document.head.appendChild(styleElement);
                         }
-                        
+
                         styleElement.textContent = journalData.settings.css;
                     }
                 }
@@ -159,18 +215,18 @@ export default function JournalDetailsPage() {
     const handleSettingsSaved = (updatedJournal, css) => {
         // Update journal with new title
         setJournal(updatedJournal);
-        
+
         // Inject updated CSS
         if (css !== undefined) {
             const styleId = `journal-${journalId}-styles`;
             let styleElement = document.getElementById(styleId);
-            
+
             if (!styleElement) {
                 styleElement = document.createElement('style');
                 styleElement.id = styleId;
                 document.head.appendChild(styleElement);
             }
-            
+
             styleElement.textContent = css;
         }
     };
@@ -213,10 +269,65 @@ export default function JournalDetailsPage() {
         setCanEditLayout(checked);
     };
 
-    const handleUpdatedModule = (updatedEntryJson) => {
+    const removeNullUndefined = (obj) => {
+        if (Array.isArray(obj)) {
+            return obj.map(item => removeNullUndefined(item)).filter(item => item !== null && item !== undefined);
+        } else if (obj !== null && typeof obj === 'object') {
+            return Object.keys(obj).reduce((acc, key) => {
+                const value = obj[key];
+                if (value !== null && value !== undefined) {
+                    acc[key] = removeNullUndefined(value);
+                }
+                return acc;
+            }, {});
+        }
+        return obj;
+    };
+
+    const stripModulesData = (modulesList) => {
+        return modulesList.map(module => {
+            try {
+                const mod = {
+                    id: module.id,
+                    type: module.type,
+                    sort: module.sort,
+                    width: module.width,
+                    height: module.height
+                };
+                if (module.modules && module.modules.length > 0) {
+                    mod.modules = stripModulesData(module.modules);
+                }
+                return mod;
+            } catch (err) {
+                console.error('Error parsing module JSON:', err);
+            }
+        });
+    }
+
+    const handleUpdatedModule = async (updatedModule) => {
         // Update the modules list with the new order
-        if (updatedEntryJson && updatedEntryJson.modules) {
-            setModules(updatedEntryJson.modules);
+        if (updatedModule) {
+            const index = modules.findIndex(a => a.id == updatedModule.id);
+            const newModules = [...modules];
+            if (index > -1) {
+                newModules[index] = updatedModule;
+                setModules(newModules);
+            }
+
+            // Compare stripped module data to see if layout changed
+            const newStrippedModules = JSON.stringify(stripModulesData(newModules));
+            if (strippedModulesRef.current !== newStrippedModules) {
+                // Layout has changed, save it
+                try {
+                    const api = Journals(session);
+                    await api.updateJournalLayout(journalId, newStrippedModules);
+
+                    // Update the original to the new value
+                    strippedModulesRef.current = newStrippedModules;
+                } catch (err) {
+                    console.error('Error saving journal layout:', err);
+                }
+            }
         }
     };
 
@@ -271,7 +382,6 @@ export default function JournalDetailsPage() {
             );
         }
     }
-
     // Main render
     return (
         <div className="journal-details-page">
@@ -311,7 +421,6 @@ export default function JournalDetailsPage() {
                     <span>Status: {journal.status == 1 ? 'Active' : 'Archived'}</span>
                 </div>
             </div>
-
             <div className="modules-list">
                 <ModuleList
                     entryJson={{ modules: modules }}

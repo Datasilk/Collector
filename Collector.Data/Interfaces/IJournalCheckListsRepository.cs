@@ -14,6 +14,7 @@ namespace Collector.Data.Interfaces
         Task<bool> UpdateTitle(int id, string title);
         Task<bool> UpdateDescription(int id, string description);
         Task<bool> UpdateStatus(int id, int status);
+        Task<bool> UpdateEntryId(int id, Guid entryId);
         Task<bool> Delete(int id);
     }
 }

@@ -89,6 +89,12 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
     const handleNewEntry = () => {
         navigate(`/journal/${journalId}/entry/new`);
     };
+
+    const handleSortDropdown = (e) => {
+        const newSort = e.target.value;
+        setSort(newSort);
+        localStorage.setItem(`collector:journal:${journalId}:sort`, newSort);
+    };
     //#endregion
 
     //#region "Settings"
@@ -364,7 +370,7 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
                         <tbody>
                             {sortedEntries.map(entry => (
                                 <tr
-                                    key={entry.id}
+                                    key={'tr_' + entry.id}
                                     onClick={() => handleViewEntry(entry.id)}
                                 >
                                     <td className="entry-title">{entry.title}</td>
@@ -419,11 +425,7 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
                         <Select
                             name="sort"
                             value={sort}
-                            onChange={(e) => {
-                                const newSort = e.target.value;
-                                setSort(newSort);
-                                localStorage.setItem(`collector:journal:${journalId}:sort`, newSort);
-                            }}
+                            onChange={handleSortDropdown}
                             options={[
                                 { label: 'Title (A-Z)', value: 'Title_asc' },
                                 { label: 'Title (Z-A)', value: 'Title_desc' },
@@ -440,7 +442,7 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
                 <div className="entry-cards">
                     {sortedEntries.map(entry => (
                         <div
-                            key={entry.id}
+                            key={'entry-card_' + entry.id}
                             className={"entry-card" + (entry.thumbnail ? " has-thumbnail" : "")}
                             onClick={() => handleViewEntry(entry.id)}
                         >

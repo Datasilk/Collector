@@ -217,6 +217,11 @@ hr{
 .align-center{text-align:center;}
 .right{float:right !important;}
 .flex{display:flex;}
+.pad{padding:1em;}
+.pad-sm{padding:0.5em;}
+.pad-xs{padding:0.25em;}
+.pad-lg{padding:1.5em;}
+.pad-xl{padding:2em;}
 
 .faded{opacity:0.5;}
 

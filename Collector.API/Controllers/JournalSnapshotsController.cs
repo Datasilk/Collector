@@ -78,6 +78,10 @@ namespace Collector.API.Controllers
                 if (journal == null || journal.AppUserId != userId)
                     return Json(new ApiResponse { success = false, message = "Not authorized to access this snapshot" });
 
+                // Load the snapshot content from the JSON file
+                var snapshotFilePath = $"{entry.Id:N}_{id}.json";
+                snapshot.Content = Files.GetFile(Files.Paths.Journal, snapshotFilePath);
+
                 return Json(new ApiResponse { success = true, data = snapshot });
             }
             catch (Exception ex)

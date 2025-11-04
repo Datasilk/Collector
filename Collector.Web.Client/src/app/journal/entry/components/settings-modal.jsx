@@ -180,10 +180,10 @@ export default function SettingsModal({
     };
 
     return (
-        <Modal title="Entry Settings" onClose={onClose} width="600px">
+        <Modal title="Entry Settings" onClose={onClose} width="600px" className={'selected-tab-' + selectedTab}>
             {!showChapterManagement ? (
                 <>
-                    <Tabs tabs={['Details', 'Images']} selectedIndex={selectedTab}>
+                    <Tabs tabs={['Details', 'Images']} selectedIndex={selectedTab} onChange={setSelectedTab}>
                         {/* Details Tab */}
                         <div className="settings-modal-content">
                             <div className="form-row-block">

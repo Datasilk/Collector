@@ -1,6 +1,6 @@
-﻿CREATE TABLE [dbo].[JournalCheckListItems]
+CREATE TABLE [dbo].[JournalCheckListItems]
 (
-	[Id] INT NOT NULL PRIMARY KEY IDENTITY(1,1),
+	[Id] INT NOT NULL PRIMARY KEY DEFAULT (NEXT VALUE FOR [dbo].[SequenceJournalCheckListItems]),
     [CheckListId] INT NOT NULL, 
     [Checked] BIT NOT NULL DEFAULT 0, 
     [Title] NVARCHAR(255) NOT NULL,

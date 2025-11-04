@@ -1,6 +1,6 @@
 CREATE TABLE [dbo].[Journals]
 (
-	[Id] INT NOT NULL PRIMARY KEY IDENTITY(1,1),
+	[Id] INT NOT NULL PRIMARY KEY DEFAULT (NEXT VALUE FOR [dbo].[SequenceJournals]),
     [AppUserId] UNIQUEIDENTIFIER NOT NULL, 
     [CategoryId] INT NOT NULL, 
     [Title] NVARCHAR(64) NOT NULL, 

@@ -55,6 +55,12 @@ namespace Collector.API.Models
         public string Description { get; set; }
     }
 
+    public class UpdateCheckListEntryIdModel
+    {
+        public int Id { get; set; }
+        public Guid EntryId { get; set; }
+    }
+
     public class AddCheckListItemModel
     {
         public int CheckListId { get; set; }

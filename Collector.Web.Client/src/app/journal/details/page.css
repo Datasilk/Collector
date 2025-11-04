@@ -177,8 +177,17 @@
     margin-left:2em;
 }
 
-.modal.modal-for-settings{
+.modal.modal-for-settings.selected-tab-0{ /* Details Tab */
+    width:850px;
+}
+
+.modal.modal-for-settings.selected-tab-1{ /* Chapters Tab */
+    width:850px;
+}
+
+.modal.modal-for-settings.selected-tab-2{ /* CSS Tab */
     overflow-y:visible;
+    width:850px;
 }
 
 .module td.entry-created,

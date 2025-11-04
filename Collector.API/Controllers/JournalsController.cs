@@ -310,6 +310,24 @@ namespace Collector.API.Controllers
                     settings = null;
                 }
 
+                // Load journal layout
+                dynamic layout = null;
+                try
+                {
+                    var layoutFilePath = $"layout_{id}.json";
+                    var layoutContent = Files.GetFile(Files.Paths.Journal, layoutFilePath);
+                    
+                    if (!string.IsNullOrEmpty(layoutContent))
+                    {
+                        layout = JsonSerializer.Deserialize<dynamic>(layoutContent);
+                    }
+                }
+                catch
+                {
+                    // Layout file doesn't exist yet, that's okay
+                    layout = null;
+                }
+
                 var response = new
                 {
                     journal.Id,
@@ -319,7 +337,8 @@ namespace Collector.API.Controllers
                     journal.Created,
                     journal.Status,
                     journal.Modules,
-                    Settings = settings
+                    Settings = settings,
+                    Layout = layout
                 };
 
                 return Json(new ApiResponse { success = true, data = response });
@@ -1245,6 +1264,32 @@ namespace Collector.API.Controllers
                 // Save back to file
                 var jsonContent = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
                 await Files.SaveFileAsync(Files.Paths.Journal, filePath, jsonContent);
+
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("layout/update")]
+        public async Task<IActionResult> UpdateJournalLayout([FromBody] UpdateJournalLayoutModel request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var journal = _journalsRepository.GetById(request.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found or not authorized" });
+
+                var filePath = $"layout_{request.JournalId}.json";
+                
+                // Save the layout string directly
+                await Files.SaveFileAsync(Files.Paths.Journal, filePath, request.Layout);
 
                 return Json(new ApiResponse { success = true });
             }

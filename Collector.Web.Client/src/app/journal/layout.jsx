@@ -439,37 +439,50 @@ export default function JournalLayout({ children }) {
                                         >
                                             {category.journals && category.journals.length > 0 && (
                                                 category.journals.map(journal => (
-                                                    <TreeView
+                                                    <div
                                                         key={`journal-${journal.id}`}
-                                                        label={editingJournalId === journal.id ? 
-                                                            <Input 
-                                                                name={`journal-${journal.id}`}
-                                                                value={editingJournalTitle}
-                                                                onInput={handleJournalTitleChange}
-                                                                onKeyDown={(e) => handleJournalTitleKeyDown(e, journal.id)}
-                                                                onBlur={() => handleJournalTitleBlur(journal.id)}
-                                                                ref={journalTitleInputRef}
-                                                            /> : 
-                                                            <span>{journal.title}</span>
-                                                        }
                                                         className={"treeview-journal" + (journalId == journal.id ? ' selected' : '')}
-                                                        menu={<span className="tool-bar">
-                                                            <button className="icon edit-icon"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleEditJournalTitle(journal.id, journal.title);
-                                                                }}>
-                                                                <Icon name="edit"></Icon>
-                                                            </button>
-                                                        </span>}
-                                                        url={`/journal/${journal.id}`}
-                                                        onClick={() => {
-                                                            if(document.body.classList.contains('is-mobile')){
-                                                                document.querySelector('.sidebar').style.display = 'none';
-                                                            }
-                                                            saveSelectedJournal(journal.id);
-                                                        }}
-                                                    />
+                                                    >
+                                                        <div className="tree-view-header">
+                                                            <div className="tree-view-toggle">
+                                                                <span className="tree-view-spacer"></span>
+                                                            </div>
+                                                            <div
+                                                                className="tree-view-label"
+                                                                onClick={() => {
+                                                                    if(document.body.classList.contains('is-mobile')){
+                                                                        document.querySelector('.sidebar').style.display = 'none';
+                                                                    }
+                                                                    saveSelectedJournal(journal.id);
+                                                                }}
+                                                            >
+                                                                {editingJournalId === journal.id ? 
+                                                                    <Input 
+                                                                        name={`journal-${journal.id}`}
+                                                                        value={editingJournalTitle}
+                                                                        onInput={handleJournalTitleChange}
+                                                                        onKeyDown={(e) => handleJournalTitleKeyDown(e, journal.id)}
+                                                                        onBlur={() => handleJournalTitleBlur(journal.id)}
+                                                                        ref={journalTitleInputRef}
+                                                                    /> : 
+                                                                    <Link to={`/journal/${journal.id}`} className="tree-view-link">
+                                                                        <span>{journal.title}</span>
+                                                                    </Link>
+                                                                }
+                                                            </div>
+                                                            <div className="tree-view-menu">
+                                                                <span className="tool-bar">
+                                                                    <button className="icon edit-icon"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleEditJournalTitle(journal.id, journal.title);
+                                                                        }}>
+                                                                        <Icon name="edit"></Icon>
+                                                                    </button>
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 ))
                                             )}
                                             <div className="tool-bar empty-journals">

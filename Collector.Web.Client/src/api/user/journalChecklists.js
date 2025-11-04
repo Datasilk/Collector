@@ -10,6 +10,7 @@ const JournalChecklists = (args) => Api({...args, useToken:true}).endpoints(({ap
         updateChecklist: (checklist) => api.post(`${apiPath}/update`, checklist),
         updateChecklistTitle: (id, title) => api.post(`${apiPath}/update-title`, { Id: id, Title: title }),
         updateChecklistDescription: (id, description) => api.post(`${apiPath}/update-description`, { Id: id, Description: description }),
+        updateChecklistEntryId: (id, entryId) => api.post(`${apiPath}/update-entry-id`, { Id: id, EntryId: entryId }),
         updateChecklistStatus: (id, status) => api.post(`${apiPath}/update-status`, { Id: id, Status: status }),
         deleteChecklist: (id) => api.delete(`${apiPath}/${id}`),
 

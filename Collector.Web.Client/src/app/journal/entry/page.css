@@ -348,12 +348,12 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
 }
 
 .module-resize-handle.left {
-    left: -0.5em;
+    left: -0.1em;
     background: linear-gradient(to right, #7c62e4, transparent);
 }
 
 .module-resize-handle.right {
-    right: -0.5em;
+    right: -0.1em;
     background: linear-gradient(to left, #7c62e4, transparent);
 }
 
@@ -567,27 +567,37 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
 
 /* text editor styling */
 .entry-modules h1{
-    margin:1em 0 2em 0;
+    margin:0 0 0.4em 0;
+    font-size:3rem;
 }
 .entry-modules h2{
-    margin:0.75em 0 1.5em 0;
+    margin:0 0 0.4em 0;
+    font-size:2.5rem;
 }
 .entry-modules h3{
-    margin:0.5em 0 1em 0;
+    margin:0 0 0.4em 0;
+    font-size:2rem;
 }
 .entry-modules h4{
-    margin:0.25em 0 0.5em 0;
+    margin:0 0 0.25em 0;
+    font-size:1.6rem;
 }
 .entry-modules h5{
-    margin:0.25em 0 0.5em 0;
+    margin:0 0 0.25em 0;
+    font-size:1.2rem;
 }
 .entry-modules h6{
-    margin:0.25em 0 0.5em 0;
+    margin:0 0 0.25em 0;
+    font-size:1rem;
 }
 .entry-modules p{
     margin:0;
     padding:0 0 1em 0;
     min-height:1em;
+}
+
+.ck.ck-editor__editable_inline > *:first-child{
+    margin-top:0;
 }
 
 .entry-modules ul{
@@ -1406,6 +1416,7 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     padding: 12px 16px;
     cursor: pointer;
     border-bottom: 1px solid #f5f5f5;
+    border-left: 3px solid transparent;
 }
 
 .history-dropdown-container .dropdown-item:first-child {
@@ -1430,9 +1441,23 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     color: #666;
 }
 
+.history-dropdown-container .dropdown-item.active {
+    border-left-color: #7763ed;
+    background-color: #f4ecff;
+}
+
+.history-dropdown-container .dropdown-item.active .snapshot-date {
+    color:#7763ed;
+}
+
+.history-dropdown-container .dropdown-item.active:hover {
+    background-color: #f1ebf6;
+}
+
 .history-dropdown-container .snapshot-date .material-symbols-rounded{
     margin:0 0 0 0.5em;
     font-size:1.5em;
+}
 
 .history-dropdown-container .loading-snapshots,
 .history-dropdown-container .no-snapshots {

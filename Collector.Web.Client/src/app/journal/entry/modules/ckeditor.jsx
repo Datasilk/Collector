@@ -351,7 +351,6 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                     'aiGenerator',
                 ],
                 shouldNotGroupWhenFull: true,
-                viewportTopOffset: 160,
                 viewportOffset: { top: 160 }
             },
             plugins: [

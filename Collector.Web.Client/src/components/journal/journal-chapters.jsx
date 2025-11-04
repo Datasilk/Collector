@@ -228,7 +228,7 @@ export default function JournalChapters({ journalId, onChaptersChanged }) {
                                 
                                 return (
                                 <tr
-                                    key={chapter.chapterId}
+                                    key={'journal-' + journalId + 'chapter-' + chapter.chapterId}
                                     draggable
                                     onDragStart={() => handleDragStart(index)}
                                     onDragEnter={() => handleDragEnter(index)}

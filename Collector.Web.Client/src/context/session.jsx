@@ -8,22 +8,40 @@ const SessionContext = React.createContext({});
 const SessionProvider = ({children}) => {
     // context states
     const [user, setUser] = useState(getUser());
+    const [modal, setModal] = useState(null);
 
     // context properties passed to consumer
-    let states = {
-        ...userContext(user, setUser)
+    const context = {
+        ...userContext(user, setUser),
+        modal,
+        setModal
     };
 
     //actions
     const handleLogOut = () => {
-        states.setUser(null);
+        context.setUser(null);
     }
 
-    states.logout = handleLogOut;
+    const showModal = (component, onComplete, onClose) => {
+        context.setModal({component, onComplete, onClose});
+    };
+
+    const hideModal = () => {
+        context.setModal(null);
+    }
+
+    context.logout = handleLogOut;
+    context.showModal = showModal;
+    context.hideModal = hideModal;
+
+    const Modal = modal?.component ?? null;
 
     return (
-        <SessionContext.Provider value={states}>
+        <SessionContext.Provider value={context}>
+            <>
+            {modal && <Modal onComplete={modal.onComplete} onClose={modal.onClose} />}
             {children}
+            </>
         </SessionContext.Provider>
     )
 };

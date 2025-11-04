@@ -16,8 +16,8 @@ const Videos = (args) => Api({...args, useToken:true}).endpoints(({api}) => {
                 transformRequest: [(data) => data],
                 onUploadProgress: (progressEvent) => {
                     if (onProgress && progressEvent.total) {
-                        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-                        onProgress(percentCompleted);
+                        const percentCompleted = Math.round((100 / progressEvent.total) * progressEvent.loaded);
+                        onProgress(percentCompleted, progressEvent);
                     }
                 }
             });

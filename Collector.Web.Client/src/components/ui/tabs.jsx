@@ -1,10 +1,11 @@
 import React, { useState, Children } from "react";
 
-export default function Tabs({ children, tabs, selectedIndex }) {
+export default function Tabs({ children, tabs, selectedIndex, onChange }) {
     const [tabIndex, setIndex] = useState(selectedIndex ?? 0);
 
     const selectTab = (index) => {
         setIndex(index);
+        if(onChange) onChange(index);
     };
 
     return (

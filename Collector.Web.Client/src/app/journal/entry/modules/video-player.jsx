@@ -19,6 +19,8 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
     const [videoUrl, setVideoUrl] = useState('');
     const [isDownloading, setIsDownloading] = useState(false);
     const [downloadProgress, setDownloadProgress] = useState(0);
+    const [downloadTotal, setDownloadTotal] = useState(0);
+    const [downloadLoaded, setDownloadLoaded] = useState(0);
     const [downloadStatus, setDownloadStatus] = useState('');
     const [downloadError, setDownloadError] = useState(null);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -26,13 +28,14 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
 
     //refs
     const fileInputRef = useRef(null);
-    const hubConnectionRef = useRef(null);
+    const moduleRef = useRef(module);
 
     //context
     const session = useSession();
     const { uploadVideo, deleteVideo } = Videos(session);
 
     useEffect(() => {
+        moduleRef.current = module;
         if (!setDeleteListener) return;
         setDeleteListener(module, removeModule);
     }, [module.id]);
@@ -54,8 +57,10 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         setUploadProgress(0);
 
         try {
-            const response = await uploadVideo(journalId, entryId, module.id, file, (progress) => {
+            const response = await uploadVideo(journalId, entryId, module.id, file, (progress, e) => {
                 setUploadProgress(progress);
+                setDownloadLoaded(e.loaded);
+                if(downloadTotal == 0) setDownloadTotal(e.total);
             });
 
             if (response.data.success) {
@@ -104,16 +109,15 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
             // Listen for video record creation (before download starts)
             conn.on('VideoRecordCreated', (data) => {
                 // Update module with video ID and path immediately so entry can be saved
-                if(!data.exists){
-                    onUpdate({
-                        ...module,
-                        videoId: data.id,
-                        videoPath: data.videoPath,
-                        url: videoUrl.trim(),
-                        title: data.title,
-                        downloaded:false
-                    });
-                }
+                moduleRef.current = {
+                    ...moduleRef.current,
+                    videoId: data.id,
+                    videoPath: data.videoPath,
+                    url: videoUrl.trim(),
+                    title: data.title,
+                    downloaded: false
+                };
+                onUpdate(moduleRef.current);
             });
 
             // Listen for download progress
@@ -124,17 +128,16 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
 
             // Listen for download completion
             conn.on('DownloadComplete', (data) => {
+                moduleRef.current = {
+                    ...moduleRef.current,
+                    thumbnailPath: data.thumbnailPath,
+                    downloaded: true
+                };
+                onUpdate(moduleRef.current);
                 setIsDownloading(false);
                 setDownloadProgress(0);
                 setDownloadStatus('');
                 setVideoUrl('');
-
-                // Update module with downloaded video data
-                onUpdate({
-                    ...module,
-                    thumbnailPath: data.thumbnailPath,
-                    downloaded:true
-                });
 
                 // Close connection after download completes
                 conn.stop();
@@ -152,7 +155,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
             });
 
             // Invoke download
-            
+
             conn.invoke('DownloadVideo', videoUrl.trim(), parseInt(journalId), entryId, module.id)
                 .then(() => { })
                 .catch(err => {
@@ -233,7 +236,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                                 type="file"
                                 ref={fileInputRef}
                                 onChange={handleFileChange}
-                                accept="video/*"
+                                accept=".mp4,.mkv,.webm,.ogg,.mov,.avi,.wmv,.flv,.m4v,video/*"
                                 style={{ display: 'none' }}
                             />
                         </div>
@@ -261,7 +264,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                             style={{ width: `${uploadProgress}%` }}
                         />
                         <div className="progress-text">
-                            {uploadProgress === 100 ? 'Processing Video...' : uploadProgress + '%'}
+                            {uploadProgress === 100 ? 'Processing Video...' : uploadProgress + '% (' + (downloadLoaded / 1048576).toFixed(2) + 'MB / ' + (downloadTotal / 1048576).toFixed(2) + 'MB)'}
                         </div>
                     </div>
                 </div>

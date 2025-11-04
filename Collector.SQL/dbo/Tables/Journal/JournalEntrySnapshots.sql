@@ -1,6 +1,6 @@
 CREATE TABLE [dbo].[JournalEntrySnapshots]
 (
-	[Id] INT NOT NULL PRIMARY KEY IDENTITY(1,1),
+	[Id] INT NOT NULL PRIMARY KEY DEFAULT (NEXT VALUE FOR [dbo].[SequenceJournalEntrySnapshots]),
     [EntryId] UNIQUEIDENTIFIER NOT NULL, 
     [JournalId] INT NOT NULL, 
     [ChapterId] INT NULL, 

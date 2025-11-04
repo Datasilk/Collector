@@ -1,6 +1,6 @@
-﻿CREATE TABLE [dbo].[JournalImages]
+CREATE TABLE [dbo].[JournalImages]
 (
-	[Id] INT NOT NULL PRIMARY KEY IDENTITY(1,1),
+	[Id] INT NOT NULL PRIMARY KEY DEFAULT (NEXT VALUE FOR [dbo].[SequenceJournalImages]),
 	[JournalId] INT NOT NULL, 
     [JournalEntryId] UNIQUEIDENTIFIER NOT NULL, 
     [ModuleId] NVARCHAR(16) NOT NULL,

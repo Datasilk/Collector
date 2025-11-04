@@ -33,7 +33,8 @@ export default function ModuleList({
     onPinModule,
     onUnPinModule,
     modulesRegistry = null,
-    containerId = 'main'
+    containerId = 'main',
+    fromSnapshotId = null
 }) {
     // context
     const session = useSession();
@@ -895,7 +896,7 @@ export default function ModuleList({
                                                         >
                                                             {modules.map(moduleOption => (
                                                                 <div
-                                                                    key={moduleOption.id}
+                                                                    key={'module-' + module.id + '-' + moduleOption.id}
                                                                     className="module-option"
                                                                     onClick={() => addModuleAbove(moduleOption.type)}
                                                                 >
@@ -919,7 +920,7 @@ export default function ModuleList({
                                             {filteredButtons && ( //module-defined buttons
                                                 filteredButtons.buttons.map((button, index) => {
                                                     return (
-                                                        <button key={'usertab_' + module.id + '_' + index} className="icon" onClick={() => button.callback()} title={button.title}>
+                                                        <button key={'module-' + module.id + '-usertab-' + module.id + '_' + index} className="icon" onClick={() => button.callback()} title={button.title}>
                                                             <Icon name={button.icon} />
                                                         </button>
                                                     );
@@ -944,6 +945,7 @@ export default function ModuleList({
                             manuallyAdded={module.manuallyAdded}
                             tabButtons={(buttons) => handleSetTabButtons(buttons, module.id)}
                             setDeleteListener={handleDeleteListener}
+                            fromSnapshotId={fromSnapshotId}
                         />
                     </div>
                 )

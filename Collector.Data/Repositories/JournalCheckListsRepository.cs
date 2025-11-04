@@ -126,6 +126,13 @@ namespace Collector.Data.Repositories
             return rowsAffected > 0;
         }
 
+        public async Task<bool> UpdateEntryId(int id, Guid entryId)
+        {
+            var sql = @"UPDATE JournalCheckLists SET EntryId = @EntryId WHERE Id = @Id";
+            var rowsAffected = await _db.ExecuteAsync(sql, new { Id = id, EntryId = entryId });
+            return rowsAffected > 0;
+        }
+
         public async Task<bool> Delete(int id)
         {
             var sql = @"DELETE FROM JournalCheckLists WHERE Id = @Id";

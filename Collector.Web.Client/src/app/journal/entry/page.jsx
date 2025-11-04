@@ -23,7 +23,7 @@ import modules from './modules';
  */
 export default function JournalEntryPage() {
     //context
-    const { journalId, entryId } = useParams();
+    const { journalId, entryId, snapshotId } = useParams();
     const navigate = useNavigate();
     const session = useSession();
 
@@ -47,6 +47,7 @@ export default function JournalEntryPage() {
     const [showCreateSnapshotModal, setShowCreateSnapshotModal] = useState(false);
     const [showSnapshotCreatedModal, setShowSnapshotCreatedModal] = useState(false);
     const [loadingSnapshots, setLoadingSnapshots] = useState(false);
+    const [fromSnapshotId, setFromSnapshotId] = useState(null);
 
     // refs
     const entryRef = useRef(null);
@@ -64,14 +65,14 @@ export default function JournalEntryPage() {
 
     //apis
     const { addEntry, renameEntry, getChapters } = Journals(session);
-    const { getSnapshotsByEntry, createSnapshot } = JournalSnapshots(session);
+    const { getSnapshotsByEntry, getSnapshot, createSnapshot } = JournalSnapshots(session);
 
     //effect
     useEffect(() => {
         if (!entry || entry.id != entryId && entryId != 'new') {
             fetchEntryDetails();
-            
-        // Load chapters
+
+            // Load chapters
             getChapters(journalId).then(response => {
                 if (response.data?.success && response.data.data) {
                     setChapters(response.data.data);
@@ -80,7 +81,7 @@ export default function JournalEntryPage() {
         }
         //scroll to top of page
         window.scrollTo(0, 0);
-    }, [journalId, entryId]);
+    }, [journalId, entryId, snapshotId]);
 
     useEffect(() => {
         if (isTitleEditing && titleInputRef.current) {
@@ -176,6 +177,49 @@ export default function JournalEntryPage() {
                 };
                 setEntryJson(newEntryJson);
                 entryJsonRef.current = newEntryJson;
+            } else if (snapshotId) {
+                // Load snapshot data
+                const snapshotResponse = await getSnapshot(snapshotId);
+                if (!snapshotResponse.data.success) {
+                    setError(snapshotResponse.data.message || 'Failed to load snapshot');
+                    setLoading(false);
+                    return;
+                }
+
+                const snapshotData = snapshotResponse.data.data;
+
+                // Set fromSnapshotId to indicate we're viewing a snapshot
+                setFromSnapshotId(parseInt(snapshotId));
+                // Set entry data from snapshot
+                const snapshotEntry = {
+                    id: snapshotData.entryId,
+                    journalId: snapshotData.journalId,
+                    title: snapshotData.title,
+                    description: snapshotData.description,
+                    created: snapshotData.created,
+                    modified: snapshotData.modified,
+                    status: snapshotData.status
+                };
+                setEntry(snapshotEntry);
+                entryRef.current = snapshotEntry;
+                setEditedTitle(snapshotData.title);
+                setEditedDescription(snapshotData.description);
+
+                // Parse and set snapshot content
+                try {
+                    const contentJson = JSON.parse(snapshotData.content || '{}');
+                    contentJson.modules?.forEach(module => {
+                        delete module.manuallyAdded;
+                        if (module.id == null) module.id = generateRandomId();
+                    });
+                    setEntryJson(contentJson || { modules: [] });
+                    entryJsonRef.current = contentJson || { modules: [] };
+                } catch (parseErr) {
+                    console.error('Error parsing snapshot content JSON:', parseErr);
+                }
+
+                // Disable editing for snapshots
+                setIsEditing(false);
             } else {
                 // Get existing entry data
                 const entryResponse = await api.getEntry(entryId);
@@ -200,7 +244,7 @@ export default function JournalEntryPage() {
                             contentJson.modules.forEach(module => {
                                 //remove unneccessary properties
                                 delete module.manuallyAdded;
-                                if(module.id == null) module.id = generateRandomId();
+                                if (module.id == null) module.id = generateRandomId();
                             });
                             setEntryJson(contentJson || { modules: [] });
                             entryJsonRef.current = contentJson || { modules: [] };
@@ -436,11 +480,11 @@ export default function JournalEntryPage() {
         }
     };
 
-    const handleUpdatedModule = (module) => {
+    const handleUpdatedModule = (updatedModule) => {
         const modules = entryJsonRef.current.modules;
-        const index = modules.findIndex(a => a.id == module.id);
+        const index = modules.findIndex(a => a.id == updatedModule.id);
         if (index > -1) {
-            modules[index] = module;
+            modules[index] = updatedModule;
             setEntryJson({ ...entryJsonRef.current, modules });
             entryJsonRef.current = { ...entryJsonRef.current, modules };
             saveEntryContent({ ...entryJsonRef.current, modules });
@@ -552,7 +596,15 @@ export default function JournalEntryPage() {
     };
 
     const handleSnapshotClick = (snapshot) => {
-        // TODO: Implement viewing snapshot details
+        setShowHistoryDropdown(false);
+        // Navigate to snapshot route
+        navigate(`/journal/${journalId}/entry/${entryId}/snapshot/${snapshot.id}`);
+    };
+
+    const handleViewLatestVersion = () => {
+        setShowHistoryDropdown(false);
+        // Navigate to entry without snapshot
+        navigate(`/journal/${journalId}/entry/${entryId}`);
     };
 
     const formatSnapshotDate = (dateString) => {
@@ -684,8 +736,8 @@ export default function JournalEntryPage() {
                             label="Edit"
                         />
                         <div className="right-side history-dropdown-container">
-                            <button 
-                                className="icon" 
+                            <button
+                                className="icon"
                                 onClick={handleToggleHistoryDropdown}
                                 ref={historyButtonRef}
                                 title="View snapshot history"
@@ -694,12 +746,13 @@ export default function JournalEntryPage() {
                             </button>
                             {showHistoryDropdown && (
                                 <div className="dropdown-menu" ref={historyDropdownRef}>
-                                    <div 
-                                        className="dropdown-item" 
+                                    <div className="tool-bar pad-sm">
+                                    <button
                                         onClick={handleCreateSnapshotClick}
                                         title="Record the current state of this journal entry for historical records"
                                     >
                                         <Icon name="add" /> Create Snapshot
+                                    </button>
                                     </div>
                                     {loadingSnapshots ? (
                                         <div className="loading-snapshots">
@@ -710,18 +763,32 @@ export default function JournalEntryPage() {
                                             No snapshots yet
                                         </div>
                                     ) : (
-                                        snapshots.map(snapshot => (
-                                            <div 
-                                                key={snapshot.id}
-                                                className="dropdown-item"
-                                                onClick={() => handleSnapshotClick(snapshot)}
-                                            >
-                                                <div className="snapshot-date">
-                                                    {formatSnapshotDate(snapshot.createdSnapshot)}
-                                                    <Icon name="history" />
+                                        <>
+                                            {fromSnapshotId && (
+                                                <div
+                                                    className="dropdown-item"
+                                                    onClick={handleViewLatestVersion}
+                                                    title="View the current version of this entry"
+                                                >
+                                                    <div className="snapshot-date">
+                                                        View Latest Version
+                                                        <Icon name="today" />
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))
+                                            )}
+                                            {snapshots.map(snapshot => (
+                                                <div
+                                                    key={snapshot.id}
+                                                    className={`dropdown-item ${fromSnapshotId === snapshot.id ? 'active' : ''}`}
+                                                    onClick={() => handleSnapshotClick(snapshot)}
+                                                >
+                                                    <div className="snapshot-date">
+                                                        {formatSnapshotDate(snapshot.createdSnapshot)}
+                                                        <Icon name="history" />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </>
                                     )}
                                 </div>
                             )}
@@ -837,6 +904,7 @@ export default function JournalEntryPage() {
                         addedModule={handleAddedModule}
                         removedModule={handleRemovedModule}
                         droppedModule={handleDroppedModule}
+                        fromSnapshotId={fromSnapshotId}
                     />
                 )}
 

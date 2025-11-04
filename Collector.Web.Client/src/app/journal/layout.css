@@ -3,7 +3,7 @@
 }
 
 .journal-layout .sidebar {
-    width: 280px;
+    width: 320px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -62,47 +62,51 @@
     margin-right: 6px;
 }
 
-.journal-layout .journal-tree {
+.journal-tree {
     margin-top: 15px;
 }
 
-.journal-layout .journal-tree .tree-view {
+.journal-tree .tree-view {
     margin-bottom:0.5em;
 }
 
-.journal-layout .journal-tree .treeview-category .tree-view-header {
+.journal-tree .treeview-category .tree-view-header {
     background-color: #dedbf4;
     padding:0.25em 0.25em 0.25em 0.5em;
 }
 
-.journal-layout .journal-tree .treeview-category > .tree-view-item > .tree-view-header:hover {
+.journal-tree .treeview-category > .tree-view-item:hover {
     background-color: #cfc8ff;
 }
 
-.journal-layout .journal-tree .treeview-category .edit-icon{
+.journal-tree .treeview-category > .tree-view-item > .tree-view-header:hover {
+    background-color: #cfc8ff;
+}
+
+.journal-tree .treeview-category .edit-icon{
     line-height:0;
     padding:0.65em 1em 0.55em 1em;
 }
 
-.journal-layout .journal-tree .treeview-category .tree-view-menu{
+.journal-tree .treeview-category .tree-view-menu{
     opacity:0.5;
 }
 
-.journal-layout .journal-tree .treeview-category .tree-view-header:hover .tree-view-menu{
+.journal-tree .treeview-category .tree-view-header:hover .tree-view-menu{
     opacity:1;
 }
 
-.journal-layout .journal-tree .treeview-category .tree-view-header input{
+.journal-tree .treeview-category .tree-view-header input{
     width:100%;
     padding:0.25em 0.5em;
 }
 
-.journal-layout .journal-tree .treeview-journal .tree-view-header {
+.journal-tree .treeview-journal .tree-view-header {
     background-color: #f5f5f5;
     padding:0.25em;
 }
 
-.journal-layout .journal-tree .treeview-journal.selected .tree-view-header:before {
+.journal-tree .treeview-journal.selected .tree-view-header:before {
     content: "";
     position: absolute;
     top: 0;
@@ -112,17 +116,17 @@
     background-color: #7763ed;
 }
 
-.journal-layout .journal-tree .treeview-journal .tree-view-label:hover a{
+.journal-tree .treeview-journal .tree-view-label:hover a{
     text-decoration:underline;
 }
 
-.journal-layout .journal-tree .tree-view-icon {
+.journal-tree .tree-view-icon {
     background-color: #c3bcf4;
     color:#555;
     font-size:1.25em;
 }
 
-.journal-layout .journal-tree .tree-view-icon:hover {
+.journal-tree .tree-view-icon:hover {
     background-color: #a395ff;
     color:#555;
 }

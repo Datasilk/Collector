@@ -178,13 +178,10 @@ namespace Collector.API.Controllers
                 var fileName = $"{Guid.NewGuid()}{fileExtension}";
                 var relativePath = Path.Combine(entryId, fileName);
                 
-                // Save video file
-                using (var memoryStream = new MemoryStream())
+                // Save video file by streaming directly to disk (optimized for large files)
+                using (var stream = file.OpenReadStream())
                 {
-                    await file.CopyToAsync(memoryStream);
-                    var fileBytes = memoryStream.ToArray();
-                    
-                    var success = Files.SaveFileBytes(Files.Paths.Videos, relativePath, fileBytes);
+                    var success = await Files.SaveFileStreamAsync(Files.Paths.Videos, relativePath, stream);
                     if (!success)
                     {
                         return Json(new ApiResponse { success = false, message = "Failed to save video" });

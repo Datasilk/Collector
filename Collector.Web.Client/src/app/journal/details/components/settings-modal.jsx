@@ -16,6 +16,7 @@ export default function JournalSettingsModal({ journal, onClose, onSaved }) {
     const [originalCss, setOriginalCss] = useState('');
     const [saving, setSaving] = useState(false);
     const [theme] = useState('vs-dark');
+    const [selectedTab, setSelectedTab] = useState(0);
 
     useEffect(() => {
         if (journal) {
@@ -113,9 +114,9 @@ export default function JournalSettingsModal({ journal, onClose, onSaved }) {
     const hasCSSChanges = cssCode !== originalCss;
 
     return (
-        <Modal onClose={onClose} title="Journal Settings" className="modal-for-settings">
+        <Modal onClose={onClose} title="Journal Settings" className={"modal-for-settings selected-tab-" + selectedTab}>
             <div className="journal-settings-modal">
-                <Tabs tabs={['Details', 'Chapters', 'CSS']} selectedIndex={0}>
+                <Tabs tabs={['Details', 'Chapters', 'CSS']} selectedIndex={0} onChange={setSelectedTab}>
                     {/* Details Tab */}
                     <div className="tab-details">
                         <div className="form-group">

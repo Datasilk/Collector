@@ -53,20 +53,20 @@ builder.Services.Configure<RouteOptions>(options => options.LowercaseUrls = true
 builder.AddApiStartupService();
 builder.AddAuthService();
 
-// Configure request limits for large file uploads
+// Configure request limits for large file uploads (5GB for video files)
 builder.Services.Configure<IISServerOptions>(options =>
 {
-    options.MaxRequestBodySize = 1048576 * 10; // 10 MB
+    options.MaxRequestBodySize = 5368709120; // 5 GB
 });
 builder.Services.Configure<Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions>(options =>
 {
-    options.Limits.MaxRequestBodySize = 1048576 * 10; // 10 MB
+    options.Limits.MaxRequestBodySize = 5368709120; // 5 GB
 });
 builder.Services.Configure<FormOptions>(options =>
 {
-    options.ValueLengthLimit = 1048576 * 10; // 10 MB
-    options.MultipartBodyLengthLimit = 1048576 * 10; // 10 MB
-    options.MultipartHeadersLengthLimit = 1048576 * 10; // 10 MB
+    options.ValueLengthLimit = int.MaxValue;
+    options.MultipartBodyLengthLimit = 5368709120; // 5 GB
+    options.MultipartHeadersLengthLimit = int.MaxValue;
 });
 
 //Add Swagger

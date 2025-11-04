@@ -322,6 +322,13 @@
     <Build Include="dbo\Tables\Journal\JournalImages.sql" />
     <Build Include="dbo\Tables\Journal\JournalVideos.sql" />
     <Build Include="dbo\Tables\Journal\JournalEntrySnapshots.sql" />
+    <Build Include="dbo\Sequences\SequenceJournalCategories.sql" />
+    <Build Include="dbo\Sequences\SequenceJournalCheckListItems.sql" />
+    <Build Include="dbo\Sequences\SequenceJournalCheckLists.sql" />
+    <Build Include="dbo\Sequences\SequenceJournalEntrySnapshots.sql" />
+    <Build Include="dbo\Sequences\SequenceJournalImages.sql" />
+    <Build Include="dbo\Sequences\SequenceJournals.sql" />
+    <Build Include="dbo\Sequences\SequenceJournalVideos.sql" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Collector.SQL.publish.xml" />

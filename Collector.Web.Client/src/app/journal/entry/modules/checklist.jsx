@@ -10,11 +10,34 @@ import { useSession } from '@/context/session';
 //api
 import { JournalChecklists } from '@/api/user/journalChecklists';
 
-export default function ChecklistModule({ module, onUpdate, isEditable = true, manuallyAdded = false, tabButtons }) {
+export default function ChecklistModule({ module, entryId, onUpdate, isEditable = true, manuallyAdded = false, tabButtons, fromSnapshotId = null }) {
     //state
-    const [checklistId, setChecklistId] = useState(module.checklistId);
+    const getChecklistId = (id) => {
+        switch (id) {
+            case 'new':
+                return null;
+            case 2002:
+                return 7;
+            case 2004:
+                return 11;
+            case 2008:
+                return 10;
+            case 15:
+                return 16;
+            case 3010:
+                return 18;
+            case 3011:
+                return 19;
+            case 3012:
+                return 20;
+            default:
+                return id;
+        }
+    }
+    const [checklistId, setChecklistId] = useState(getChecklistId(module.checklistId));
+    const [checklistEntryId, setChecklistEntryId] = useState(null);
     const [mounted, setMounted] = useState(false);
-    const [items, setItems] = useState([]);
+    const [items, setItems] = useState(null);
     const [editingItemId, setEditingItemId] = useState(null);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
     const [checklistTitle, setChecklistTitle] = useState('');
@@ -38,6 +61,7 @@ export default function ChecklistModule({ module, onUpdate, isEditable = true, m
         updateChecklistItemStatus,
         updateChecklistTitle,
         updateChecklistDescription,
+        updateChecklistEntryId,
         resortChecklistItems
     } = JournalChecklists(session);
 
@@ -45,15 +69,31 @@ export default function ChecklistModule({ module, onUpdate, isEditable = true, m
     useEffect(() => {
         if (mounted) return;
         setMounted(true);
-        if (checklistId) {
-            getChecklist(checklistId).then(response => {
-                if (response.data.success) {
-                    const checklist = response.data.data;
-                    setItems(checklist.items);
-                    setChecklistTitle(checklist.title || '');
-                    setChecklistDescription(checklist.description || '');
-                }
-            });
+        if (checklistId && items == null) {
+            // If viewing from snapshot, load from module.checklist instead of API
+            if (fromSnapshotId && module.checklist) {
+                setItems(module.checklist.items || []);
+                setChecklistTitle(module.checklist.title || '');
+                setChecklistDescription(module.checklist.description || '');
+            } else {
+                // Load from API for current/live entries
+                getChecklist(checklistId).then(response => {
+                    if (response.data.success) {
+                        const checklist = response.data.data;
+                        setItems(checklist.items);
+                        setChecklistEntryId(checklist.entryId);
+                        setChecklistTitle(checklist.title || '');
+                        setChecklistDescription(checklist.description || '');
+                        // Update module with loaded checklist data
+                        if(entryId && module.checklist == null){
+                            onUpdate({ ...module, checklistId: checklistId, checklist: { items: checklist.items, title: checklist.title || '', description: checklist.description || '' } });
+                        }
+                        if (entryId && checklist.entryId != entryId) {
+                            updateChecklistEntryId(checklistId, entryId);
+                        }
+                    }
+                });
+            }
         }
         tabButtons([
             {
@@ -69,11 +109,18 @@ export default function ChecklistModule({ module, onUpdate, isEditable = true, m
         const isNew = !checklistId;
         var id = checklistId;
         if (!checklistId) {
-            const response = await addChecklist({ EntryId: module.entryId, Title: '' });
+            const response = await addChecklist({ EntryId: entryId, Title: '' });
             if (response.data.success) {
                 id = response.data.data;
                 setChecklistId(id);
                 onUpdate({ ...module, checklistId: id });
+            }
+        }
+        //if entryId is null, save entryId to checklist
+        if (!checklistEntryId && id) {
+            const response = await updateChecklistEntryId(id, entryId);
+            if (response.data.success) {
+                setChecklistEntryId(entryId);
             }
         }
         if (!id) {
@@ -83,7 +130,10 @@ export default function ChecklistModule({ module, onUpdate, isEditable = true, m
         const response = await addChecklistItem({ CheckListId: id, Title: 'New task' });
         if (response.data.success) {
             const newItem = response.data.data;
-            setItems([...items, newItem]);
+            const updatedItems = [...(items || []), newItem];
+            setItems(updatedItems);
+            // Update module with new checklist data
+            onUpdate({ ...module, checklistId: id, checklist: { items: updatedItems, title: checklistTitle, description: checklistDescription } });
             // Start editing the new item immediately
             setEditingItemId(newItem.id);
         }
@@ -103,18 +153,10 @@ export default function ChecklistModule({ module, onUpdate, isEditable = true, m
                     i.id === item.id ? { ...i, status: newStatus } : i
                 );
                 setItems(updatedItems);
+                // Update module with new checklist data
+                onUpdate({ ...module, checklist: { items: updatedItems, title: checklistTitle, description: checklistDescription } });
             }
         });
-    };
-
-    const handleItemTitleChange = (item, newTitle) => {
-        // Clear any existing timer
-        if (debounceTimer.current) {
-            clearTimeout(debounceTimer.current);
-        }
-
-        // Create a new timer
-        debounceTimer.current = setTimeout(() => handleUpdateChecklistItemTitle(item.id, newTitle), 1500); // 500ms debounce delay
     };
 
     const getSelectedItem = () => {
@@ -141,6 +183,8 @@ export default function ChecklistModule({ module, onUpdate, isEditable = true, m
                     i.id === id ? { ...i, title: title } : i
                 );
                 setItems(updatedItems);
+                // Update module with new checklist data
+                onUpdate({ ...module, checklist: { items: updatedItems, title: checklistTitle, description: checklistDescription } });
             }
         });
     }
@@ -150,10 +194,13 @@ export default function ChecklistModule({ module, onUpdate, isEditable = true, m
             i.id === item.id ? { ...i, title: e.target.value } : i
         );
         setItems(updatedItems);
-        handleItemTitleChange(item, e.target.value);
     }
 
     const handleInputBlur = () => {
+        const item = getSelectedItem();
+        if (item) {
+            handleUpdateChecklistItemTitle(item.id, item.title);
+        }
         setEditingItemId(null);
     };
 
@@ -230,6 +277,8 @@ export default function ChecklistModule({ module, onUpdate, isEditable = true, m
         }));
 
         setItems(itemsWithSort);
+        // Update module with new checklist data
+        onUpdate({ ...module, checklist: { items: itemsWithSort, title: checklistTitle, description: checklistDescription } });
 
         // Only send items that changed their sort order
         const minIndex = Math.min(draggedIndex, dropIndex);
@@ -301,6 +350,8 @@ export default function ChecklistModule({ module, onUpdate, isEditable = true, m
             await updateChecklistDescription(checklistId, tempDescription);
             setChecklistTitle(tempTitle);
             setChecklistDescription(tempDescription);
+            // Update module with new checklist data
+            onUpdate({ ...module, checklist: { items: items, title: tempTitle, description: tempDescription } });
             setShowSettingsModal(false);
         } catch (err) {
             console.error('Error saving checklist settings:', err);

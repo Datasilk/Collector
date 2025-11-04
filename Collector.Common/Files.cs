@@ -221,6 +221,44 @@ namespace Collector.Common
             return await Task.Run(() => SaveFileBytes(path, relativePath, content));
         }
 
+        /// <summary>
+        /// Asynchronously saves a stream to a file in the application content directory
+        /// This method is optimized for large files as it streams directly to disk without loading into memory
+        /// </summary>
+        /// <param name="path">the sub folder within the Content directory to use</param>
+        /// <param name="relativePath">Relative path to the file within the Content sub folder</param>
+        /// <param name="stream">The stream to save to the file</param>
+        /// <returns>True if the file was saved successfully, false otherwise</returns>
+        public static async Task<bool> SaveFileStreamAsync(Paths path, string relativePath, Stream stream)
+        {
+            try
+            {
+                // Combine with Content directory and the relative path
+                if(string.IsNullOrEmpty(GetPath(path))) throw new Exception("Path not found");
+                var fullPath = Path.Combine(GetPath(path), relativePath);
+                
+                // Create directory if it doesn't exist
+                var directory = Path.GetDirectoryName(fullPath);
+                if (!Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+                
+                // Stream the content directly to the file
+                using (var fileStream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, useAsync: true))
+                {
+                    await stream.CopyToAsync(fileStream);
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                // Log the exception if needed
+                Console.WriteLine($"Error saving file stream: {ex.Message}");
+                return false;
+            }
+        }
+
         
         /// <summary>
         /// Deletes a file from the application content directory

@@ -179,6 +179,33 @@ namespace Collector.API.Controllers
             }
         }
 
+        [HttpPost("update-entry-id")]
+        public async Task<IActionResult> UpdateEntryId([FromBody] UpdateCheckListEntryIdModel model)
+        {
+            try
+            {
+                var checkList = await _checkListsRepo.GetById(model.Id);
+                if (checkList == null)
+                {
+                    return Json(new ApiResponse { success = false, message = "Checklist not found" });
+                }
+
+                // Verify user has access to this checklist
+                var userId = GetUserId();
+                if (checkList.AppUserId != userId)
+                {
+                    return Json(new ApiResponse { success = false, message = "Access denied" });
+                }
+
+                var success = await _checkListsRepo.UpdateEntryId(model.Id, model.EntryId);
+                return Json(new ApiResponse { success = success });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
         [HttpPost("update-status")]
         public async Task<IActionResult> UpdateStatus([FromBody] UpdateStatusModel model)
         {
