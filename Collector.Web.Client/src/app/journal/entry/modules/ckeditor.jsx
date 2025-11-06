@@ -50,7 +50,8 @@ import {
     TextTransformation,
     Underline,
     Plugin,
-    ButtonView
+    ButtonView,
+    UpcastWriter
 } from 'ckeditor5';
 import 'ckeditor5/ckeditor5.css';
 import { LineHeight } from '@rickx/ckeditor5-line-height'
@@ -59,6 +60,7 @@ import defineAIGeneratorPlugin from './ckeditor/ai-generator';
 import AIGeneratorModal from './ckeditor/ai-generator-modal';
 //helpers
 import { fonts } from '@/helpers/fonts';
+import { useSession } from '@/context/session';
 
 
 export default function CKEditorModule({ module, onUpdate, isEditable = true, manuallyAdded = false }) {
@@ -75,6 +77,9 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
     const inModal = useRef(false);
     const isEditorActive = useRef(false);
     const defaultHtml = '<p>Type or paste your content here!</p>';
+
+    //context
+    const session = useSession();
 
     //effect
     useEffect(() => {
@@ -461,6 +466,10 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                     }
                 ]
             },
+            clipboard: {
+                // Strip all formatting on paste
+                contentInsertion: 'plainText'
+            },
             initialData: initialData,
             startupFocus: true,
             licenseKey: LICENSE_KEY,
@@ -592,6 +601,50 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                 elem.innerHTML = '';
                 elem.appendChild(container);
 
+                // Strip all DOM element attributes on paste
+                editor.plugins.get('ClipboardPipeline').on('inputTransformation', (evt, data) => {
+                    const writer = new UpcastWriter(editor.editing.view.document);
+
+                    // Recursive function to remove all attributes from elements
+                    const removeAllAttributes = (element) => {
+                        if (!element) return;
+                        try {
+                            // Get all attribute keys and remove them
+                            if (element.getAttributeKeys) {
+                                const attributes = Array.from(element.getAttributeKeys());
+                                attributes.forEach(attr => {
+                                    writer.removeAttribute(attr, element);
+                                });
+                            }
+                        }
+                        catch (err) {
+                            console.error('Error removing attributes:', err);
+                        }
+
+                        try {
+                            // Recursively process all children
+                            if (element.getChildren) {
+                                for (const child of element.getChildren()) {
+                                    removeAllAttributes(child);
+                                }
+                            }
+                        }
+                        catch (err) {
+                            console.error('Error removing attributes:', err);
+                        }
+                    };
+
+                    // Process all top-level items in the pasted content
+                    for (const item of data.content.getChildren()) {
+                        try {
+                            removeAllAttributes(item);
+                        }
+                        catch (err) {
+                            console.error('Error removing attributes:', err);
+                        }
+                    }
+                });
+
                 editor.model.document.on('change:data', handleDataChange);
                 editor.editing.view.document.on('keydown', handleKeyDown);
                 editor.focus();
@@ -611,6 +664,7 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
             editorRef.current = null;
             loadHtml();
         }
+        session.hideModal();
         setShowToolbar(false);
         addEditorEventListeners();
     };
@@ -632,6 +686,7 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
         const ckeditorDiv = document.querySelector(`.module-id-${module.id} .ck.ck-content`);
         if (!ckeditorDiv) return;
         inModal.current = true; // Set inModal ref to true when opening modal
+        session.showModal(<AIGeneratorModal module={module} onClose={handleCloseAIModal} onGenerated={handleContentGenerated} />);
         setShowAIModal(true);
         disableEditorEvents();
     };
@@ -662,11 +717,6 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
     return (
         <>
             <div className={"text-editor" + (showToolbar ? ' active' : '')}><div className="text"></div></div>
-            {showAIModal && <AIGeneratorModal
-                module={module}
-                onClose={handleCloseAIModal}
-                onGenerated={handleContentGenerated}
-            />}
         </>
     );
 }

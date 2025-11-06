@@ -110,13 +110,26 @@ export default function ModuleList({
         const listener = deleteListenersRef.current.find(listener => listener.moduleId == moduleId);
         if (listener) {
             // Wait for the callback promise to resolve (e.g., user confirmation)
-            const moduleItem = entryJson.modules.find(module => module.id == moduleId);
-            listener.callback(moduleItem, () => {
-                deleteListenersRef.current = deleteListenersRef.current.filter(listener => listener.moduleId != moduleId);
-                removedModule(moduleId); //notify parent
-            });
-        }else if (removedModule) {
-            removedModule(moduleId); //notify parent
+            const moduleItem = findModuleInHierarchy(entryJson.modules, moduleId);
+            if (!moduleItem) {
+                console.error(`Module with id ${moduleId} not found in hierarchy`);
+                return;
+            }
+            listener.callback(moduleItem);
+            //remove listener from list
+            deleteListenersRef.current = deleteListenersRef.current.filter(listener => listener.moduleId != moduleId);
+
+            // Use removeModuleFromHierarchy to remove the module
+            const updatedModules = removeModuleFromHierarchy(entryJson.modules, moduleId);
+
+            if (removedModule) {
+                //notify parent with updated modules
+                removedModule(moduleId, updatedModules); 
+            }
+        } else if (removedModule) {
+            // Use removeModuleFromHierarchy to remove the module
+            const updatedModules = removeModuleFromHierarchy(entryJson.modules, moduleId);
+            removedModule(moduleId, updatedModules); //notify parent with updated modules
         }
     };
 
@@ -495,16 +508,21 @@ export default function ModuleList({
             e.preventDefault();
             return;
         }
+        // Remove event listener
+        document.removeEventListener('drop', handleDrop);
         e.stopPropagation();
         // Try to get drag data for cross-container drops
         let dragData = window.dragData;
         // Handle cross-container drop
-
         if (dragData && dragData.sourceContainerId != window.dragOverContainerId) {
             // If dropping into a nested container (tab or module-list)
             let newModules = [...entryJson.modules];
             const dropIndex = dropIndexRef.current !== undefined ? dropIndexRef.current : newModules.length;
 
+
+            //remove module from source container
+            newModules = removeModuleFromHierarchy(newModules, dragData.moduleId);
+            
             if (window.dragOverContainerId == 'main') {
                 // Dropping into main container
                 newModules.splice(dropIndex, 0, dragData.module);
@@ -514,13 +532,6 @@ export default function ModuleList({
                 const allContainers = getModuleHierarchyFromNode(dropContainer);
                 const allContainerModules = getAllContainerModules(allContainers);
                 newModules = addModuleToHierarchy(newModules, allContainerModules, dragData.module, dropIndex);
-            }
-
-            //remove module from source container
-            if (dragData.sourceContainerId == 'main') {
-                newModules = newModules.filter(m => m.id != dragData.moduleId);
-            } else {
-                newModules = removeModuleFromHierarchy(newModules, dragData.allContainerModules, dragData.moduleId);
             }
 
             // Update this container
@@ -557,22 +568,7 @@ export default function ModuleList({
             // Update the entry JSON with new module order
             if (droppedModule) {
                 const updatedEntryJson = { ...entryJson, modules: newModules };
-                droppedModule(updatedEntryJson);
-            }
-
-            // Call API to resort modules in the database
-            if (journalId) {
-                try {
-                    const api = Journals(session);
-                    const modulesToSort = newModules.map(m => ({
-                        JournalEntryId: m.entryId || entryId,
-                        ModuleId: String(m.id)
-                    }));
-
-                    await api.resortModules(parseInt(journalId, 10), modulesToSort);
-                } catch (err) {
-                    console.error('Error resorting modules:', err);
-                }
+                droppedModule(updatedEntryJson, newModules);
             }
         }
 
@@ -631,16 +627,16 @@ export default function ModuleList({
         while (node && !node.classList?.contains('entry-modules')) {
             node = node.parentNode;
         }
-        const containerId = node?.getAttribute('data-id');
+        const containerId = node?.getAttribute('data-id') ?? 'main';
+        if(containerId == 'main') node = document.querySelector('.container-main');
         // Only handle if dragging over the container itself, not over a module
-        if (containerId) {
-            //find parent module
+        //find parent module
             let moduleNode = node;
             while (moduleNode && !moduleNode.classList?.contains('module')) {
                 moduleNode = moduleNode.parentNode;
             }
             if (moduleNode || containerId == 'main') {
-                const id = moduleNode?.getAttribute('data-id') || null;
+                const id = moduleNode?.getAttribute('data-id') || 'main';
                 if (window.dragOverContainerModuleId == id && window.dragOverContainerId == containerId) return;
                 window.dragOverContainerModuleId = id;
                 window.dragOverContainerId = containerId;
@@ -653,11 +649,38 @@ export default function ModuleList({
                 // Add drag-over-container class to current container
                 node.classList.add('drag-over-container');
             }
-        }
     };
     //#endregion
 
-    //#region Add/Remove Module in Hierarchy
+    //#region Add/Remove/Update Module in Hierarchy
+
+    const findModuleInHierarchy = (modules, moduleIdToFind) => {
+        // Recursive function to search for a module at any level
+        for (const module of modules) {
+            if (module.id == moduleIdToFind) {
+                return module;
+            }
+
+            // Check tabs module
+            if (module.type === 'tabs' && module.tabs && Array.isArray(module.tabs)) {
+                for (const tab of module.tabs) {
+                    if (tab.modules && Array.isArray(tab.modules)) {
+                        const found = findModuleInHierarchy(tab.modules, moduleIdToFind);
+                        if (found) return found;
+                    }
+                }
+            }
+
+            // Check module-list module
+            if (module.type === 'module-list' && module.modules && Array.isArray(module.modules)) {
+                const found = findModuleInHierarchy(module.modules, moduleIdToFind);
+                if (found) return found;
+            }
+        }
+
+        return null;
+    };
+
     const addModuleToHierarchy = (modules, moduleIdPath, moduleToAdd, dropIndex) => {
         // Clone the modules array to avoid mutation
         const newModules = JSON.parse(JSON.stringify(modules));
@@ -682,10 +705,19 @@ export default function ModuleList({
 
             // If this is the last module in the path, add to its modules array
             if (i === moduleIdPath.length - 1) {
-                if (!targetModule.modules) {
-                    targetModule.modules = [];
+                if(targetModule.type == 'tabs'){
+                    //tabs module type has an array of module lists
+                    const tabIndex = [...document.querySelectorAll('.module[data-id="' + moduleId + '"] > .tabs-module > .tabs-toolbar .tabs-list .tab')].findIndex(a => a.classList.contains('active'));
+                    if(tabIndex > -1){
+                        targetModule.tabs[tabIndex].modules.splice(dropIndex, 0, moduleToAdd);
+                    }
+                }else{
+                    //all other module types will only have one modules list
+                    if (!targetModule.modules) {
+                        targetModule.modules = [];
+                    }
+                    targetModule.modules.splice(dropIndex, 0, moduleToAdd);
                 }
-                targetModule.modules.splice(dropIndex, 0, moduleToAdd);
             } else {
                 // Otherwise, continue traversing
                 if (!targetModule.modules) {
@@ -699,44 +731,84 @@ export default function ModuleList({
         return newModules;
     };
 
-    const removeModuleFromHierarchy = (modules, moduleIdPath, moduleIdToRemove) => {
-        // Clone the modules array to avoid mutation
-        const newModules = JSON.parse(JSON.stringify(modules));
+    const removeModuleFromHierarchy = (modules, moduleIdToRemove) => {
+        // Recursive function to search and remove module from any level
+        const removeFromLevel = (modulesList) => {
+            // First, check if the module exists at this level
+            const filteredModules = modulesList.filter(m => m.id != moduleIdToRemove);
 
-        // If no path, remove from root
-        if (!moduleIdPath || moduleIdPath.length === 0) {
-            return newModules.filter(m => m.id != moduleIdToRemove);
-        }
-
-        // Traverse to the parent module
-        let currentLevel = newModules;
-        let targetModule = null;
-
-        for (let i = 0; i < moduleIdPath.length; i++) {
-            const moduleId = moduleIdPath[i];
-            targetModule = currentLevel.find(m => m.id == moduleId);
-
-            if (!targetModule) {
-                console.error(`Module with id ${moduleId} not found in hierarchy`);
-                return modules;
+            // If we removed a module, return the filtered list
+            if (filteredModules.length !== modulesList.length) {
+                return filteredModules;
             }
 
-            // If this is the last module in the path, remove from its modules array
-            if (i === moduleIdPath.length - 1) {
-                if (targetModule.modules) {
-                    targetModule.modules = targetModule.modules.filter(m => m.id != moduleIdToRemove);
+            // Otherwise, recursively search in nested modules
+            return filteredModules.map(module => {
+                // Check tabs module
+                if (module.type === 'tabs' && module.tabs && Array.isArray(module.tabs)) {
+                    const updatedTabs = module.tabs.map(tab => {
+                        if (tab.modules && Array.isArray(tab.modules)) {
+                            return {
+                                ...tab,
+                                modules: removeFromLevel(tab.modules)
+                            };
+                        }
+                        return tab;
+                    });
+                    return { ...module, tabs: updatedTabs };
                 }
-            } else {
-                // Otherwise, continue traversing
-                if (!targetModule.modules) {
-                    console.error(`Module ${moduleId} has no modules array to traverse`);
-                    return modules;
-                }
-                currentLevel = targetModule.modules;
-            }
-        }
 
-        return newModules;
+                // Check module-list module
+                if (module.type === 'module-list' && module.modules && Array.isArray(module.modules)) {
+                    return {
+                        ...module,
+                        modules: removeFromLevel(module.modules)
+                    };
+                }
+
+                return module;
+            });
+        };
+
+        return removeFromLevel(modules);
+    };
+
+    const updateModuleInHierarchy = (modules, moduleIdToUpdate, updatedModule) => {
+        // Recursive function to search and update module at any level
+        const updateAtLevel = (modulesList) => {
+            return modulesList.map(module => {
+                // If this is the module to update, replace it
+                if (module.id == moduleIdToUpdate) {
+                    return updatedModule;
+                }
+
+                // Check tabs module
+                if (module.type === 'tabs' && module.tabs && Array.isArray(module.tabs)) {
+                    const updatedTabs = module.tabs.map(tab => {
+                        if (tab.modules && Array.isArray(tab.modules)) {
+                            return {
+                                ...tab,
+                                modules: updateAtLevel(tab.modules)
+                            };
+                        }
+                        return tab;
+                    });
+                    return { ...module, tabs: updatedTabs };
+                }
+
+                // Check module-list module
+                if (module.type === 'module-list' && module.modules && Array.isArray(module.modules)) {
+                    return {
+                        ...module,
+                        modules: updateAtLevel(module.modules)
+                    };
+                }
+
+                return module;
+            });
+        };
+
+        return updateAtLevel(modules);
     };
 
     const getModuleHierarchyFromNode = (moduleNode) => {
@@ -827,6 +899,7 @@ export default function ModuleList({
             data-id={containerId}
             onDragOver={handleContainerDragOver}
             onMouseLeave={isEditing ? handleMouseLeave : undefined}
+            onDrop={isEditing && containerId == 'main' ? handleDrop : undefined}
         >
             {entryJson.modules.map((module, index) => {
                 if (!module.type) return;
@@ -854,7 +927,6 @@ export default function ModuleList({
                         onDragStart={canDragDrop ? (e) => handleDragStart(e, module.id, index) : undefined}
                         onDragOver={canDragDrop ? (e) => handleDragOver(e, module.id) : undefined}
                         onDragLeave={canDragDrop ? handleDragLeave : undefined}
-                        onDrop={canDragDrop ? handleDrop : undefined}
                         onDragEnd={canDragDrop ? handleDragEnd : undefined}
                         onMouseOver={isEditing ? handleMouseOver : undefined}
                     >
@@ -927,7 +999,7 @@ export default function ModuleList({
                                                 })
                                             )}
                                             {canDelete && ( //Delete button
-                                                <button className="icon" onClick={() => removeModule(module.id)} title="Delete module">
+                                                <button className="icon" onClick={(e) => { e.stopPropagation(); removeModule(module.id); }} title="Delete module">
                                                     <Icon name="delete" />
                                                 </button>
                                             )}

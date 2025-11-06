@@ -33,8 +33,8 @@ namespace Collector.Data.Repositories
         {
             var sql = @"
                 INSERT INTO JournalCheckListItems (CheckListId, Title, Icon, Status)
-                VALUES (@CheckListId, @Title, @Icon, @Status);
-                SELECT CAST(SCOPE_IDENTITY() as int)";
+                OUTPUT INSERTED.Id
+                VALUES (@CheckListId, @Title, @Icon, @Status)";
             
             return await _db.QuerySingleAsync<int>(sql, item);
         }

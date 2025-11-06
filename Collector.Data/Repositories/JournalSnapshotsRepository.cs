@@ -19,11 +19,12 @@ namespace Collector.Data.Repositories
 
         public int Add(JournalSnapshot snapshot)
         {
-            var id = _dbConnection.QuerySingle<int>(@"
+            var id = _dbConnection.ExecuteScalar<int>(@"
+                DECLARE @id INT = NEXT VALUE FOR [dbo].[SequenceJournalEntrySnapshots];
                 INSERT INTO [dbo].[JournalEntrySnapshots] 
-                ([EntryId], [JournalId], [ChapterId], [Title], [Description], [Created], [Modified], [Status], [Encrypted], [Thumbnail]) 
-                VALUES (@entryId, @journalId, @chapterId, @title, @description, @created, @modified, @status, @encrypted, @thumbnail);
-                SELECT CAST(SCOPE_IDENTITY() as int)", 
+                ([Id], [EntryId], [JournalId], [ChapterId], [Title], [Description], [Created], [Modified], [Status], [Encrypted], [Thumbnail])
+                VALUES (@id, @entryId, @journalId, @chapterId, @title, @description, @created, @modified, @status, @encrypted, @thumbnail);
+                SELECT @id;", 
                 new { 
                     entryId = snapshot.EntryId,
                     journalId = snapshot.JournalId,

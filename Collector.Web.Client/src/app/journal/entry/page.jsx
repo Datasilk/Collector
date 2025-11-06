@@ -513,10 +513,10 @@ export default function JournalEntryPage() {
         saveEntryContent(updatedEntryJson);
     };
 
-    const handleRemovedModule = (moduleId) => {
+    const handleRemovedModule = (moduleId, updatedModules) => {
         const updatedEntryJson = {
             ...entryJsonRef.current,
-            modules: entryJsonRef.current.modules.filter(module => module.id !== moduleId)
+            modules: updatedModules
         };
         setEntryJson(updatedEntryJson);
         entryJsonRef.current = updatedEntryJson;

@@ -12,7 +12,7 @@ namespace Collector.API.Models
 
     public class ModuleSortItem
     {
-        public Guid JournalEntryId { get; set; }
+        public Guid? JournalEntryId { get; set; }
         public string ModuleId { get; set; }
     }
 }

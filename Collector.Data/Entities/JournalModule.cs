@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace Collector.Data.Entities
 {
     public class JournalModule
@@ -9,5 +11,8 @@ namespace Collector.Data.Entities
         public double Width { get; set; }
         public double Height { get; set; }
         public string Json { get; set; }
+
+        [NotMapped]
+        public string Type { get; set; }
     }
 }

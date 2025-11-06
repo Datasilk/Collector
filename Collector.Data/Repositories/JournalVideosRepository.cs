@@ -54,8 +54,8 @@ namespace Collector.Data.Repositories
         {
             var sql = @"
                 INSERT INTO JournalVideos (JournalId, JournalEntryId, ModuleId, Filename, OriginalFilename, Url, Downloaded, Duration, Width, Height, Metadata, Title, Description)
-                VALUES (@JournalId, @JournalEntryId, @ModuleId, @Filename, @OriginalFilename, @Url, @Downloaded, @Duration, @Width, @Height, @Metadata, @Title, @Description);
-                SELECT CAST(SCOPE_IDENTITY() as int)";
+                OUTPUT INSERTED.Id
+                VALUES (@JournalId, @JournalEntryId, @ModuleId, @Filename, @OriginalFilename, @Url, @Downloaded, @Duration, @Width, @Height, @Metadata, @Title, @Description)";
             
             return await _db.QuerySingleAsync<int>(sql, video);
         }

@@ -21,9 +21,9 @@ namespace Collector.Data.Repositories
         {
             var id = _dbConnection.QuerySingle<int>(@"
                 INSERT INTO [dbo].[JournalImages] 
-                ([JournalId], [JournalEntryId], [ModuleId], [Filename], [Width], [Height]) 
-                VALUES (@JournalId, @JournalEntryId, @ModuleId, @Filename, @Width, @Height);
-                SELECT CAST(SCOPE_IDENTITY() as int)", 
+                ([JournalId], [JournalEntryId], [ModuleId], [Filename], [Width], [Height])
+                OUTPUT INSERTED.Id
+                VALUES (@JournalId, @JournalEntryId, @ModuleId, @Filename, @Width, @Height)", 
                 image);
             return id;
         }

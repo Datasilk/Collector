@@ -15,7 +15,7 @@ export default function AIGeneratorModal({ module, onClose, onGenerated }) {
     const [error, setError] = useState('');
     
     // Get previous user inputs from module if available
-    const previousInputs = module?.userInput || [];
+    const previousInputs = (module?.userInput || []).filter(a => a != '' && a.label != '');
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -53,14 +53,11 @@ export default function AIGeneratorModal({ module, onClose, onGenerated }) {
                     onGenerated(prompt, generatedContent);
 
                     // Close the modal
-                    onClose();
+                    if(onClose) onClose();
                 } catch (err) {
                     console.error('Error processing AI response:', err);
                     setError('Error generating content. Please try again.');
                 }
-
-                // Stop the connection
-                conn.stop();
                 setIsGenerating(false);
             });
 
@@ -69,9 +66,6 @@ export default function AIGeneratorModal({ module, onClose, onGenerated }) {
                 .catch(err => {
                     console.error('Error invoking GenerateContent:', err);
                     setError('Error sending request to AI service. Please try again.');
-
-                    // Stop the connection
-                    conn.stop();
                     setIsGenerating(false);
                 });
         }).catch(err => {

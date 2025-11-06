@@ -273,6 +273,15 @@ namespace Collector.API.Controllers
                                             // Compare module IDs
                                             if (jsonModuleId == module.ModuleId)
                                             {
+                                                // Get module type
+                                                if (jsonModule.TryGetProperty("type", out var moduleTypeProp))
+                                                {
+                                                    if (moduleTypeProp.ValueKind == System.Text.Json.JsonValueKind.String)
+                                                    {
+                                                        module.Type = moduleTypeProp.GetString();
+                                                    }
+                                                }
+                                                
                                                 // Convert the module back to JSON string
                                                 module.Json = jsonModule.GetRawText();
                                                 break;
@@ -1115,7 +1124,7 @@ namespace Collector.API.Controllers
                 var modules = request.Modules.Select(m => new JournalModule
                 {
                     JournalId = request.JournalId,
-                    JournalEntryId = m.JournalEntryId,
+                    JournalEntryId = m.JournalEntryId.HasValue ? m.JournalEntryId.Value : Guid.Empty,
                     ModuleId = m.ModuleId
                 }).ToList();
 

@@ -22,8 +22,8 @@ const SessionProvider = ({children}) => {
         context.setUser(null);
     }
 
-    const showModal = (component, onComplete, onClose) => {
-        context.setModal({component, onComplete, onClose});
+    const showModal = (component) => {
+        context.setModal(component);
     };
 
     const hideModal = () => {
@@ -34,12 +34,10 @@ const SessionProvider = ({children}) => {
     context.showModal = showModal;
     context.hideModal = hideModal;
 
-    const Modal = modal?.component ?? null;
-
     return (
         <SessionContext.Provider value={context}>
             <>
-            {modal && <Modal onComplete={modal.onComplete} onClose={modal.onClose} />}
+            {modal ?? <></>}
             {children}
             </>
         </SessionContext.Provider>

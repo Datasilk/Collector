@@ -58,6 +58,7 @@ export default function TabsModule({ module, entryId, journalId, onUpdate, isEdi
 
     useEffect(() => {
         moduleRef.current = module;
+        setTabs(module.tabs);
     }, [module]);
 
 
@@ -283,11 +284,10 @@ export default function TabsModule({ module, entryId, journalId, onUpdate, isEdi
         }
     };
 
-    const handleRemovedModule = (moduleId) => {
+    const handleRemovedModule = (moduleId, updatedModules) => {
         const activeTab = getActiveTab();
         if (!activeTab) return;
 
-        const updatedModules = (activeTab.modules || []).filter(m => m.id !== moduleId);
         updateActiveTabModules(updatedModules);
     };
 
@@ -330,6 +330,10 @@ export default function TabsModule({ module, entryId, journalId, onUpdate, isEdi
         const updatedModules = [...(activeTab.modules || []), newModule];
         updateActiveTabModules(updatedModules);
         setShowAddModuleDropdown(false);
+    };
+
+    const handleDroppedModule = (updatedEntryJson) => {
+        updateActiveTabModules(updatedEntryJson.modules);
     };
 
     const activeTab = getActiveTab();
@@ -431,6 +435,7 @@ export default function TabsModule({ module, entryId, journalId, onUpdate, isEdi
                         updatedModule={handleUpdatedModule}
                         addedModule={handleAddedModule}
                         removedModule={handleRemovedModule}
+                        droppedModule={handleDroppedModule}
                         containerId={`tab-${module.id}-${activeTab.id}`}
                     />
                 </>)}

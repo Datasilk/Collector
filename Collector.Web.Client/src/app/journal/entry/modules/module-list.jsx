@@ -58,8 +58,7 @@ export default function ModuleListModule({ module, entryId, journalId, onUpdate,
         }
     };
 
-    const handleRemovedModule = (moduleId) => {
-        const updatedModules = childModules.filter(m => m.id !== moduleId);
+    const handleRemovedModule = (moduleId, updatedModules) => {
         setChildModules(updatedModules);
         
         // Update the parent module
