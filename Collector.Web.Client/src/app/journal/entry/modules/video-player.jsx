@@ -285,6 +285,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
 
             // Listen for download errors
             conn.on('DownloadError', (error) => {
+                console.error('Error downloading video:', error);
                 setDownloadError(error);
                 setIsDownloading(false);
                 setDownloadProgress(0);

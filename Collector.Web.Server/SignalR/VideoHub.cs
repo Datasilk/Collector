@@ -321,10 +321,7 @@ namespace Collector.Web.Server.SignalR
             var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoRelativePath);
             var thumbnailFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), thumbnailRelativePath);
 
-            // For seek previews (crop=true), don't use yt-dlp fallback
-            var urlForFallback = crop ? null : videoUrl;
-
-            var success = await Common.Videos.GenerateThumbnail(videoFullPath, thumbnailFullPath, urlForFallback, width, height, crop, seekSeconds, timeoutSeconds: 30);
+            var success = await Videos.GenerateThumbnail(videoFullPath, thumbnailFullPath, videoUrl, width, height, crop, seekSeconds, timeoutSeconds: 30);
             
             if (!success)
             {

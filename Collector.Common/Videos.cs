@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Text;
 
 namespace Collector.Common
 {
@@ -107,7 +108,7 @@ namespace Collector.Common
             }
         }
 
-        private static async Task<bool> GenerateThumbnailWithYtDlp(string videoUrl, string thumbnailFullPath, int width = 0, int height = 0, int timeoutSeconds = 30)
+        private static async Task<bool> GenerateThumbnailWithYtDlp(string videoUrl, string thumbnailFullPath, int width = 0, int height = 0, int timeoutSeconds = 5)
         {
             try
             {
@@ -242,21 +243,79 @@ namespace Collector.Common
                     CreateNoWindow = true
                 };
 
-                using (var process = Process.Start(startInfo))
+                using (var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true })
                 {
-                    var output = await process.StandardOutput.ReadToEndAsync();
-                    await process.WaitForExitAsync();
+                    var stdout = new StringBuilder();
+                    var stderr = new StringBuilder();
+                    int parsedWidth = 0;
+                    int parsedHeight = 0;
+                    double parsedDuration = 0;
+                    bool sawError = false;
 
-                    if (process.ExitCode == 0 && !string.IsNullOrEmpty(output))
+                    process.OutputDataReceived += (s, e) =>
                     {
-                        var parts = output.Trim().Split(',');
-                        if (parts.Length >= 2)
+                        if (e.Data == null) return;
+                        Console.WriteLine(e.Data);
+                        stdout.AppendLine(e.Data);
+
+                        // Success line is expected to be CSV: width,height[,duration]
+                        var line = e.Data.Trim();
+                        if (!string.IsNullOrEmpty(line))
                         {
-                            int.TryParse(parts[0], out int width);
-                            int.TryParse(parts[1], out int height);
-                            double.TryParse(parts.Length > 2 ? parts[2] : "0", out double durationSeconds);
-                            return (width, height, (int)durationSeconds);
+                            var parts = line.Split(',');
+                            if (parts.Length >= 2)
+                            {
+                                int.TryParse(parts[0], out parsedWidth);
+                                int.TryParse(parts[1], out parsedHeight);
+                                if (parts.Length > 2)
+                                {
+                                    double.TryParse(parts[2], out parsedDuration);
+                                }
+                            }
                         }
+                    };
+
+                    process.ErrorDataReceived += (s, e) =>
+                    {
+                        if (e.Data == null) return;
+                        Console.WriteLine(e.Data);
+                        stderr.AppendLine(e.Data);
+                        if (e.Data.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            sawError = true;
+                        }
+                    };
+
+                    if (!process.Start())
+                    {
+                        return (0, 0, 0);
+                    }
+
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+
+                    // Timeout safeguard to avoid hangs due to any unexpected pipe issues
+                    var timeoutTask = Task.Delay(15000);
+                    var waitTask = process.WaitForExitAsync();
+                    var completed = await Task.WhenAny(waitTask, timeoutTask);
+                    if (completed == timeoutTask)
+                    {
+                        try { process.Kill(true); } catch { }
+                    }
+                    else
+                    {
+                        await waitTask; // ensure fully exited
+                    }
+
+                    if (!sawError && parsedWidth > 0 && parsedHeight > 0)
+                    {
+                        return (parsedWidth, parsedHeight, (int)parsedDuration);
+                    }
+
+                    // If process exited with non-zero or no parse, log stderr for diagnostics
+                    if (stderr.Length > 0)
+                    {
+                        Console.WriteLine(stderr.ToString());
                     }
                 }
             }
