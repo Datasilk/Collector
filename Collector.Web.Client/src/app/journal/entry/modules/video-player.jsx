@@ -25,10 +25,30 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
     const [downloadError, setDownloadError] = useState(null);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [pendingDeleteModuleId, setPendingDeleteModuleId] = useState(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [currentTime, setCurrentTime] = useState(0);
+    const [duration, setDuration] = useState(0);
+    const [volume, setVolume] = useState(1);
+    const [isMuted, setIsMuted] = useState(false);
+    const [showPreview, setShowPreview] = useState(false);
+    const [previewTime, setPreviewTime] = useState(0);
+    const [previewPosition, setPreviewPosition] = useState(0);
+    const [previewBlobUrl, setPreviewBlobUrl] = useState(null);
+    const [bufferedRanges, setBufferedRanges] = useState([]);
+    const [isDragging, setIsDragging] = useState(false);
+    const [showControls, setShowControls] = useState(true);
+    const [isFocused, setIsFocused] = useState(false);
 
     //refs
     const fileInputRef = useRef(null);
     const moduleRef = useRef(module);
+    const videoRef = useRef(null);
+    const videoPlayerRef = useRef(null);
+    const seekBarRef = useRef(null);
+    const thumbnailCacheRef = useRef({}); // Cache: { url: base64DataUrl }
+    const downloadingRef = useRef(new Set()); // Track in-progress downloads
+    const pendingLoadRef = useRef(null); // Track pending thumbnail load promise
+    const controlsTimeoutRef = useRef(null); // Track controls hide timeout
 
     //context
     const session = useSession();
@@ -39,6 +59,125 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         if (!setDeleteListener) return;
         setDeleteListener(module, removeModule);
     }, [module.id]);
+
+    useEffect(() => {
+        if (isDragging) {
+            const handleMouseMove = (e) => handleDrag(e);
+            const handleMouseUp = () => handleDragEnd();
+            
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+            
+            return () => {
+                document.removeEventListener('mousemove', handleMouseMove);
+                document.removeEventListener('mouseup', handleMouseUp);
+            };
+        }
+    }, [isDragging, duration]);
+
+    // Auto-hide controls on initial load
+    useEffect(() => {
+        if (module.videoPath || module.videoId) {
+            // Show controls initially, then hide after 3 seconds
+            setShowControls(true);
+            const timeout = setTimeout(() => {
+                setShowControls(false);
+            }, 3000);
+            
+            return () => clearTimeout(timeout);
+        }
+    }, [module.videoPath, module.videoId]);
+
+    // Keyboard shortcuts handler (YouTube-style)
+    useEffect(() => {
+        if (!isFocused) return;
+
+        const handleKeyDown = (e) => {
+            // Don't trigger shortcuts if user is typing in an input
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                return; 
+            }
+
+            if (!videoRef.current) return;
+            e.preventDefault();
+            switch(e.key.toLowerCase()) {
+                case ' ':
+                case 'k':
+                    // Space or K: Play/Pause
+                    togglePlay();
+                    break;
+                case 'arrowleft':
+                    // Left arrow: Seek backward 5 seconds
+                    seekRelative(-5);
+                    break;
+                case 'arrowright':
+                    // Right arrow: Seek forward 5 seconds
+                    seekRelative(5);
+                    break;
+                case 'j':
+                    // J: Seek backward 10 seconds
+                    seekRelative(-10);
+                    break;
+                case 'l':
+                    // L: Seek forward 10 seconds
+                    seekRelative(10);
+                    break;
+                case 'arrowup':
+                    // Up arrow: Increase volume 5%
+                    adjustVolume(0.05);
+                    break;
+                case 'arrowdown':
+                    // Down arrow: Decrease volume 5%
+                    adjustVolume(-0.05);
+                    break;
+                case 'm':
+                    // M: Toggle mute
+                    toggleMute();
+                    break;
+                case 'f':
+                    // F: Toggle fullscreen
+                    toggleFullscreen();
+                    break;
+                case '0':
+                case '1':
+                case '2':
+                case '3':
+                case '4':
+                case '5':
+                case '6':
+                case '7':
+                case '8':
+                case '9':
+                    // 0-9: Seek to 0%-90% of video
+                    const percent = parseInt(e.key) / 10;
+                    seekToPercent(percent);
+                    break;
+                case 'home':
+                    // Home: Seek to beginning
+                    seekToPercent(0);
+                    break;
+                case 'end':
+                    // End: Seek to end
+                    seekToPercent(1);
+                    break;
+                case ',':
+                    // Comma: Previous frame (when paused)
+                    if (!isPlaying) {
+                        seekRelative(-1/30); // Assuming 30fps
+                    }
+                    break;
+                case '.':
+                    // Period: Next frame (when paused)
+                    if (!isPlaying) {
+                        seekRelative(1/30); // Assuming 30fps
+                    }
+                    break;
+            }
+        };
+
+        if(isFocused) document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [isFocused, isPlaying, volume, duration]);      
 
     const handleFileChange = async (e) => {
         if (!isEditable) return;
@@ -124,6 +263,14 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
             conn.on('DownloadProgress', (progress, status) => {
                 setDownloadProgress(progress);
                 setDownloadStatus(status);
+                if(progress == 100) {
+                    setIsDownloading(false);
+                    setDownloadProgress(0);
+                    setDownloadStatus('');
+                    setVideoUrl('');
+                    // Close connection after download completes
+                    conn.stop();
+                }
             });
 
             // Listen for download completion
@@ -134,13 +281,6 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                     downloaded: true
                 };
                 onUpdate(moduleRef.current);
-                setIsDownloading(false);
-                setDownloadProgress(0);
-                setDownloadStatus('');
-                setVideoUrl('');
-
-                // Close connection after download completes
-                conn.stop();
             });
 
             // Listen for download errors
@@ -218,6 +358,338 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
             window.__videoDeleteResolve();
             delete window.__videoDeleteResolve;
         }
+    };
+
+    // Video player controls
+    const togglePlay = () => {
+        if (!videoRef.current) return;
+        if (isPlaying) {
+            videoRef.current.pause();
+        } else {
+            videoRef.current.play();
+        }
+        setIsPlaying(!isPlaying);
+    };
+
+    const handleTimeUpdate = () => {
+        if (!videoRef.current) return;
+        setCurrentTime(videoRef.current.currentTime);
+        updateBufferedProgress();
+    };
+
+    const handleLoadedMetadata = () => {
+        if (!videoRef.current) return;
+        const videoDuration = videoRef.current.duration;
+        setDuration(videoDuration);
+        
+        // Start preloading all thumbnails in the background
+        preloadAllThumbnails(videoDuration);
+    };
+
+    const updateBufferedProgress = () => {
+        if (!videoRef.current || !duration) return;
+        
+        const buffered = videoRef.current.buffered;
+        const currentTimePercent = (videoRef.current.currentTime / duration) * 100;
+        const ranges = [];
+        
+        // Collect all buffered time ranges that contain or are near the current time
+        for (let i = 0; i < buffered.length; i++) {
+            const startPercent = (buffered.start(i) / duration) * 100;
+            const endPercent = (buffered.end(i) / duration) * 100;
+            
+            // Only show buffered ranges that include the current position or are ahead of it
+            if (endPercent >= currentTimePercent - 1) {
+                ranges.push({ start: startPercent, end: endPercent });
+            }
+        }
+        
+        setBufferedRanges(ranges);
+    };
+
+    const handleSeek = (e) => {
+        if (!videoRef.current || !seekBarRef.current || isDragging) return;
+        const rect = seekBarRef.current.getBoundingClientRect();
+        const pos = (e.clientX - rect.left) / rect.width;
+        const time = pos * duration;
+        videoRef.current.currentTime = time;
+        setCurrentTime(time);
+        updateBufferedProgress();
+    };
+
+    const handleDragStart = (e) => {
+        e.stopPropagation();
+        setIsDragging(true);
+    };
+
+    const handleDrag = (e) => {
+        if (!isDragging || !videoRef.current || !seekBarRef.current) return;
+        const rect = seekBarRef.current.getBoundingClientRect();
+        const pos = Math.max(0, Math.min((e.clientX - rect.left) / rect.width, 1));
+        const time = pos * duration;
+        videoRef.current.currentTime = time;
+        setCurrentTime(time);
+    };
+
+    const handleDragEnd = () => {
+        setIsDragging(false);
+        updateBufferedProgress();
+    };
+
+    const handleSeekHover = async (e) => {
+        if (!seekBarRef.current || !videoRef.current) return;
+        
+        // Wait for any pending thumbnail load to complete
+        if (pendingLoadRef.current) return;
+        
+        const rect = seekBarRef.current.getBoundingClientRect();
+        const pos = (e.clientX - rect.left) / rect.width;
+        const time = Math.max(0, Math.min(pos * duration, duration));
+        setPreviewTime(time);
+        
+        // Calculate preview position with bounds checking
+        // Preview is 10em wide (approximately 160px), centered with translateX(-50%)
+        const previewWidth = 160; // 10em in pixels (approximate)
+        const halfPreviewWidth = previewWidth / 2;
+        let position = e.clientX - rect.left;
+        
+        // Constrain position to keep preview within bounds
+        position = Math.max(halfPreviewWidth, Math.min(position, rect.width - halfPreviewWidth));
+        
+        setPreviewPosition(position);
+        setShowPreview(true);
+
+        // Round down to nearest 10 seconds (0, 10, 20, 30, etc.)
+        const roundedTime = Math.floor(time / 10) * 10;
+        
+        // Load thumbnail blob and track the promise
+        const loadPromise = loadPreviewThumbnail(roundedTime);
+        pendingLoadRef.current = loadPromise;
+        await loadPromise;
+        pendingLoadRef.current = null;
+    };
+
+    const handleSeekLeave = () => {
+        setShowPreview(false);
+        setPreviewBlobUrl(null);
+    };
+
+    const buildPreviewThumbnailUrl = (time) => {
+        if (!module.videoPath) return null;
+        
+        // Extract entry ID and video filename from videoPath
+        const pathParts = module.videoPath.split('/');
+        if (pathParts.length < 2) return null;
+        
+        const entryIdFromPath = pathParts[0];
+        const videoFileName = pathParts[pathParts.length - 1];
+        
+        return `${apiBasePath()}/video/preview/${entryIdFromPath}/${videoFileName}/${time}`;
+    };
+
+    const loadPreviewThumbnail = async (time) => {
+        const url = buildPreviewThumbnailUrl(time);
+        if (!url) return;
+
+        // Check if already cached (including 404s cached as null)
+        if (url in thumbnailCacheRef.current) {
+            const cachedValue = thumbnailCacheRef.current[url];
+            if (cachedValue) {
+                setPreviewBlobUrl(cachedValue);
+            }
+            return;
+        }
+
+        // Check if already downloading
+        if (downloadingRef.current.has(url)) {
+            return;
+        }
+
+        try {
+            // Mark as downloading
+            downloadingRef.current.add(url);
+
+            // Fetch the image
+            const response = await fetch(url);
+            if (!response.ok) {
+                // Cache 404s as null to prevent repeated requests
+                thumbnailCacheRef.current[url] = null;
+                return;
+            }
+
+            // Convert to blob, then to base64 data URL
+            const blob = await response.blob();
+            const base64DataUrl = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+            
+            // Cache the base64 data URL
+            thumbnailCacheRef.current[url] = base64DataUrl;
+            setPreviewBlobUrl(base64DataUrl);
+        } catch (error) {
+            console.error('Error loading preview thumbnail:', error);
+            // Cache failed requests as null to prevent repeated attempts
+            thumbnailCacheRef.current[url] = null;
+        } finally {
+            // Remove from downloading set
+            downloadingRef.current.delete(url);
+        }
+    };
+
+    const preloadAllThumbnails = async (videoDuration) => {
+        if (!module.videoPath || !videoDuration) return;
+
+        // Generate array of all 10-second intervals
+        const times = [];
+        for (let second = 0; second < videoDuration; second += 10) {
+            times.push(second);
+        }
+
+        // Process in batches of 5
+        const batchSize = 5;
+        for (let i = 0; i < times.length; i += batchSize) {
+            const batch = times.slice(i, i + batchSize);
+            
+            // Download batch in parallel
+            await Promise.all(batch.map(async (time) => {
+                const url = buildPreviewThumbnailUrl(time);
+                if (!url) return;
+
+                // Skip if already cached
+                if (url in thumbnailCacheRef.current) {
+                    return;
+                }
+
+                // Skip if already downloading
+                if (downloadingRef.current.has(url)) {
+                    return;
+                }
+
+                try {
+                    downloadingRef.current.add(url);
+
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        thumbnailCacheRef.current[url] = null;
+                        return;
+                    }
+
+                    // Convert to blob, then to base64 data URL
+                    const blob = await response.blob();
+                    const base64DataUrl = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(blob);
+                    });
+                    
+                    thumbnailCacheRef.current[url] = base64DataUrl;
+                } catch (error) {
+                    console.error(`Error preloading thumbnail at ${time}s:`, error);
+                    thumbnailCacheRef.current[url] = null;
+                } finally {
+                    downloadingRef.current.delete(url);
+                }
+            }));
+        }
+
+        //console.warn(`Preloaded ${times.length} thumbnails for video`);
+    };
+
+
+    const handleVolumeChange = (e) => {
+        const newVolume = parseFloat(e.target.value);
+        setVolume(newVolume);
+        if (videoRef.current) {
+            videoRef.current.volume = newVolume;
+        }
+        setIsMuted(newVolume === 0);
+    };
+
+    const toggleMute = () => {
+        if (!videoRef.current) return;
+        const newMuted = !isMuted;
+        setIsMuted(newMuted);
+        videoRef.current.muted = newMuted;
+    };
+
+    const toggleFullscreen = () => {
+        if (!videoPlayerRef.current) return;
+        if (document.fullscreenElement) {
+            document.exitFullscreen();
+        } else {
+            videoPlayerRef.current.requestFullscreen();
+        }
+    };
+
+    const seekRelative = (seconds) => {
+        if (!videoRef.current) return;
+        const newTime = Math.max(0, Math.min(videoRef.current.currentTime + seconds, duration));
+        videoRef.current.currentTime = newTime;
+        setCurrentTime(newTime);
+        updateBufferedProgress();
+    };
+
+    const seekToPercent = (percent) => {
+        if (!videoRef.current || !duration) return;
+        const newTime = duration * percent;
+        videoRef.current.currentTime = newTime;
+        setCurrentTime(newTime);
+        updateBufferedProgress();
+    };
+
+    const adjustVolume = (delta) => {
+        if (!videoRef.current) return;
+        const newVolume = Math.max(0, Math.min(volume + delta, 1));
+        setVolume(newVolume);
+        videoRef.current.volume = newVolume;
+        setIsMuted(newVolume === 0);
+    };
+
+    const handleVideoMouseEnter = () => {
+        setShowControls(true);
+        setIsFocused(true);
+        resetControlsTimeout();
+    };
+
+    const handleVideoMouseMove = () => {
+        setShowControls(true);
+        setIsFocused(true);
+        resetControlsTimeout();
+    };
+
+    const handleVideoMouseLeave = () => {
+        setShowControls(false);
+        setIsFocused(false);
+        if (controlsTimeoutRef.current) {
+            clearTimeout(controlsTimeoutRef.current);
+            controlsTimeoutRef.current = null;
+        }
+    };
+
+    const handleVideoClick = () => {
+        setIsFocused(true);
+        togglePlay();
+    };
+
+    const resetControlsTimeout = () => {
+        if (controlsTimeoutRef.current) {
+            clearTimeout(controlsTimeoutRef.current);
+        }
+        controlsTimeoutRef.current = setTimeout(() => {
+            setShowControls(false);
+        }, 3000);
+    };
+
+    const formatTime = (seconds, padMinutes = false) => {
+        if (!seconds || isNaN(seconds)) return padMinutes ? '00:00' : '0:00';
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        const minStr = padMinutes ? mins.toString().padStart(2, '0') : mins.toString();
+        return `${minStr}:${secs.toString().padStart(2, '0')}`;
     };
 
     const hasVideo = module.videoPath;
@@ -323,16 +795,114 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                             </a>
                         </div>
                     )}
-                    <video
-                        controls
-                        poster={module.thumbnailPath ? apiBasePath() + `/video/thumb/${module.thumbnailPath}` : undefined}
+                    <div 
+                        ref={videoPlayerRef}
+                        className="custom-video-player"
+                        onMouseEnter={handleVideoMouseEnter}
+                        onMouseMove={handleVideoMouseMove}
+                        onMouseLeave={handleVideoMouseLeave}
                     >
-                        <source
-                            src={module.videoId ? apiBasePath() + `/video/${module.videoId}` : apiBasePath() + `/video/${module.videoPath}`}
-                            type="video/mp4"
-                        />
-                        Your browser does not support the video tag.
-                    </video>
+                        <video
+                            ref={videoRef}
+                            controls={false}
+                            poster={module.thumbnailPath ? apiBasePath() + `/video/thumb/${module.thumbnailPath}` : undefined}
+                            onTimeUpdate={handleTimeUpdate}
+                            onLoadedMetadata={handleLoadedMetadata}
+                            onPlay={() => setIsPlaying(true)}
+                            onPause={() => setIsPlaying(false)}
+                            onProgress={updateBufferedProgress}
+                            onClick={handleVideoClick}
+                        >
+                            <source
+                                src={module.videoId ? apiBasePath() + `/video/${module.videoId}` : apiBasePath() + `/video/${module.videoPath}`}
+                                type="video/mp4"
+                            />
+                            Your browser does not support the video tag.
+                        </video>
+                        
+                        <div className={`video-controls ${!showControls ? 'hidden' : ''}`}>
+                            <div 
+                                className="seek-bar-container"
+                                ref={seekBarRef}
+                                onClick={handleSeek}
+                                onMouseMove={handleSeekHover}
+                                onMouseLeave={handleSeekLeave}
+                            >
+                                <div className="seek-bar">
+                                    <div 
+                                        className="seek-bar-progress" 
+                                        style={{ width: `${(currentTime / duration) * 100}%` }}
+                                    />
+                                    {bufferedRanges.map((range, index) => (
+                                        <div 
+                                            key={index}
+                                            className="seek-bar-buffered" 
+                                            style={{ 
+                                                left: `${range.start}%`,
+                                                width: `${range.end - range.start}%` 
+                                            }}
+                                        />
+                                    ))}
+                                    <div 
+                                        className="seek-bar-handle"
+                                        style={{ left: `${(currentTime / duration) * 100}%` }}
+                                        onMouseDown={handleDragStart}
+                                    />
+                                </div>
+                                
+                                {showPreview && (
+                                    <div 
+                                        className="seek-preview"
+                                        style={{ left: `${previewPosition}px` }}
+                                    >
+                                        {previewBlobUrl ? (
+                                            <img 
+                                                src={previewBlobUrl} 
+                                                alt="Preview"
+                                                onError={(e) => e.target.style.display = 'none'}
+                                            />
+                                        ) : (
+                                            <div className="preview-loading">Loading...</div>
+                                        )}
+                                        <div className="preview-time">{formatTime(previewTime)}</div>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            <div className="video-controls-row">
+                                <button className="play-button" onClick={togglePlay}>
+                                    <Icon name={isPlaying ? 'pause' : 'play_arrow'} />
+                                </button>
+                                
+                                <div className="time-display">
+                                    {formatTime(currentTime, duration >= 600)} / {formatTime(duration)}
+                                </div>
+                            
+                            <div className="volume-controls">
+                                <button className="volume-button" onClick={toggleMute}>
+                                    <Icon name={isMuted || volume === 0 ? 'volume_off' : volume < 0.5 ? 'volume_down' : 'volume_up'} />
+                                </button>
+                                
+                                <input
+                                    type="range"
+                                    className="volume-slider"
+                                    min="0"
+                                    max="1"
+                                    step="0.01"
+                                    value={isMuted ? 0 : volume}
+                                    onChange={handleVolumeChange}
+                                    style={{
+                                        background: `linear-gradient(to right, rgba(119, 99, 237, 0.7) 0%, rgba(119, 99, 237, 0.7) ${(isMuted ? 0 : volume) * 100}%, rgba(255, 255, 255, 0.3) ${(isMuted ? 0 : volume) * 100}%, rgba(255, 255, 255, 0.3) 100%)`
+                                    }}
+                                />
+                            </div>
+                            
+                                <button className="fullscreen-button" onClick={toggleFullscreen}>
+                                    <Icon name="fullscreen" />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
 

@@ -99,11 +99,6 @@ button:focus-visible,
   outline: 4px auto -webkit-focus-ring-color;
 }
 
-button .material-symbols-rounded,
-.button .material-symbols-rounded {
-  margin: -0.15em 0.3em 0 -0.3em;
-}
-
 button.after .material-symbols-rounded,
 .button.after .material-symbols-rounded {
   margin: -0.15em -0.3em 0 0.3em !important;

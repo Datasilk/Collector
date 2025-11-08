@@ -908,6 +908,10 @@ export default function ModuleList({
                 const modulesList = modulesRegistry ? [...modules, ...modulesRegistry] : modules;
                 const moduleType = modulesList.find(m => m.type === module.type);
                 const ModuleComponent = moduleType?.module;
+                
+                // Don't render if module type doesn't exist in registry
+                if (!ModuleComponent) return null;
+                
                 const filteredButtons = tabButtons.filter(a => a.moduleId == module.id)[0] ?? null;
                 return (
                     <div
@@ -963,7 +967,7 @@ export default function ModuleList({
                                                     </button>
                                                     {showModuleAboveDropdown && (
                                                         <div
-                                                            className="module-dropdown module-dropdown-left"
+                                                            className="module-dropdown"
                                                             ref={moduleDropdownRef}
                                                         >
                                                             {modules.map(moduleOption => (

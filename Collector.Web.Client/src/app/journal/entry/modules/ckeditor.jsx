@@ -160,6 +160,19 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
         const elem = getTextElement();
         if (!elem) return;
         elem.innerHTML = newhtml;
+        //make all anchor links open in new tab
+        const anchors = elem.querySelectorAll('a');
+        anchors.forEach(anchor => {
+            anchor.setAttribute('target', '_blank');
+        });
+        //re-attach secret content event listeners
+        const secrets = elem.querySelectorAll('.secret-content');
+        secrets.forEach(secret => {
+            secret.onclick = (e) => {
+                e.preventDefault();
+                e.target.classList.toggle('show-secret');
+            };
+        });
         removeEditorEventListeners();
         addEditorEventListeners();
     };
@@ -280,6 +293,21 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
         //elem.removeEventListener('mouseover', showEditor);
         elem.removeEventListener('mouseup', showEditor);
         document.removeEventListener('mousedown', handleClickOutside);
+
+        //make all anchor links open in new tab
+        const anchors = elem.querySelectorAll('a');
+        anchors.forEach(anchor => {
+            anchor.setAttribute('target', '_blank');
+        });
+
+        //re-attach secret content event listeners
+        const secrets = elem.querySelectorAll('.secret-content');
+        secrets.forEach(secret => {
+            secret.onclick = (e) => {
+                e.preventDefault();
+                e.target.classList.toggle('show-secret');
+            };
+        });
 
         //load initial data into CKEditor
         const initialData = elem.innerHTML;
@@ -484,6 +512,11 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                     {
                         name: 'Button Outlined',
                         element: 'a',
+                        classes: ['button outline']
+                    },
+                    {
+                        name: 'Button Outlined',
+                        element: 'a',
                         classes: ['button', 'outline']
                     },
                     {
@@ -555,6 +588,11 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                         name: 'Inline Code',
                         element: 'span',
                         classes: ['inline-code']
+                    },
+                    {
+                        name: 'Monospace',
+                        element: 'span',
+                        classes: ['monospace']
                     },
                 ]
             },

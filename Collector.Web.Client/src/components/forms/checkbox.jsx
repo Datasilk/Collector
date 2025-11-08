@@ -42,7 +42,7 @@ export default function Checkbox({
                                 type="checkbox"
                                 id={inputId}
                                 name={name}
-                                checked={!!checked}
+                                checked={checked}
                                 onChange={handleChange}
                                 onInput={onInput}
                                 className="checkbox-input"

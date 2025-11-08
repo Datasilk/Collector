@@ -12,6 +12,7 @@ import { apiBasePath } from '@/helpers/endpoints.js';
 export default function ImageModule({ module, entryId, journalId, onUpdate, isEditable = true, manuallyAdded = false, setDeleteListener }) {
     //state
     const [isUploading, setIsUploading] = useState(false);
+    const [isLoadingImage, setIsLoadingImage] = useState(false);
     const [uploadError, setUploadError] = useState(null);
     
     //refs
@@ -66,6 +67,7 @@ export default function ImageModule({ module, entryId, journalId, onUpdate, isEd
             const response = await upload(path, file);
             
             if (response.data.success) {
+                setIsLoadingImage(true);
                 // Get image dimensions
                 const img = new Image();
                 img.onload = async () => {
@@ -84,15 +86,18 @@ export default function ImageModule({ module, entryId, journalId, onUpdate, isEd
                         
                         // Update the module with the image path
                         onUpdate({ ...module, image: fileName });
+                        setIsLoadingImage(false);
                     } catch (error) {
                         console.error('Error saving image metadata:', error);
                         // Still update the module even if metadata save fails
                         onUpdate({ ...module, image: fileName });
+                        setIsLoadingImage(false);
                     }
                 };
                 img.onerror = () => {
                     // If image fails to load, still update the module
                     onUpdate({ ...module, image: fileName });
+                    setIsLoadingImage(false);
                 };
                 img.src = URL.createObjectURL(file);
             } else {
@@ -114,7 +119,7 @@ export default function ImageModule({ module, entryId, journalId, onUpdate, isEd
     
     return (
         <div className="image-module">
-            {isEditable && !module.image && (
+            {isEditable && !module.image && !isLoadingImage && (
                 <div className="tool-bar">
                     <div className="left-side">
                         <div className="image-upload-button-container">
@@ -134,13 +139,20 @@ export default function ImageModule({ module, entryId, journalId, onUpdate, isEd
                 </div>
             )}
             
+            {isLoadingImage && (
+                <div className="loading-message" style={{ padding: '1em', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5em' }}>
+                    <Icon name="progress_activity" spin={true} />
+                    Loading image...
+                </div>
+            )}
+            
             {uploadError && (
                 <div className="error-message" style={{ color: 'red', marginTop: '0.5em' }}>
                     {uploadError}
                 </div>
             )}
             
-            {module.image && (
+            {module.image && !isLoadingImage && (
                 <div className="image-preview">
                     <img 
                         src={apiBasePath() + `/image/journal-entries/${entryId}/${module.image}`} 

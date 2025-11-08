@@ -79,7 +79,7 @@ namespace Collector.Web.Server.SignalR
                         {
                             // Generate thumbnail if it doesn't exist
                             var originalRelativePath = Path.Combine(existingVideo.JournalEntryId.ToString(), existingVideo.Filename);
-                            var thumbnailSuccess2 = await GenerateThumbnail(originalRelativePath, thumbnailRelativePath2);
+                            var thumbnailSuccess2 = await GenerateThumbnail(originalRelativePath, thumbnailRelativePath2, existingVideo.Url);
                             if (thumbnailSuccess2)
                             {
                                 thumbnailPath = thumbnailRelativePath2.Replace("\\", "/");
@@ -214,7 +214,7 @@ namespace Collector.Web.Server.SignalR
                                         }
                                         else
                                         {
-                                            _ = Clients.Caller.SendAsync("DownloadProgress", 100, "Processing video data for: " + title);
+                                            _ = Clients.Caller.SendAsync("DownloadProgress", 90, "Processing video & audio data for: " + title);
                                         }
                                     }
                                 }
@@ -243,23 +243,17 @@ namespace Collector.Web.Server.SignalR
                     }
                 }
 
-                await Clients.Caller.SendAsync("DownloadProgress", 92, "Generating thumbnail...");
+                await Clients.Caller.SendAsync("DownloadProgress", 92, "Generating preview thumbnail...");
 
-                // Generate thumbnail
+                // Generate main thumbnail
                 var thumbnailFileName = $"{Path.GetFileNameWithoutExtension(fileName)}_thumb.jpg";
                 var thumbnailRelativePath = Path.Combine(entryId, thumbnailFileName);
-                var thumbnailSuccess = await GenerateThumbnail(relativePath, thumbnailRelativePath);
+                var thumbnailSuccess = await GenerateThumbnail(relativePath, thumbnailRelativePath, url);
 
-                await Clients.Caller.SendAsync("DownloadProgress", 95, "Processing video metadata...");
+                await Clients.Caller.SendAsync("DownloadProgress", 96, "Processing video metadata...");
 
                 // Get video metadata
                 var (width, height, duration) = await GetVideoMetadata(relativePath);
-
-                // Update database with download completion
-                await _videoRepo.UpdateDownloaded(videoId, true, fileName, duration, width, height);
-                _logger.LogInformation("Video {VideoId} download completed", videoId);
-
-                await Clients.Caller.SendAsync("DownloadProgress", 100, "Complete!");
 
                 // Send completion with video data
                 await Clients.Caller.SendAsync("DownloadComplete", new
@@ -267,10 +261,20 @@ namespace Collector.Web.Server.SignalR
                     id = videoId,
                     videoPath = relativePath.Replace("\\", "/"),
                     thumbnailPath = thumbnailSuccess ? thumbnailRelativePath.Replace("\\", "/") : null,
-                    width = width,
-                    height = height,
-                    duration = duration
+                    width,
+                    height,
+                    duration
                 });
+
+                // Generate seek preview thumbnails
+                await Clients.Caller.SendAsync("DownloadProgress", 94, "Generating seek preview thumbnails...");
+                await GenerateSeekPreviewThumbnails(relativePath);
+
+                // Update database with download completion
+                await _videoRepo.UpdateDownloaded(videoId, true, fileName, duration, width, height);
+                _logger.LogInformation("Video {VideoId} download completed", videoId);
+
+                await Clients.Caller.SendAsync("DownloadProgress", 100, "Complete!");
             }
             catch (Exception ex)
             {
@@ -312,51 +316,48 @@ namespace Collector.Web.Server.SignalR
             }
         }
 
-        private async Task<bool> GenerateThumbnail(string videoRelativePath, string thumbnailRelativePath)
+        private async Task<bool> GenerateThumbnail(string videoRelativePath, string thumbnailRelativePath, string videoUrl = null, int width = 0, int height = 0, bool crop = false, int seekSeconds = 1)
         {
-            try
+            var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoRelativePath);
+            var thumbnailFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), thumbnailRelativePath);
+
+            // For seek previews (crop=true), don't use yt-dlp fallback
+            var urlForFallback = crop ? null : videoUrl;
+
+            var success = await Common.Videos.GenerateThumbnail(videoFullPath, thumbnailFullPath, urlForFallback, width, height, crop, seekSeconds, timeoutSeconds: 30);
+            
+            if (!success)
             {
-                var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoRelativePath);
-                var thumbnailFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), thumbnailRelativePath);
-
-                var directory = Path.GetDirectoryName(thumbnailFullPath);
-                if (!Directory.Exists(directory))
-                {
-                    Directory.CreateDirectory(directory);
-                }
-
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = "ffmpeg",
-                    Arguments = $"-ss 00:00:01 -i \"{videoFullPath}\" -vframes 1 -q:v 1 \"{thumbnailFullPath}\"",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-
-                using (var process = Process.Start(startInfo))
-                {
-                    await process.WaitForExitAsync();
-                    return process.ExitCode == 0 && File.Exists(thumbnailFullPath);
-                }
+                _logger.LogError("Failed to generate thumbnail for {VideoPath}", videoRelativePath);
             }
-            catch
+            else if (!crop && !string.IsNullOrEmpty(videoUrl))
             {
-                return false;
+                // Log if we had to use fallback
+                _logger.LogInformation("Successfully generated thumbnail for {VideoPath}", videoRelativePath);
             }
+            
+            return success;
         }
+
+
 
         private async Task<(int width, int height, int duration)> GetVideoMetadata(string videoRelativePath)
         {
+            var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoRelativePath);
+            return await Common.Videos.GetVideoMetadata(videoFullPath);
+        }
+
+        private async Task ResizeThumbnailWithFfmpeg(string thumbnailFullPath, int width, int height)
+        {
             try
             {
-                var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoRelativePath);
-
+                var tempPath = thumbnailFullPath + ".tmp.jpg";
+                var filterArgs = Common.Videos.BuildFfmpegFilterArgs(width, height, false);
+                
                 var startInfo = new ProcessStartInfo
                 {
-                    FileName = "ffprobe",
-                    Arguments = $"-v error -select_streams v:0 -show_entries stream=width,height,duration -of csv=p=0 \"{videoFullPath}\"",
+                    FileName = "ffmpeg",
+                    Arguments = $"-i \"{thumbnailFullPath}\"{filterArgs} -q:v 10 \"{tempPath}\"",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
@@ -365,27 +366,80 @@ namespace Collector.Web.Server.SignalR
 
                 using (var process = Process.Start(startInfo))
                 {
-                    var output = await process.StandardOutput.ReadToEndAsync();
                     await process.WaitForExitAsync();
-
-                    if (process.ExitCode == 0 && !string.IsNullOrEmpty(output))
+                    if (process.ExitCode == 0 && File.Exists(tempPath))
                     {
-                        var parts = output.Trim().Split(',');
-                        if (parts.Length >= 2)
-                        {
-                            int.TryParse(parts[0], out int width);
-                            int.TryParse(parts[1], out int height);
-                            double.TryParse(parts.Length > 2 ? parts[2] : "0", out double durationSeconds);
-                            return (width, height, (int)durationSeconds);
-                        }
+                        File.Delete(thumbnailFullPath);
+                        File.Move(tempPath, thumbnailFullPath);
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogError(ex, "Failed to resize thumbnail");
             }
+        }
 
-            return (0, 0, 0);
+        private async Task GenerateSeekPreviewThumbnails(string videoRelativePath)
+        {
+            try
+            {
+                var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoRelativePath);
+                
+                if (!File.Exists(videoFullPath))
+                {
+                    _logger.LogError("Video file not found for seek preview generation: {VideoPath}", videoFullPath);
+                    return;
+                }
+
+                // Get video duration
+                var (width, height, duration) = await GetVideoMetadata(videoRelativePath);
+                
+                if (duration <= 0)
+                {
+                    _logger.LogWarning("Invalid video duration for seek preview generation");
+                    return;
+                }
+
+                // Create preview thumbnails folder
+                var videoDirectory = Path.GetDirectoryName(videoFullPath);
+                var videoFileNameWithoutExt = Path.GetFileNameWithoutExtension(videoFullPath);
+                var previewFolder = Path.Combine(videoDirectory, videoFileNameWithoutExt);
+                
+                if (!Directory.Exists(previewFolder))
+                {
+                    Directory.CreateDirectory(previewFolder);
+                }
+
+                // Generate thumbnails every 10 seconds
+                int successCount = 0;
+                int failCount = 0;
+                
+                for (int second = 0; second < duration; second += 10)
+                {
+                    var previewFileName = $"preview_{second}.jpg";
+                    var previewRelativePath = Path.Combine(Path.GetDirectoryName(videoRelativePath), videoFileNameWithoutExt, previewFileName);
+
+                    // Use the same thumbnail generation method, but with crop enabled (no yt-dlp fallback for seek previews)
+                    var success = await GenerateThumbnail(videoRelativePath, previewRelativePath, null, 160, 90, true, second);
+                    
+                    if (success)
+                    {
+                        successCount++;
+                    }
+                    else
+                    {
+                        failCount++;
+                        _logger.LogWarning("Failed to generate seek preview at {Second}s", second);
+                    }
+                }
+
+                _logger.LogInformation("Generated {SuccessCount} seek preview thumbnails for video ({FailCount} failed)", successCount, failCount);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Exception during seek preview thumbnail generation");
+            }
         }
     }
 }

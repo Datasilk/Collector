@@ -22,8 +22,14 @@ const SessionProvider = ({children}) => {
         context.setUser(null);
     }
 
-    const showModal = (component) => {
-        context.setModal(component);
+    const showModal = (componentOrFunction) => {
+        // If it's a function, store it as-is so it can be called fresh each render
+        // If it's a component, wrap it in a function
+        if (typeof componentOrFunction === 'function') {
+            context.setModal(componentOrFunction);
+        } else {
+            context.setModal(() => componentOrFunction);
+        }
     };
 
     const hideModal = () => {
@@ -37,7 +43,7 @@ const SessionProvider = ({children}) => {
     return (
         <SessionContext.Provider value={context}>
             <>
-            {modal ?? <></>}
+            {modal ? (typeof modal === 'function' ? modal() : modal) : <></>}
             {children}
             </>
         </SessionContext.Provider>

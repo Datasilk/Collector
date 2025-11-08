@@ -42,6 +42,68 @@ namespace Collector.API.Controllers
             }
         }
 
+        [HttpGet("/video/preview/{entryId}/{videoFileName}/{second}")]
+        public async Task<IActionResult> GetSeekPreview(string entryId, string videoFileName, int second)
+        {
+            if (string.IsNullOrEmpty(entryId) || string.IsNullOrEmpty(videoFileName))
+            {
+                return NotFound();
+            }
+
+            try
+            {
+                // Round down to nearest 10 seconds
+                var roundedSecond = (int)Math.Floor(second / 10.0) * 10;
+                
+                // Build paths (videoFileName includes extension)
+                var videoFileNameWithoutExt = Path.GetFileNameWithoutExtension(videoFileName);
+                var previewFileName = $"preview_{roundedSecond}.jpg";
+                var previewPath = Path.Combine(entryId, videoFileNameWithoutExt, previewFileName);
+                var previewFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), previewPath);
+                
+                // Check if thumbnail already exists
+                if (!System.IO.File.Exists(previewFullPath))
+                {
+                    // Build video file path (videoFileName includes extension)
+                    var videoPath = Path.Combine(entryId, videoFileName);
+                    var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoPath);
+                    
+                    if (!System.IO.File.Exists(videoFullPath))
+                    {
+                        return NotFound("Video file not found");
+                    }
+                    
+                    // Generate the thumbnail on-demand
+                    var success = await Common.Videos.GenerateThumbnail(
+                        videoFullPath, 
+                        previewFullPath,
+                        videoUrl: null, // No yt-dlp fallback for seek previews
+                        width: 160, 
+                        height: 90, 
+                        crop: true, 
+                        seekSeconds: roundedSecond,
+                        timeoutSeconds: 10
+                    );
+                    
+                    if (!success)
+                    {
+                        return NotFound("Failed to generate preview thumbnail");
+                    }
+                }
+                
+                // Get the preview thumbnail file as bytes
+                var previewBytes = Files.GetFileBytes(Files.Paths.Videos, previewPath);
+                
+                // Return as JPEG image with cache headers
+                Response.Headers.Add("Cache-Control", "public, max-age=31536000"); // Cache for 1 year
+                return File(previewBytes, "image/jpeg");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Error generating preview: {ex.Message}");
+            }
+        }
+
         [HttpGet("/video/{id:int}")]
         public async Task<IActionResult> StreamVideo(int id)
         {
@@ -241,29 +303,17 @@ namespace Collector.API.Controllers
                 var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoRelativePath);
                 var thumbnailFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), thumbnailRelativePath);
                 
-                // Create directory if it doesn't exist
-                var directory = Path.GetDirectoryName(thumbnailFullPath);
-                if (!Directory.Exists(directory))
-                {
-                    Directory.CreateDirectory(directory);
-                }
-
-                // Use ffmpeg to generate thumbnail at 1 second mark with highest quality
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = "ffmpeg",
-                    Arguments = $"-ss 00:00:01 -i \"{videoFullPath}\" -vframes 1 -q:v 1 \"{thumbnailFullPath}\"",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-
-                using (var process = Process.Start(startInfo))
-                {
-                    await process.WaitForExitAsync();
-                    return process.ExitCode == 0 && System.IO.File.Exists(thumbnailFullPath);
-                }
+                // Use the unified thumbnail generation method (no yt-dlp fallback for uploaded videos)
+                return await Common.Videos.GenerateThumbnail(
+                    videoFullPath,
+                    thumbnailFullPath,
+                    videoUrl: null,
+                    width: 0,
+                    height: 0,
+                    crop: false,
+                    seekSeconds: 1,
+                    timeoutSeconds: 30
+                );
             }
             catch (Exception ex)
             {

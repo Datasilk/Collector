@@ -9,21 +9,34 @@ export default function ModuleListModule({ module, entryId, journalId, onUpdate,
     //state
     const [childModules, setChildModules] = useState(module.modules || []);
     const [showAddModuleDropdown, setShowAddModuleDropdown] = useState(false);
+    const [showBottomModuleDropdown, setShowBottomModuleDropdown] = useState(false);
 
     //refs
     const moduleRef = useRef(module);
     const addModuleDropdownRef = useRef(null);
     const addModuleButtonRef = useRef(null);
+    const bottomDropdownRef = useRef(null);
+    const bottomDropdownButtonRef = useRef(null);
 
     //effect
     useEffect(() => {
         const handleClickOutside = (event) => {
+            // Check if click is outside the top dropdown and its button
             if (showAddModuleDropdown &&
                 addModuleDropdownRef.current &&
                 !addModuleDropdownRef.current.contains(event.target) &&
                 addModuleButtonRef.current &&
                 !addModuleButtonRef.current.contains(event.target)) {
                 setShowAddModuleDropdown(false);
+            }
+
+            // Check if click is outside the bottom dropdown and its button
+            if (showBottomModuleDropdown &&
+                bottomDropdownRef.current &&
+                !bottomDropdownRef.current.contains(event.target) &&
+                bottomDropdownButtonRef.current &&
+                !bottomDropdownButtonRef.current.contains(event.target)) {
+                setShowBottomModuleDropdown(false);
             }
         };
 
@@ -32,7 +45,7 @@ export default function ModuleListModule({ module, entryId, journalId, onUpdate,
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [showAddModuleDropdown]);
+    }, [showAddModuleDropdown, showBottomModuleDropdown]);
 
     useEffect(() => {
         moduleRef.current = module;
@@ -79,7 +92,7 @@ export default function ModuleListModule({ module, entryId, journalId, onUpdate,
         onUpdate(updatedModule);
     };
 
-    const addModuleToBottom = (type) => {
+    const addModuleToBottom = (type, position = 'top') => {
         const newModuleId = generateRandomId();
         const newModule = {
             id: newModuleId,
@@ -93,16 +106,29 @@ export default function ModuleListModule({ module, entryId, journalId, onUpdate,
         // Update the parent module
         const updatedModule = { ...moduleRef.current, modules: updatedModules };
         onUpdate(updatedModule);
-        setShowAddModuleDropdown(false);
+        
+        // Close the appropriate dropdown based on which one was used
+        if (position === 'top') {
+            setShowAddModuleDropdown(false);
+        } else {
+            setShowBottomModuleDropdown(false);
+        }
     };
 
     return (
         <div className="module-list-module">
             {isEditable && (
                 <div className="add-module-container tool-bar">
+                    <div className="align-right">
                     <button
                         ref={addModuleButtonRef}
-                        onClick={() => setShowAddModuleDropdown(!showAddModuleDropdown)}
+                        onClick={() => {
+                            // Close bottom dropdown if it's open
+                            if (showBottomModuleDropdown) {
+                                setShowBottomModuleDropdown(false);
+                            }
+                            setShowAddModuleDropdown(!showAddModuleDropdown);
+                        }}
                     >
                         <Icon name="add" /> Add Content
                     </button>
@@ -115,7 +141,7 @@ export default function ModuleListModule({ module, entryId, journalId, onUpdate,
                                 <div
                                     key={module.id}
                                     className="module-option"
-                                    onClick={() => addModuleToBottom(module.type)}
+                                    onClick={() => addModuleToBottom(module.type, 'top')}
                                 >
                                     <Icon name={module.icon} />
                                     <span>{module.name}</span>
@@ -123,6 +149,7 @@ export default function ModuleListModule({ module, entryId, journalId, onUpdate,
                             ))}
                         </div>
                     )}
+                    </div>
                 </div>
             )}
             <ModuleList
@@ -136,6 +163,43 @@ export default function ModuleListModule({ module, entryId, journalId, onUpdate,
                 removedModule={handleRemovedModule}
                 containerId={`module-list-${module.id}`}
             />
+            
+            {/* Bottom Add Content button - only shows if there are modules and editing is enabled */}
+            {childModules.length > 0 && isEditable && (
+                <div className="add-module-container tool-bar bottom-add-module">
+                    <div className="align-right">
+                        <button
+                            ref={bottomDropdownButtonRef}
+                            onClick={() => {
+                                // Close top dropdown if it's open
+                                if (showAddModuleDropdown) {
+                                    setShowAddModuleDropdown(false);
+                                }
+                                setShowBottomModuleDropdown(!showBottomModuleDropdown);
+                            }}
+                        >
+                            <Icon name="add" /> Add Content
+                        </button>
+                        {showBottomModuleDropdown && (
+                            <div
+                                className="module-dropdown"
+                                ref={bottomDropdownRef}
+                            >
+                                {modules.map(module => (
+                                    <div
+                                        key={module.id}
+                                        className="module-option"
+                                        onClick={() => addModuleToBottom(module.type, 'bottom')}
+                                    >
+                                        <Icon name={module.icon} />
+                                        <span>{module.name}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

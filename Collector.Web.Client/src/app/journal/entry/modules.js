@@ -5,6 +5,7 @@ import ImageModule from './modules/image';
 import TabsModule from './modules/tabs';
 import ModuleListModule from './modules/module-list';
 import VideoPlayerModule from './modules/video-player';
+import FileDownloadModule from './modules/file-download';
 
 const modules = [
     {
@@ -13,13 +14,6 @@ const modules = [
         icon: 'text_snippet',
         type: 'text-editor',
         module: CKEditorModule
-    },
-    {
-        id: 'checklist',
-        name: 'Checklist',
-        icon: 'checklist',
-        type: 'checklist',
-        module: ChecklistModule
     },
     {
         id: 'image',
@@ -36,6 +30,13 @@ const modules = [
         module: TabsModule
     },
     {
+        id: 'video-player',
+        name: 'Video Player',
+        icon: 'play_circle',
+        type: 'video-player',
+        module: VideoPlayerModule
+    },
+    {
         id: 'module-list',
         name: 'Module List',
         icon: 'list',
@@ -43,11 +44,18 @@ const modules = [
         module: ModuleListModule
     },
     {
-        id: 'video-player',
-        name: 'Video Player',
-        icon: 'play_circle',
-        type: 'video-player',
-        module: VideoPlayerModule
+        id: 'checklist',
+        name: 'Checklist',
+        icon: 'checklist',
+        type: 'checklist',
+        module: ChecklistModule
+    },
+    {
+        id: 'file-download',
+        name: 'File Download',
+        icon: 'download',
+        type: 'file-download',
+        module: FileDownloadModule
     }
 ];
 
