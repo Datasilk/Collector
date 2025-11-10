@@ -7,6 +7,7 @@ import TreeView from '@/components/ui/tree-view';
 import Modal from '@/components/ui/modal';
 import Icon from '@/components/ui/icon';
 import Input from '@/components/forms/input';
+import entryTypes from './entry-types';
 import './layout.css';
 
 /**
@@ -17,7 +18,7 @@ export default function JournalLayout({ children }) {
     // context
     const session = useSession();
     const navigate = useNavigate();
-    const {journalId} = useParams();
+    const { journalId } = useParams();
 
     // state
     const [isAuth, setAuth] = useState(null);
@@ -48,6 +49,11 @@ export default function JournalLayout({ children }) {
     const [newJournalColor, setNewJournalColor] = useState('#3498db');
     const [selectedCategoryId, setSelectedCategoryId] = useState(null);
 
+    // Entry type dropdown state
+    const [showEntryTypeDropdown, setShowEntryTypeDropdown] = useState(false);
+    const [activeEntryTypeModal, setActiveEntryTypeModal] = useState(null);
+    const entryTypeDropdownRef = useRef(null);
+
     // api
     const { logout, hasRole } = session;
 
@@ -62,7 +68,7 @@ export default function JournalLayout({ children }) {
                 setAuth(true);
                 fetchCategories();
                 loadToggleStates();
-                
+
                 // If no journalId is provided in URL, check if we have a saved journal
                 if (!journalId) {
                     const savedJournalId = localStorage.getItem(selectedJournalKey);
@@ -73,14 +79,14 @@ export default function JournalLayout({ children }) {
             }
         }
     }, [mounted, journalId]);
-    
+
     // Load toggle states from local storage
     const loadToggleStates = () => {
         try {
             const savedToggles = JSON.parse(localStorage.getItem(storageKey)) || {};
             const catToggles = {};
             const jrnToggles = {};
-            
+
             // Separate category and journal toggles
             Object.keys(savedToggles).forEach(key => {
                 if (key.startsWith('category')) {
@@ -89,13 +95,13 @@ export default function JournalLayout({ children }) {
                     jrnToggles[key] = savedToggles[key];
                 }
             });
-            
+
             setCategoryToggles(catToggles);
         } catch (error) {
             console.error('Error loading toggle states from localStorage:', error);
         }
     };
-    
+
     // Save toggle state to local storage
     const saveToggleState = (id) => {
         try {
@@ -109,7 +115,7 @@ export default function JournalLayout({ children }) {
             console.error('Error saving toggle state to localStorage:', error);
         }
     };
-    
+
     // Save selected journal to local storage
     const saveSelectedJournal = (id) => {
         try {
@@ -118,14 +124,14 @@ export default function JournalLayout({ children }) {
             console.error('Error saving selected journal to localStorage:', error);
         }
     };
-    
+
     // Focus category title input when edit mode is activated
     useEffect(() => {
         if (editingCategoryId !== null && categoryTitleInputRef.current) {
             categoryTitleInputRef.current.focus();
         }
     }, [editingCategoryId]);
-    
+
     // Focus journal title input when edit mode is activated
     useEffect(() => {
         if (editingJournalId !== null && journalTitleInputRef.current) {
@@ -233,14 +239,14 @@ export default function JournalLayout({ children }) {
             setEditingCategoryTitle('');
         }
     };
-    
+
     const handleCategoryTitleBlur = (categoryId) => {
         updateCategoryTitle(categoryId);
     };
 
     const updateCategoryTitle = (categoryId) => {
         if (editingCategoryTitle.trim() === '') return;
-        
+
         // Find the current category to compare titles
         const currentCategory = categories.find(cat => cat.id === categoryId);
         if (!currentCategory || currentCategory.title === editingCategoryTitle.trim()) {
@@ -248,7 +254,7 @@ export default function JournalLayout({ children }) {
             setEditingCategoryId(null);
             return;
         }
-        
+
         setLoading(true);
         Journals(session).renameCategory(categoryId, editingCategoryTitle.trim())
             .then(response => {
@@ -311,7 +317,7 @@ export default function JournalLayout({ children }) {
 
     const updateJournalTitle = (journalId) => {
         if (editingJournalTitle.trim() === '') return;
-        
+
         // Find the current journal to compare titles
         let currentJournal = null;
         for (const category of categories) {
@@ -323,13 +329,13 @@ export default function JournalLayout({ children }) {
                 }
             }
         }
-        
+
         if (!currentJournal || currentJournal.title === editingJournalTitle.trim()) {
             // Title hasn't changed, just exit edit mode
             setEditingJournalId(null);
             return;
         }
-        
+
         setLoading(true);
         Journals(session).renameJournal(journalId, editingJournalTitle.trim())
             .then(response => {
@@ -390,6 +396,36 @@ export default function JournalLayout({ children }) {
         });
     }
 
+    const handleToggleEntryTypeDropdown = () => {
+        setShowEntryTypeDropdown(!showEntryTypeDropdown);
+    };
+
+    const handleSelectEntryType = (entryType) => {
+        setShowEntryTypeDropdown(false);
+        setActiveEntryTypeModal(entryType);
+    };
+
+    const handleCloseEntryTypeModal = () => {
+        setActiveEntryTypeModal(null);
+    };
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (entryTypeDropdownRef.current && !entryTypeDropdownRef.current.contains(event.target)) {
+                setShowEntryTypeDropdown(false);
+            }
+        };
+
+        if (showEntryTypeDropdown) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [showEntryTypeDropdown]);
+
     return (
         <div className="app-container">
             <header className="main-header">
@@ -402,6 +438,28 @@ export default function JournalLayout({ children }) {
                     </div>
                     <div className="sidebar">
                         <div className="sidebar-top">
+                            {!loading && !error && categories.length > 0 &&
+                                <div className="tool-bar entry-type-dropdown" ref={entryTypeDropdownRef}>
+                                    <button className="button" onClick={handleToggleEntryTypeDropdown}>
+                                        <Icon name="add"></Icon>New Entry
+                                    </button>
+                                    {showEntryTypeDropdown && (
+                                        <div className="dropdown-menu">
+                                            {entryTypes.map(entryType => (
+                                                <div
+                                                    key={entryType.id}
+                                                    className="dropdown-item"
+                                                    onClick={() => handleSelectEntryType(entryType)}
+                                                >
+                                                    <Icon name={entryType.icon}></Icon>
+                                                    <span>{entryType.name}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            }
+
                             <div className="journal-tree">
                                 {loading ? (
                                     <div className="loading">Loading categories...</div>
@@ -415,15 +473,15 @@ export default function JournalLayout({ children }) {
                                             key={`category-${category.id}`}
                                             defaultOpen={categoryToggles[`category${category.id}`] !== undefined ? categoryToggles[`category${category.id}`] : false}
                                             onClick={() => saveToggleState(category.id)}
-                                            label={editingCategoryId === category.id ? 
-                                                <Input 
+                                            label={editingCategoryId === category.id ?
+                                                <Input
                                                     name={`category-${category.id}`}
                                                     value={editingCategoryTitle}
                                                     onInput={handleCategoryTitleChange}
                                                     onKeyDown={(e) => handleCategoryTitleKeyDown(e, category.id)}
                                                     onBlur={() => handleCategoryTitleBlur(category.id)}
                                                     ref={categoryTitleInputRef}
-                                                /> : 
+                                                /> :
                                                 category.title
                                             }
                                             className="treeview-category"
@@ -450,21 +508,21 @@ export default function JournalLayout({ children }) {
                                                             <div
                                                                 className="tree-view-label"
                                                                 onClick={() => {
-                                                                    if(document.body.classList.contains('is-mobile')){
+                                                                    if (document.body.classList.contains('is-mobile')) {
                                                                         document.querySelector('.sidebar').style.display = 'none';
                                                                     }
                                                                     saveSelectedJournal(journal.id);
                                                                 }}
                                                             >
-                                                                {editingJournalId === journal.id ? 
-                                                                    <Input 
+                                                                {editingJournalId === journal.id ?
+                                                                    <Input
                                                                         name={`journal-${journal.id}`}
                                                                         value={editingJournalTitle}
                                                                         onInput={handleJournalTitleChange}
                                                                         onKeyDown={(e) => handleJournalTitleKeyDown(e, journal.id)}
                                                                         onBlur={() => handleJournalTitleBlur(journal.id)}
                                                                         ref={journalTitleInputRef}
-                                                                    /> : 
+                                                                    /> :
                                                                     <Link to={`/journal/${journal.id}`} className="tree-view-link">
                                                                         <span>{journal.title}</span>
                                                                     </Link>
@@ -568,6 +626,11 @@ export default function JournalLayout({ children }) {
                         </div>
                     </div>
                 </Modal>
+            )}
+
+            {/* Entry Type Modal */}
+            {activeEntryTypeModal && (
+                <activeEntryTypeModal.modal onClose={handleCloseEntryTypeModal} />
             )}
         </div>
     );

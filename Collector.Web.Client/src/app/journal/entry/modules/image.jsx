@@ -154,7 +154,7 @@ export default function ImageModule({ module, entryId, journalId, onUpdate, isEd
             
             {module.image && !isLoadingImage && (
                 <div className="image-preview">
-                    <img 
+                    <img loading="lazy"
                         src={apiBasePath() + `/image/journal-entries/${entryId}/${module.image}`} 
                         alt="Uploaded content" 
                     />

@@ -1,9 +1,17 @@
+.journal-layout .body{
+    width:calc(100% - 20em);
+}
+
+.is-mobile .journal-layout .body{
+    width:100%;
+}
+
 .journal-layout {
     position: relative;
 }
 
 .journal-layout .sidebar {
-    width: 320px;
+    width: 20em;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -213,4 +221,47 @@
 .modal-form .button.primary:disabled {
     cursor: not-allowed;
 }
+
+/* Entry Type Dropdown Styles */
+.entry-type-dropdown {
+    position: relative;
+}
+
+.entry-type-dropdown .dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: #ffffff;
+    border-radius: 0.5em;
+    margin-top: 4px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    width: fit-content;
+}
+
+.entry-type-dropdown .dropdown-item {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    width: 100%;
+    border: none;
+    padding:0.8em 1.5em;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    white-space: nowrap;
+    margin:0;
+    font-size:0.9em;
+}
+
+.entry-type-dropdown .dropdown-item:hover {
+    background-color: #f0f0f0;
+    color:#7763ed;
+}
+
+.entry-type-dropdown .dropdown-item .material-symbols-rounded {
+    margin-right: 0.5em;
+}
+
 

@@ -38,6 +38,8 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
     const [isDragging, setIsDragging] = useState(false);
     const [showControls, setShowControls] = useState(true);
     const [isFocused, setIsFocused] = useState(false);
+    const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+    const [isPiPMode, setIsPiPMode] = useState(false);
 
     //refs
     const fileInputRef = useRef(null);
@@ -45,6 +47,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
     const videoRef = useRef(null);
     const videoPlayerRef = useRef(null);
     const seekBarRef = useRef(null);
+    const containerRef = useRef(null);
     const thumbnailCacheRef = useRef({}); // Cache: { url: base64DataUrl }
     const downloadingRef = useRef(new Set()); // Track in-progress downloads
     const pendingLoadRef = useRef(null); // Track pending thumbnail load promise
@@ -59,6 +62,146 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         if (!setDeleteListener) return;
         setDeleteListener(module, removeModule);
     }, [module.id]);
+
+    // Pause other videos when this one starts playing
+    useEffect(() => {
+        if (isPlaying && videoRef.current) {
+            // Dispatch custom event to pause other videos
+            const event = new CustomEvent('videoPlaying', { 
+                detail: { videoElement: videoRef.current } 
+            });
+            window.dispatchEvent(event);
+        }
+    }, [isPlaying]);
+
+    // Listen for other videos playing and pause this one
+    useEffect(() => {
+        const handleOtherVideoPlaying = (event) => {
+            if (event.detail.videoElement !== videoRef.current && videoRef.current && !videoRef.current.paused) {
+                videoRef.current.pause();
+                setIsPlaying(false);
+            }
+        };
+
+        window.addEventListener('videoPlaying', handleOtherVideoPlaying);
+
+        return () => {
+            window.removeEventListener('videoPlaying', handleOtherVideoPlaying);
+        };
+    }, []);
+
+    // IntersectionObserver to lazy load video when it comes into view
+    useEffect(() => {
+        if (!containerRef.current || hasLoadedOnce) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                entries.forEach((entry) => {
+                    if (entry.isIntersecting) {
+                        setHasLoadedOnce(true);
+                    }
+                });
+            },
+            {
+                root: null,
+                rootMargin: '100px',
+                threshold: 0.1
+            }
+        );
+
+        observer.observe(containerRef.current);
+
+        return () => {
+            if (containerRef.current) {
+                observer.unobserve(containerRef.current);
+            }
+        };
+    }, [hasLoadedOnce]);
+
+    // IntersectionObserver to enable PiP mode when video is playing and out of view
+    useEffect(() => {
+        if (!videoPlayerRef.current || !hasLoadedOnce) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                entries.forEach((entry) => {
+                    // Enable PiP only if video is playing and not in view
+                    if (!entry.isIntersecting && isPlaying) {
+                        // Dispatch event to revert any existing PiP players
+                        const event = new CustomEvent('requestPiPMode', { 
+                            detail: { videoElement: videoRef.current } 
+                        });
+                        window.dispatchEvent(event);
+                        
+                        // Save current height before going into PiP mode
+                        if (containerRef.current && videoPlayerRef.current) {
+                            const height = videoPlayerRef.current.offsetHeight;
+                            containerRef.current.style.height = `${height}px`;
+                            
+                            // Find parent module element and set z-index
+                            const moduleElement = containerRef.current.closest('.module');
+                            if (moduleElement) {
+                                moduleElement.style.zIndex = '9999';
+                            }
+                        }
+                        setIsPiPMode(true);
+                    } else if (entry.isIntersecting) {
+                        // Remove fixed height when back in view
+                        if (containerRef.current) {
+                            containerRef.current.style.height = '';
+                            
+                            // Remove z-index from parent module element
+                            const moduleElement = containerRef.current.closest('.module');
+                            if (moduleElement) {
+                                moduleElement.style.zIndex = '';
+                            }
+                        }
+                        setIsPiPMode(false);
+                    }
+                });
+            },
+            {
+                root: null,
+                rootMargin: '0px',
+                threshold: 0.1
+            }
+        );
+
+        observer.observe(containerRef.current);
+
+        return () => {
+            if (containerRef.current) {
+                observer.unobserve(containerRef.current);
+            }
+        };
+    }, [hasLoadedOnce, isPlaying]);
+
+    // Listen for PiP mode requests from other videos
+    useEffect(() => {
+        const handlePiPRequest = (event) => {
+            // If this video is in PiP mode but not playing, revert it
+            if (event.detail.videoElement !== videoRef.current && isPiPMode && !isPlaying) {
+                // Remove fixed height and z-index
+                if (containerRef.current) {
+                    containerRef.current.style.height = '';
+                }
+                
+                // Remove z-index from parent module element
+                const moduleElement = containerRef.current?.closest('.module');
+                if (moduleElement) {
+                    moduleElement.style.zIndex = '';
+                }
+                
+                setIsPiPMode(false);
+            }
+        };
+
+        window.addEventListener('requestPiPMode', handlePiPRequest);
+
+        return () => {
+            window.removeEventListener('requestPiPMode', handlePiPRequest);
+        };
+    }, [isPiPMode, isPlaying]);
 
     useEffect(() => {
         if (isDragging) {
@@ -676,6 +819,12 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         togglePlay();
     };
 
+    const handleScrollToVideo = () => {
+        if (containerRef.current) {
+            containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    };
+
     const resetControlsTimeout = () => {
         if (controlsTimeoutRef.current) {
             clearTimeout(controlsTimeoutRef.current);
@@ -696,7 +845,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
     const hasVideo = module.videoPath;
 
     return (
-        <div className="video-player-module">
+        <div className="video-player-module" ref={containerRef}>
             {isEditable && !hasVideo && !isUploading && !isDownloading && (
                 <div className="tool-bar">
                     <div className="left-side">
@@ -787,13 +936,20 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                 </div>
             )}
 
-            {!isDownloading && module.videoPath && module.downloaded !== false && (
-                <div className="video-preview">
-                    {module.url && (
+            {!isDownloading && module.videoPath && module.downloaded !== false && hasLoadedOnce && (
+                <div className={`video-preview ${isPiPMode ? 'pip-mode' : ''}`}>
+                    {module.url && !isPiPMode && (
                         <div className="video-url-icon">
                             <a href={module.url} target="_blank" rel="noopener noreferrer" title="Open original video URL">
                                 <Icon name="arrow_outward" />
                             </a>
+                        </div>
+                    )}
+                    {isPiPMode && (
+                        <div className="video-url-icon">
+                            <button onClick={handleScrollToVideo} title="Scroll to video">
+                                <Icon name="vertical_align_top" />
+                            </button>
                         </div>
                     )}
                     <div 
