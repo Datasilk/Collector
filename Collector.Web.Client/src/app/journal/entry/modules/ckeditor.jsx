@@ -9,6 +9,7 @@ import {
     Autosave,
     BlockQuote,
     Bold,
+    Clipboard,
     CodeBlock,
     Emoji,
     Essentials,
@@ -50,8 +51,7 @@ import {
     TextTransformation,
     Underline,
     Plugin,
-    ButtonView,
-    UpcastWriter
+    ButtonView
 } from 'ckeditor5';
 import 'ckeditor5/ckeditor5.css';
 import { LineHeight } from '@rickx/ckeditor5-line-height'
@@ -392,6 +392,7 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                 Autosave,
                 BlockQuote,
                 Bold,
+                Clipboard,
                 CodeBlock,
                 Emoji,
                 Essentials,
@@ -487,16 +488,42 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
             htmlSupport: {
                 allow: [
                     {
-                        name: /^.*$/,
-                        styles: true,
-                        attributes: true,
-                        classes: true
+                        name: /^(div|span|section|article|aside|header|footer|nav|main|figure|figcaption|mark|time|details|summary|br|hr)$/,
+                        styles: false,
+                        attributes: false,
+                        classes: false
+                    },
+                    {
+                        name: 'p',
+                        styles: false,
+                        attributes: false,
+                        classes: false
+                    },
+                    {
+                        name: /^h[1-6]$/,
+                        styles: false,
+                        attributes: false,
+                        classes: false
+                    },
+                    {
+                        name: /^(ul|ol|li)$/,
+                        styles: false,
+                        attributes: false,
+                        classes: false
+                    },
+                    {
+                        name: 'a',
+                        styles: false,
+                        attributes: false,
+                        classes: false
+                    },
+                    {
+                        name: /^(strong|b|em|i|u|s|sub|sup|code|pre)$/,
+                        styles: false,
+                        attributes: false,
+                        classes: false
                     }
                 ]
-            },
-            clipboard: {
-                // Strip all formatting on paste
-                contentInsertion: 'plainText'
             },
             initialData: initialData,
             startupFocus: true,
@@ -639,48 +666,134 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                 elem.innerHTML = '';
                 elem.appendChild(container);
 
-                // Strip all DOM element attributes on paste
-                editor.plugins.get('ClipboardPipeline').on('inputTransformation', (evt, data) => {
-                    const writer = new UpcastWriter(editor.editing.view.document);
+                // Strip unwanted attributes on paste while preserving block structure
+                editor.plugins.get('ClipboardPipeline').on('contentInsertion', (evt, data) => {
+                    const content = data.content;
 
-                    // Recursive function to remove all attributes from elements
-                    const removeAllAttributes = (element) => {
-                        if (!element) return;
-                        try {
-                            // Get all attribute keys and remove them
-                            if (element.getAttributeKeys) {
+                    // Define allowed attributes
+                    const allowedAttributes = [
+                        'linkHref',
+                        'highlight',
+                        'bold',
+                        'italic',
+                        'underline',
+                        'strikethrough',
+                        'code',
+                        'subscript',
+                        'superscript',
+                        'alignment',
+                        'indent',
+                        'blockIndent',
+                        'htmlAttributes',
+                        'htmlContentAttributes'
+                    ];
+
+                    // Process the model fragment to remove unwanted attributes
+                    editor.model.change(writer => {
+                        // Recursive function to process element and all its children
+                        const processElement = (element) => {
+                            // Check if element has getAttributeKeys method (it's a model element)
+                            if (element && element.getAttributeKeys) {
+                                // Get all attributes
                                 const attributes = Array.from(element.getAttributeKeys());
+                                if (element._removeAttribute) {
+                                    element._removeAttribute('style');
+                                }
+
+                                // Remove all attributes except essential CKEditor ones
                                 attributes.forEach(attr => {
-                                    writer.removeAttribute(attr, element);
+                                    // Keep only CKEditor's internal attributes and allowed styles
+                                    if (!attr.startsWith('html') && !allowedAttributes.includes(attr)) {
+                                        writer.removeAttribute(attr, element);
+                                    }
                                 });
+
+                                // Process all children recursively
+                                if (typeof element.getChildren === 'function') {
+                                    for (const child of element.getChildren()) {
+                                        processElement(child);
+                                    }
+                                }
+                            }
+                        };
+
+                        const range = writer.createRangeIn(content);
+
+                        for (const item of range.getItems()) {
+                            processElement(item);
+                        }
+                    });
+                }, { priority: 'high' });
+
+                // Add line breaks after htmlDivParagraph elements after content is inserted
+                let isPasting = false;
+                editor.plugins.get('ClipboardPipeline').on('inputTransformation', () => {
+                    isPasting = true;
+                }, { priority: 'highest' });
+
+                editor.model.document.on('change:data', () => {
+                    if (!isPasting) return;
+                    isPasting = false;
+
+                    editor.model.change(writer => {
+                        const root = editor.model.document.getRoot();
+                        const range = writer.createRangeIn(root);
+                        const textNodesToProcess = [];
+                        const htmlDivParagraphs = [];
+
+                        // Find all text nodes with \n and htmlDivParagraph elements
+                        for (const item of range.getItems()) {
+                            if (item && item.data && item.data.indexOf('\n') >= 0) {
+                                textNodesToProcess.push(item);
+                            }
+                            if (item && item.name === 'htmlDivParagraph') {
+                                htmlDivParagraphs.push(item);
                             }
                         }
-                        catch (err) {
-                            console.error('Error removing attributes:', err);
-                        }
 
-                        try {
-                            // Recursively process all children
-                            if (element.getChildren) {
-                                for (const child of element.getChildren()) {
-                                    removeAllAttributes(child);
+                        // Replace \n with softBreak in text nodes
+                        // Process in reverse order to avoid index shifting issues
+                        for (let i = textNodesToProcess.length - 1; i >= 0; i--) {
+                            const textNode = textNodesToProcess[i];
+                            const parent = textNode.parent;
+                            if (!parent) continue;
+                            
+                            const text = textNode.data;
+                            const parts = text.split('\n');
+
+                            if (parts.length > 1) {
+                                // Get position before the text node
+                                const insertPosition = writer.createPositionBefore(textNode);
+                                
+                                // Remove the original text node
+                                writer.remove(textNode);
+
+                                // Insert text parts with softBreak elements between them
+                                let currentPosition = insertPosition;
+                                for (let j = 0; j < parts.length; j++) {
+                                    const part = parts[j];
+                                    if (part.length > 0) {
+                                        writer.insertText(part, currentPosition);
+                                        currentPosition = currentPosition.getShiftedBy(part.length);
+                                    }
+                                    // Don't add softBreak after the last part
+                                    if (j < parts.length - 1) {
+                                        writer.insert(writer.createElement('softBreak'), currentPosition);
+                                        currentPosition = currentPosition.getShiftedBy(1);
+                                    }
                                 }
                             }
                         }
-                        catch (err) {
-                            console.error('Error removing attributes:', err);
-                        }
-                    };
 
-                    // Process all top-level items in the pasted content
-                    for (const item of data.content.getChildren()) {
-                        try {
-                            removeAllAttributes(item);
-                        }
-                        catch (err) {
-                            console.error('Error removing attributes:', err);
-                        }
-                    }
+                        // Insert line breaks after each htmlDivParagraph
+                        htmlDivParagraphs.forEach(element => {
+                            const parent = element.parent;
+                            if (parent) {
+                                const position = writer.createPositionAfter(element);
+                                writer.insert(writer.createElement('softBreak'), position);
+                            }
+                        });
+                    });
                 });
 
                 editor.model.document.on('change:data', handleDataChange);
