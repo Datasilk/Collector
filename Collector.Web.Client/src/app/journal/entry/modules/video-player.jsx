@@ -138,10 +138,17 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                             const height = videoPlayerRef.current.offsetHeight;
                             containerRef.current.style.height = `${height}px`;
                             
-                            // Find parent module element and set z-index
-                            const moduleElement = containerRef.current.closest('.module');
-                            if (moduleElement) {
-                                moduleElement.style.zIndex = '9999';
+                            // Find all parent module elements and set z-index
+                            let currentElement = containerRef.current.closest('.module');
+                            let zIndex = 9999;
+                            
+                            while (currentElement) {
+                                currentElement.style.zIndex = zIndex.toString();
+                                currentElement.setAttribute('data-pip-zindex', 'true');
+                                zIndex--;
+                                
+                                // Find next parent module
+                                currentElement = currentElement.parentElement?.closest('.module');
                             }
                         }
                         setIsPiPMode(true);
@@ -150,10 +157,17 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                         if (containerRef.current) {
                             containerRef.current.style.height = '';
                             
-                            // Remove z-index from parent module element
-                            const moduleElement = containerRef.current.closest('.module');
-                            if (moduleElement) {
-                                moduleElement.style.zIndex = '';
+                            // Remove z-index from all parent module elements
+                            let currentElement = containerRef.current.closest('.module');
+                            
+                            while (currentElement) {
+                                if (currentElement.hasAttribute('data-pip-zindex')) {
+                                    currentElement.style.zIndex = '';
+                                    currentElement.removeAttribute('data-pip-zindex');
+                                }
+                                
+                                // Find next parent module
+                                currentElement = currentElement.parentElement?.closest('.module');
                             }
                         }
                         setIsPiPMode(false);
@@ -181,15 +195,22 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         const handlePiPRequest = (event) => {
             // If this video is in PiP mode but not playing, revert it
             if (event.detail.videoElement !== videoRef.current && isPiPMode && !isPlaying) {
-                // Remove fixed height and z-index
+                // Remove fixed height
                 if (containerRef.current) {
                     containerRef.current.style.height = '';
-                }
-                
-                // Remove z-index from parent module element
-                const moduleElement = containerRef.current?.closest('.module');
-                if (moduleElement) {
-                    moduleElement.style.zIndex = '';
+                    
+                    // Remove z-index from all parent module elements
+                    let currentElement = containerRef.current.closest('.module');
+                    
+                    while (currentElement) {
+                        if (currentElement.hasAttribute('data-pip-zindex')) {
+                            currentElement.style.zIndex = '';
+                            currentElement.removeAttribute('data-pip-zindex');
+                        }
+                        
+                        // Find next parent module
+                        currentElement = currentElement.parentElement?.closest('.module');
+                    }
                 }
                 
                 setIsPiPMode(false);
