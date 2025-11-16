@@ -89,6 +89,75 @@ namespace Collector.Data.Repositories
                 new { journalId }).ToList();
         }
 
+        public JournalEntryFilterResult Filter(int journalId, string search, string sort, int start, int length)
+        {
+            // Normalize inputs
+            search = search ?? string.Empty;
+            sort = string.IsNullOrWhiteSpace(sort) ? "Created_desc" : sort;
+
+            // Build ORDER BY clause based on sort string
+            string orderBy;
+            switch (sort)
+            {
+                case "Title_asc":
+                    orderBy = "[Title] ASC";
+                    break;
+                case "Title_desc":
+                    orderBy = "[Title] DESC";
+                    break;
+                case "Created_asc":
+                    orderBy = "[Created] ASC";
+                    break;
+                case "Created_desc":
+                    orderBy = "[Created] DESC";
+                    break;
+                case "Modified_asc":
+                    orderBy = "[Modified] ASC";
+                    break;
+                case "Modified_desc":
+                    orderBy = "[Modified] DESC";
+                    break;
+                case "Status_asc":
+                    orderBy = "[Status] ASC";
+                    break;
+                case "Status_desc":
+                    orderBy = "[Status] DESC";
+                    break;
+                default:
+                    orderBy = "[Created] DESC";
+                    break;
+            }
+
+            var whereClause = @"[JournalId] = @journalId AND [Status] > 0";
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                whereClause += " AND ([Title] LIKE @search OR [Description] LIKE @search)";
+            }
+
+            var countSql = $@"SELECT COUNT(*) FROM [dbo].[JournalEntries] WHERE {whereClause}";
+            var dataSql = $@"SELECT * FROM [dbo].[JournalEntries]
+                WHERE {whereClause}
+                ORDER BY {orderBy}
+                OFFSET @start ROWS FETCH NEXT @length ROWS ONLY";
+
+            var parameters = new
+            {
+                journalId,
+                search = string.IsNullOrWhiteSpace(search) ? null : $"%{search}%",
+                start,
+                length
+            };
+
+            var totalCount = _dbConnection.ExecuteScalar<int>(countSql, parameters);
+            var entries = _dbConnection.Query<JournalEntry>(dataSql, parameters).ToList();
+
+            return new JournalEntryFilterResult
+            {
+                Entries = entries,
+                TotalCount = totalCount
+            };
+        }
+
         public JournalEntry GetById(Guid journalEntryId)
         {
             return _dbConnection.QuerySingleOrDefault<JournalEntry>(@"SELECT * FROM [dbo].[JournalEntries] 

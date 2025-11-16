@@ -25,6 +25,7 @@ const Journals = (args) => Api({...args, useToken:true}).endpoints(({api}) => {
         
         // Journal Entries
         getEntries: (journalId) => api.get(`${apiPath}/${journalId}/entries`),
+        filterEntries: (journalId, filter) => api.post(`${apiPath}/${journalId}/entries/filter`, filter),
         getEntry: (id) => api.get(`${apiPath}/entries/${id}`),
         getEntryContent: (id) => api.get(`${apiPath}/entries/${id}/content`),
         addEntry: (entry) => api.post(`${apiPath}/entries/add`, entry),

@@ -5,6 +5,9 @@ import Icon from '@/components/ui/icon';
 import { useSession } from '@/context/session';
 //api
 import { Journals } from '@/api/user/journals';
+import { Videos } from '@/api/user/videos';
+//helpers
+import { uploadImageForModule, uploadPdfForModule, uploadFileForModule } from '@/helpers/files';
 //modules
 import modules from './modules';
 
@@ -34,7 +37,8 @@ export default function ModuleList({
     onUnPinModule,
     modulesRegistry = null,
     containerId = 'main',
-    fromSnapshotId = null
+    fromSnapshotId = null,
+    hasPinned = false
 }) {
     // context
     const session = useSession();
@@ -61,8 +65,10 @@ export default function ModuleList({
 
     //effect
     useEffect(() => {
-        if (entryId) fetchPinnedModules();
-    }, [entryId]);
+        if (containerId === 'main' && hasPinned && journalId) {
+            fetchPinnedModules();
+        }
+    }, [containerId, hasPinned, journalId]);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -147,7 +153,7 @@ export default function ModuleList({
     const fetchPinnedModules = async () => {
         try {
             const api = Journals(session);
-            const response = await api.getModulesByEntry(entryId);
+            const response = await api.getModulesByJournal(journalId);
             if (response.data.success) {
                 setPinnedModules(response.data.data || []);
             }
@@ -504,13 +510,320 @@ export default function ModuleList({
     };
 
     const handleDrop = async (e) => {
+        // Always prevent default browser behavior (which can open the file in a new tab)
+        e.preventDefault();
+
         if (!canDragDrop || window.noDrag == true) {
-            e.preventDefault();
             return;
         }
         // Remove event listener
         document.removeEventListener('drop', handleDrop);
         e.stopPropagation();
+
+        // Handle external file drop from filesystem
+        const files = e.dataTransfer?.files;
+        if (files && files.length > 0) {
+            const fileArray = Array.from(files);
+            const imageFile = fileArray.find(f => f.type && f.type.startsWith('image/'));
+            const pdfFile = fileArray.find(f => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
+            const videoFile = fileArray.find(f => f.type && f.type.startsWith('video/'));
+            const otherFile = fileArray.find(f =>
+                !f.type ||
+                (!f.type.startsWith('image/') &&
+                 f.type !== 'application/pdf' &&
+                 !f.name.toLowerCase().endsWith('.pdf') &&
+                 !f.type.startsWith('video/'))
+            );
+
+            // Handle image file drop
+            if (imageFile && entryId && journalId && droppedModule) {
+                try {
+                    const newModuleId = generateRandomId();
+
+                    // Base image module to insert
+                    const newImageModule = {
+                        id: newModuleId,
+                        type: 'image',
+                        manuallyAdded: true
+                    };
+
+                    // Start from the full module hierarchy
+                    let newModules = [...entryJson.modules];
+
+                    // Determine drop index within target container
+                    const dropIndex = (dropIndexRef.current !== undefined && dropIndexRef.current !== null)
+                        ? dropIndexRef.current
+                        : newModules.length;
+
+                    // Determine target container path, mirroring cross-container logic
+                    if (!window.dragOverContainerId || window.dragOverContainerId === 'main') {
+                        // Drop into root/main container
+                        newModules.splice(dropIndex, 0, newImageModule);
+                    } else {
+                        const dropContainer = document.querySelector(`.entry-modules[data-id="${window.dragOverContainerId}"]`);
+                        if (!dropContainer) {
+                            console.error('Drop container not found for image drop');
+                        } else {
+                            const allContainers = getModuleHierarchyFromNode(dropContainer);
+                            const allContainerModules = getAllContainerModules(allContainers);
+                            newModules = addModuleToHierarchy(newModules, allContainerModules, newImageModule, dropIndex);
+                        }
+                    }
+
+                    // Upload image and metadata via helper
+                    const uploadResult = await uploadImageForModule(session, {
+                        imageFile,
+                        journalId,
+                        entryId,
+                        moduleId: newModuleId
+                    });
+
+                    if (uploadResult.success) {
+                        const updatedImageModule = {
+                            ...newImageModule,
+                            image: uploadResult.fileName
+                        };
+                        newModules = updateModuleInHierarchy(newModules, newModuleId, updatedImageModule);
+                    } else {
+                        console.error('Error uploading image after drop:', uploadResult.message);
+                    }
+
+                    const updatedEntryJson = { ...entryJson, modules: newModules };
+                    droppedModule(updatedEntryJson, newModules);
+                } catch (err) {
+                    console.error('Error handling dropped image file:', err);
+                }
+
+                // Clean up drag state/classes similar to normal drop
+                try {
+                    e.target.classList.remove('drag-over-left');
+                    e.target.classList.remove('drag-over-right');
+                } catch (err) { }
+
+                draggedModuleIdRef.current = null;
+                dragOverModuleIdRef.current = null;
+                dragStartIndexRef.current = null;
+                dropIndexRef.current = null;
+                window.dragOverContainerModuleId = null;
+                window.dragOverContainerId = null;
+                document.querySelectorAll('.entry-modules.drag-over-container').forEach(el => {
+                    el.classList.remove('drag-over-container');
+                });
+
+                return;
+            }
+
+            // Handle PDF file drop using pdf-viewer module
+            if (!imageFile && pdfFile && entryId && journalId && droppedModule) {
+                try {
+                    const newModuleId = generateRandomId();
+
+                    const newPdfModule = {
+                        id: newModuleId,
+                        type: 'pdf-viewer',
+                        manuallyAdded: false
+                    };
+
+                    let newModules = [...entryJson.modules];
+
+                    const dropIndex = (dropIndexRef.current !== undefined && dropIndexRef.current !== null)
+                        ? dropIndexRef.current
+                        : newModules.length;
+
+                    if (!window.dragOverContainerId || window.dragOverContainerId === 'main') {
+                        newModules.splice(dropIndex, 0, newPdfModule);
+                    } else {
+                        const dropContainer = document.querySelector(`.entry-modules[data-id="${window.dragOverContainerId}"]`);
+                        if (!dropContainer) {
+                            console.error('Drop container not found for PDF drop');
+                        } else {
+                            const allContainers = getModuleHierarchyFromNode(dropContainer);
+                            const allContainerModules = getAllContainerModules(allContainers);
+                            newModules = addModuleToHierarchy(newModules, allContainerModules, newPdfModule, dropIndex);
+                        }
+                    }
+
+                    const uploadResult = await uploadPdfForModule(session, {
+                        pdfFile,
+                        journalId,
+                        entryId,
+                        moduleId: newModuleId
+                    });
+
+                    if (uploadResult.success) {
+                        const updatedPdfModule = {
+                            ...newPdfModule,
+                            filename: uploadResult.fileName,
+                            originalFilename: uploadResult.originalName,
+                            fileSize: uploadResult.fileSize
+                        };
+                        newModules = updateModuleInHierarchy(newModules, newModuleId, updatedPdfModule);
+                    } else {
+                        console.error('Error uploading PDF after drop:', uploadResult.message);
+                    }
+
+                    const updatedEntryJson = { ...entryJson, modules: newModules };
+                    droppedModule(updatedEntryJson, newModules);
+                } catch (err) {
+                    console.error('Error handling dropped PDF file:', err);
+                }
+
+                // Clean up drag state/classes similar to normal drop
+                try {
+                    e.target.classList.remove('drag-over-left');
+                    e.target.classList.remove('drag-over-right');
+                } catch (err) { }
+
+                draggedModuleIdRef.current = null;
+                dragOverModuleIdRef.current = null;
+                dragStartIndexRef.current = null;
+                dropIndexRef.current = null;
+                window.dragOverContainerModuleId = null;
+                window.dragOverContainerId = null;
+                document.querySelectorAll('.entry-modules.drag-over-container').forEach(el => {
+                    el.classList.remove('drag-over-container');
+                });
+
+                return;
+            }
+
+            // Handle video file drop using video-player module
+            // Note: Do not upload here; instead, store the File in a global map so
+            // the VideoPlayerModule can perform the upload itself.
+            if (!imageFile && !pdfFile && videoFile && entryId && journalId && droppedModule) {
+                try {
+                    const newModuleId = generateRandomId();
+
+                    const newVideoModule = {
+                        id: newModuleId,
+                        type: 'video-player',
+                        manuallyAdded: false,
+                        autoUploadDroppedVideo: true
+                    };
+
+                    // Store the dropped File so the video-player module can access it
+                    window.__droppedVideoFiles = window.__droppedVideoFiles || {};
+                    window.__droppedVideoFiles[newModuleId] = videoFile;
+
+                    let newModules = [...entryJson.modules];
+
+                    const dropIndex = (dropIndexRef.current !== undefined && dropIndexRef.current !== null)
+                        ? dropIndexRef.current
+                        : newModules.length;
+
+                    if (!window.dragOverContainerId || window.dragOverContainerId === 'main') {
+                        newModules.splice(dropIndex, 0, newVideoModule);
+                    } else {
+                        const dropContainer = document.querySelector(`.entry-modules[data-id="${window.dragOverContainerId}"]`);
+                        if (!dropContainer) {
+                            console.error('Drop container not found for video drop');
+                        } else {
+                            const allContainers = getModuleHierarchyFromNode(dropContainer);
+                            const allContainerModules = getAllContainerModules(allContainers);
+                            newModules = addModuleToHierarchy(newModules, allContainerModules, newVideoModule, dropIndex);
+                        }
+                    }
+
+                    const updatedEntryJson = { ...entryJson, modules: newModules };
+                    droppedModule(updatedEntryJson, newModules);
+                } catch (err) {
+                    console.error('Error handling dropped video file:', err);
+                }
+
+                // Clean up drag state/classes similar to normal drop
+                try {
+                    e.target.classList.remove('drag-over-left');
+                    e.target.classList.remove('drag-over-right');
+                } catch (err) { }
+
+                draggedModuleIdRef.current = null;
+                dragOverModuleIdRef.current = null;
+                dragStartIndexRef.current = null;
+                dropIndexRef.current = null;
+                window.dragOverContainerModuleId = null;
+                window.dragOverContainerId = null;
+                document.querySelectorAll('.entry-modules.drag-over-container').forEach(el => {
+                    el.classList.remove('drag-over-container');
+                });
+
+                return;
+            }
+
+            // Handle non-image, non-PDF, non-video file drop using file-download module
+            if (!imageFile && !pdfFile && !videoFile && otherFile && entryId && journalId && droppedModule) {
+                try {
+                    const newModuleId = generateRandomId();
+
+                    const newFileModule = {
+                        id: newModuleId,
+                        type: 'file-download',
+                        manuallyAdded: true
+                    };
+
+                    let newModules = [...entryJson.modules];
+
+                    const dropIndex = (dropIndexRef.current !== undefined && dropIndexRef.current !== null)
+                        ? dropIndexRef.current
+                        : newModules.length;
+
+                    if (!window.dragOverContainerId || window.dragOverContainerId === 'main') {
+                        newModules.splice(dropIndex, 0, newFileModule);
+                    } else {
+                        const dropContainer = document.querySelector(`.entry-modules[data-id="${window.dragOverContainerId}"]`);
+                        if (!dropContainer) {
+                            console.error('Drop container not found for file drop');
+                        } else {
+                            const allContainers = getModuleHierarchyFromNode(dropContainer);
+                            const allContainerModules = getAllContainerModules(allContainers);
+                            newModules = addModuleToHierarchy(newModules, allContainerModules, newFileModule, dropIndex);
+                        }
+                    }
+
+                    const uploadResult = await uploadFileForModule(session, {
+                        file: otherFile,
+                        journalId,
+                        entryId,
+                        moduleId: newModuleId
+                    });
+
+                    if (uploadResult.success) {
+                        const updatedFileModule = {
+                            ...newFileModule,
+                            filename: uploadResult.fileName,
+                            originalFilename: uploadResult.originalName,
+                            fileSize: uploadResult.fileSize
+                        };
+                        newModules = updateModuleInHierarchy(newModules, newModuleId, updatedFileModule);
+                    } else {
+                        console.error('Error uploading file after drop:', uploadResult.message);
+                    }
+
+                    const updatedEntryJson = { ...entryJson, modules: newModules };
+                    droppedModule(updatedEntryJson, newModules);
+                } catch (err) {
+                    console.error('Error handling dropped file:', err);
+                }
+
+                // Clean up drag state/classes similar to normal drop
+                try {
+                    e.target.classList.remove('drag-over-left');
+                    e.target.classList.remove('drag-over-right');
+                } catch (err) { }
+
+                draggedModuleIdRef.current = null;
+                dragOverModuleIdRef.current = null;
+                dragStartIndexRef.current = null;
+                dropIndexRef.current = null;
+                window.dragOverContainerModuleId = null;
+                window.dragOverContainerId = null;
+                document.querySelectorAll('.entry-modules.drag-over-container').forEach(el => {
+                    el.classList.remove('drag-over-container');
+                });
+
+                return;
+            }
+        }
+
         // Try to get drag data for cross-container drops
         let dragData = window.dragData;
         // Handle cross-container drop
@@ -720,11 +1033,25 @@ export default function ModuleList({
                 }
             } else {
                 // Otherwise, continue traversing
-                if (!targetModule.modules) {
-                    console.error(`Module ${moduleId} has no modules array to traverse`);
-                    return modules;
+                if (targetModule.type === 'tabs' && targetModule.tabs && Array.isArray(targetModule.tabs)) {
+                    // Traverse into the active tab's modules for intermediate tabs modules
+                    const tabIndex = [...document.querySelectorAll('.module[data-id="' + moduleId + '"] > .tabs-module > .tabs-toolbar .tabs-list .tab')].findIndex(a => a.classList.contains('active'));
+                    if (tabIndex > -1) {
+                        if (!targetModule.tabs[tabIndex].modules) {
+                            targetModule.tabs[tabIndex].modules = [];
+                        }
+                        currentLevel = targetModule.tabs[tabIndex].modules;
+                    } else {
+                        console.error(`Tabs module ${moduleId} has no active tab to traverse`);
+                        return modules;
+                    }
+                } else {
+                    if (!targetModule.modules) {
+                        console.error(`Module ${moduleId} has no modules array to traverse`);
+                        return modules;
+                    }
+                    currentLevel = targetModule.modules;
                 }
-                currentLevel = targetModule.modules;
             }
         }
 
@@ -818,10 +1145,15 @@ export default function ModuleList({
             //get all containers in the hierarchy
             if (node.classList?.contains('entry-modules')) {
                 const id = node.getAttribute('data-id');
-                if (id != 'main') allContainers.push(id);
+                if (id != 'main') {
+                    // unshift so the outermost container ends up at the start of the array
+                    allContainers.unshift(id);
+                }
             }
             node = node.parentNode;
         }
+        // Now allContainers is ordered from outermost -> innermost, which
+        // is what addModuleToHierarchy expects for traversing deeply nested modules
         return allContainers;
     };
 
@@ -995,9 +1327,18 @@ export default function ModuleList({
                                             ))}
                                             {filteredButtons && ( //module-defined buttons
                                                 filteredButtons.buttons.map((button, index) => {
+                                                    const hasLabel = button.hasLabel === true;
                                                     return (
-                                                        <button key={'module-' + module.id + '-usertab-' + module.id + '_' + index} className="icon" onClick={() => button.callback()} title={button.title}>
+                                                        <button
+                                                            key={'module-' + module.id + '-usertab-' + module.id + '_' + index}
+                                                            className={hasLabel ? '' : 'icon'}
+                                                            onClick={() => button.callback()}
+                                                            title={button.title}
+                                                        >
                                                             <Icon name={button.icon} />
+                                                            {hasLabel && (
+                                                                <span>{button.title}</span>
+                                                            )}
                                                         </button>
                                                     );
                                                 })

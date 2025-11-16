@@ -64,6 +64,20 @@ namespace Collector.API.Controllers
                 // Check if thumbnail already exists
                 if (!System.IO.File.Exists(previewFullPath))
                 {
+                    // Ensure the full directory path exists before generating the thumbnail
+                    try
+                    {
+                        var previewDirectory = Path.GetDirectoryName(previewFullPath);
+                        if (!string.IsNullOrEmpty(previewDirectory) && !Directory.Exists(previewDirectory))
+                        {
+                            Directory.CreateDirectory(previewDirectory);
+                        }
+                    }
+                    catch (Exception dirEx)
+                    {
+                        return StatusCode(500, $"Error creating preview directory: {dirEx.Message}");
+                    }
+
                     // Build video file path (videoFileName includes extension)
                     var videoPath = Path.Combine(entryId, videoFileName);
                     var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoPath);

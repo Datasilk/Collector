@@ -16,6 +16,13 @@ namespace Collector.Data.Repositories
 
         public int Add(JournalModule module)
         {
+            // Ensure only one pin exists per JournalId/ModuleId by removing any existing
+            // records for this combination before inserting the new one.
+            _dbConnection.Execute(@"
+                DELETE FROM [dbo].[JournalModules]
+                WHERE [JournalId] = @JournalId
+                AND [ModuleId] = @ModuleId", module);
+
             return _dbConnection.Execute(@"
                 INSERT INTO [dbo].[JournalModules] 
                 ([JournalId], [JournalEntryId], [ModuleId], [Sort], [Width], [Height]) 

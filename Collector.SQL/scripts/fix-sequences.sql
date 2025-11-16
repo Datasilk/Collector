@@ -182,6 +182,38 @@ BEGIN
 END
 PRINT ''
 
+-- JournalCheckLists sequence
+DECLARE @maxJournalCheckListId BIGINT = 0
+SELECT @maxJournalCheckListId = ISNULL(MAX(Id), 0) FROM [dbo].[JournalCheckLists]
+PRINT 'Max JournalCheckLists ID: ' + CAST(@maxJournalCheckListId AS NVARCHAR(20))
+IF @maxJournalCheckListId > 0
+BEGIN
+    DECLARE @resetJournalCheckLists NVARCHAR(200) = 'ALTER SEQUENCE [dbo].[SequenceJournalCheckLists] RESTART WITH ' + CAST(@maxJournalCheckListId + 1 AS NVARCHAR(20))
+    EXEC sp_executesql @resetJournalCheckLists
+    PRINT 'Reset SequenceJournalCheckLists to ' + CAST(@maxJournalCheckListId + 1 AS NVARCHAR(20))
+END
+ELSE
+BEGIN
+    PRINT 'No records in JournalCheckLists table, sequence left at default'
+END
+PRINT ''
+
+-- JournalCheckListItems sequence
+DECLARE @maxJournalCheckListItemId BIGINT = 0
+SELECT @maxJournalCheckListItemId = ISNULL(MAX(Id), 0) FROM [dbo].[JournalCheckListItems]
+PRINT 'Max JournalCheckListItems ID: ' + CAST(@maxJournalCheckListItemId AS NVARCHAR(20))
+IF @maxJournalCheckListItemId > 0
+BEGIN
+    DECLARE @resetJournalCheckListItems NVARCHAR(200) = 'ALTER SEQUENCE [dbo].[SequenceJournalCheckListItems] RESTART WITH ' + CAST(@maxJournalCheckListItemId + 1 AS NVARCHAR(20))
+    EXEC sp_executesql @resetJournalCheckListItems
+    PRINT 'Reset SequenceJournalCheckListItems to ' + CAST(@maxJournalCheckListItemId + 1 AS NVARCHAR(20))
+END
+ELSE
+BEGIN
+    PRINT 'No records in JournalCheckListItems table, sequence left at default'
+END
+PRINT ''
+
 -- StatisticsProjects sequence
 DECLARE @maxStatisticsProjectId BIGINT = 0
 SELECT @maxStatisticsProjectId = ISNULL(MAX(projectId), 0) FROM [dbo].[StatisticsProjects]

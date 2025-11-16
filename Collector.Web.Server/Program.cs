@@ -160,6 +160,7 @@ app.UseAuthorization();
 // Map SignalR hubs BEFORE static files and controllers
 app.MapHub<TextEditorHub>("/text-editor");
 app.MapHub<VideoHub>("/video-download");
+app.MapHub<WebContentHub>("/web-content");
 
 // Configure static files with SVG support
 var provider = new FileExtensionContentTypeProvider();

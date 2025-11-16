@@ -69,7 +69,7 @@ export default function JournalEntryPage() {
 
     //effect
     useEffect(() => {
-        if (!entry || entry.id != entryId && entryId != 'new') {
+        if (!entry || entry.id != entryId && entryId != 'new' && entryId != null) {
             fetchEntryDetails();
 
             // Load chapters
@@ -177,6 +177,7 @@ export default function JournalEntryPage() {
                 };
                 setEntryJson(newEntryJson);
                 entryJsonRef.current = newEntryJson;
+
             } else if (snapshotId) {
                 // Load snapshot data
                 const snapshotResponse = await getSnapshot(snapshotId);
@@ -255,6 +256,9 @@ export default function JournalEntryPage() {
                 } catch (contentErr) {
                     console.error('Error fetching entry content:', contentErr);
                 }
+            }
+            if(location.search == '?edit'){
+                setIsEditing(true);
             }
             setLoading(false);
         } catch (err) {
@@ -356,7 +360,7 @@ export default function JournalEntryPage() {
                 }
 
                 const createdEntry = response.data.data;
-                navigate(`/journal/${journalId}/entry/${createdEntry.id}`, { replace: true });
+                navigate(`/journal/${journalId}/entry/${createdEntry.id}?edit`, { replace: true });
                 return;
             } else {
                 // Update the entry title for existing entries

@@ -35,7 +35,7 @@ export default function JournalDetailsPage() {
     //effect
     useEffect(() => {
         fetchJournalDetails();
-    }, [journalId, navigate, session]);
+    }, [journalId, navigate]);
 
     useEffect(() => {
         // Inject CSS from journal settings
@@ -176,7 +176,20 @@ export default function JournalDetailsPage() {
                     //check all journalData.modules against foundModules list, any that are missing, add to parsedModules
                     journalData.modules.forEach(module => {
                         if (module.json != null && !foundModules.includes(module.moduleId)) {
-                            parsedModules.push(module);
+                            try {
+                                const json = removeNullUndefined(module.json ? JSON.parse(module.json) : null);
+                                if (json == null) return;
+                                const mod = {
+                                    ...module,
+                                    ...json,
+                                    entryId: module.journalEntryId,
+                                    id: module.moduleId,
+                                    pinned: true
+                                };
+                                parsedModules.push(mod);
+                            } catch (err) {
+                                console.error('Error parsing module JSON:', err);
+                            }
                         }
                     });
 
@@ -490,6 +503,7 @@ export default function JournalDetailsPage() {
                     showHoverOutline={false}
                     modulesRegistry={detailsModules}
                     onUnPinModule={handleUnPinModule}
+                    hasPinned={true}
                 />
             </div>
         </div>

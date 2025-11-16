@@ -1,27 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '@/components/ui/icon';
-import Modal from '@/components/ui/modal';
-import Select from '@/components/forms/select';
-import Checkbox from '@/components/forms/checkbox';
-import Input from '@/components/forms/input';
 import { useSession } from '@/context/session';
 import { Journals } from '@/api/user/journals';
 import { apiBasePath } from '@/helpers/endpoints.js';
+import EntriesListSettingsModal from './entries-list-settings-modal';
+import EntriesListFilter from './entries-list-filter';
+import EntriesListPaging from './entries-list-paging';
 
-export default function EntriesListModule({ module, journalId, isEditable = false, tabButtons }) {
+export default function EntriesListModule({ module, journalId, isEditable = false, tabButtons, onUpdate }) {
     const navigate = useNavigate();
     const session = useSession();
 
     // state
     const [entries, setEntries] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [filterWhileLoading, setFilterWhileLoading] = useState(false);
     const [sort, setSort] = useState(() => {
         // Load sort from localStorage
         const savedSort = localStorage.getItem(`collector:journal:${journalId}:sort`);
         return savedSort || 'Title_asc';
     });
-    const [showSettingsModal, setShowSettingsModal] = useState(false);
     const [viewType, setViewType] = useState(null);
     const [columns, setColumns] = useState({
         created: true,
@@ -29,45 +28,78 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
         status: true,
         chapter: true
     });
-    const [tempViewType, setTempViewType] = useState(null);
-    const [tempColumns, setTempColumns] = useState(null);
     const [chapters, setChapters] = useState([]);
-    const [searchQuery, setSearchQuery] = useState('');
+    const [filterOptions, setFilterOptions] = useState({
+        search: '',
+        sort: null,
+        start: 0,
+        length: module?.paging?.total || 20
+    });
+    const [totalItems, setTotalItems] = useState(0);
+    const [totalPages, setTotalPages] = useState(1);
 
     //refs
     const viewTypeRef = useRef(null);
     const columnsRef = useRef(null);
+    const filterOptionsRef = useRef(filterOptions);
 
     // effect
     useEffect(() => {
-        fetchEntries();
+        // initialize filter sort from current sort state
+        setFilterOptions(prev => {
+            const updated = {
+                ...prev,
+                sort: sort,
+                start: 0
+            };
+            filterOptionsRef.current = updated;
+            return updated;
+        });
+
         fetchChapters();
         loadSettings();
-        if (tabButtons) tabButtons([
-            {
-                icon: 'settings',
-                title: 'Settings',
-                callback: handleShowSettingsModal
-            }
-        ]);
     }, [journalId]);
+
+    // keep filterOptionsRef in sync with state (fallback for other updates)
+    useEffect(() => {
+        filterOptionsRef.current = filterOptions;
+    }, [filterOptions]);
 
     // actions
 
     //#region "Entries"
-    const fetchEntries = async () => {
-        try {
-            setLoading(true);
-            const api = Journals(session);
-            const response = await api.getEntries(journalId);
-            if (response.data.success) {
-                setEntries(response.data.data);
-            }
-            setLoading(false);
-        } catch (err) {
-            console.error('Error fetching entries:', err);
-            setLoading(false);
-        }
+    const filterEntries = (customFilter, callback) => {
+        setLoading(true);
+        const api = Journals(session);
+        const requestFilter = customFilter || {
+            ...filterOptions,
+            sort: filterOptions.sort || sort
+        };
+
+        api.filterEntries(journalId, {
+            Search: requestFilter.search || '',
+            Sort: requestFilter.sort || sort,
+            Start: requestFilter.start,
+            Length: requestFilter.length
+        })
+            .then(response => {
+                if (response.data && response.data.success) {
+                    const data = response.data.data || {};
+                    setEntries(data.entries || []);
+                    const total = data.totalCount || 0;
+                    setTotalItems(total);
+                    setTotalPages(total > 0 ? Math.ceil(total / requestFilter.length) : 1);
+                    if (total > 0 && filterWhileLoading == false) {
+                        setFilterWhileLoading(true);
+                    }
+                }
+                setLoading(false);
+                if (callback) callback();
+            })
+            .catch(err => {
+                console.error('Error fetching entries:', err);
+                setLoading(false);
+            });
     };
 
     const fetchChapters = async () => {
@@ -90,11 +122,6 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
         navigate(`/journal/${journalId}/entry/new`);
     };
 
-    const handleSortDropdown = (e) => {
-        const newSort = e.target.value;
-        setSort(newSort);
-        localStorage.setItem(`collector:journal:${journalId}:sort`, newSort);
-    };
     //#endregion
 
     //#region "Settings"
@@ -102,6 +129,8 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
         try {
             const api = Journals(session);
             const response = await api.getJournalSettings(journalId);
+            let nextFilter = null;
+
             if (response.data.success && response.data.data.entryList) {
                 const settings = response.data.data.entryList;
                 viewTypeRef.current = settings.viewType.toLowerCase();
@@ -113,54 +142,91 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
                 };
                 setViewType(viewTypeRef.current);
                 setColumns(columnsRef.current);
+                const totalEntries = settings.entriesPerPage;
+                nextFilter = { ...filterOptionsRef.current, length: totalEntries };
+                setFilterOptions(nextFilter);
+                filterOptionsRef.current = nextFilter;
+            } else {
+                // No settings file yet, just use current filterOptions with start reset
+                nextFilter = { ...filterOptionsRef.current, start: 0 };
+                setFilterOptions(nextFilter);
+                filterOptionsRef.current = nextFilter;
             }
+
+            // After settings (if any) are applied, fetch entries using the resolved filter
+            filterEntries(nextFilter || filterOptions, () => {
+                if (tabButtons) tabButtons([
+                    {
+                        icon: 'settings',
+                        title: 'Settings',
+                        callback: handleShowSettingsModal
+                    }
+                ]);
+            });
         } catch (err) {
             console.error('Error loading entry list settings:', err);
         }
     };
 
     const handleShowSettingsModal = () => {
-        setTempViewType(viewTypeRef.current);
-        setTempColumns({ ...columnsRef.current });
-        setShowSettingsModal(true);
-    };
+        session.showModal(() => (
+            <EntriesListSettingsModal
+                journalId={journalId}
+                defaultViewType={viewTypeRef.current}
+                defaultColumns={columnsRef.current}
+                defaultTotal={filterOptionsRef.current.length}
+                onSaved={(newViewType, newColumns, entriesPerPage) => {
+                    setViewType(newViewType);
+                    setColumns(newColumns);
+                    viewTypeRef.current = newViewType;
+                    columnsRef.current = newColumns;
 
-    const handleCloseSettingsModal = () => {
-        setShowSettingsModal(false);
-    };
+                    // Build updated filter, optionally applying a new page size
+                    const newFilter = {
+                        ...filterOptions,
+                        length: entriesPerPage && entriesPerPage > 0 ? entriesPerPage : filterOptions.length
+                    };
 
-    const handleSaveSettings = async () => {
-        try {
-            const api = Journals(session);
-            const entryListSettings = {
-                viewType: tempViewType,
-                columns: tempColumns
-            };
-            await api.updateEntryListSettings(journalId, entryListSettings);
-            setViewType(tempViewType);
-            setColumns(tempColumns);
-            viewTypeRef.current = tempViewType;
-            columnsRef.current = tempColumns;
-            setShowSettingsModal(false);
-        } catch (err) {
-            console.error('Error saving entry list settings:', err);
-        }
+                    setFilterOptions(newFilter);
+                    filterOptionsRef.current = newFilter;
+
+                    // Re-filter entries using the updated page size
+                    filterEntries(newFilter);
+
+                    // Persist page size on the module when provided
+                    if (entriesPerPage && entriesPerPage > 0 && typeof onUpdate === 'function') {
+                        const updatedModule = {
+                            ...module,
+                            paging: {
+                                ...(module?.paging || {}),
+                                total: entriesPerPage
+                            }
+                        };
+                        onUpdate(updatedModule);
+                    }
+                }}
+            />
+        ));
     };
     //#endregion
 
     //#region Details View
-    const handleColumnToggle = (columnName, checked) => {
-        setTempColumns({
-            ...tempColumns,
-            [columnName]: checked
-        });
-    };
-
     const handleSort = (field, currentSort) => {
         const [currentField, currentDirection] = currentSort.split('_');
         const direction = currentField === field && currentDirection === 'asc' ? 'desc' : 'asc';
         const newSort = `${field}_${direction}`;
         localStorage.setItem(`collector:journal:${journalId}:sort`, newSort);
+        setSort(newSort);
+
+        const newFilter = {
+            ...filterOptions,
+            sort: newSort,
+            start: 0
+        };
+        setFilterOptions(newFilter);
+        filterOptionsRef.current = newFilter;
+        filterEntries(newFilter);
+
         return newSort;
     };
 
@@ -171,12 +237,22 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
     };
 
     if (loading) {
-        return (
-            <div className="entries-list-module loading">
-                <Icon name="progress_activity" spin={true} />
-                <span>Loading entries...</span>
+        return (<>
+            <div className="entries-list-module">
+                <EntriesListFilter
+                    search={filterOptions.search}
+                    sort={sort}
+                    onFilter={handleFilterChange}
+                />
             </div>
-        );
+            <div className="entries-list-module loading">
+
+                <div className="loading-state">
+                    <Icon name="progress_activity" spin={true} />
+                    <span>Loading entries...</span>
+                </div>
+            </div>
+        </>);
     }
 
     //#endregion
@@ -239,96 +315,40 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
         return apiBasePath() + `/image/journal-entries/${entry.id}/${thumbnailFilename}`;
     };
 
-    // Filter entries based on search query
-    const filteredEntries = entries.filter(entry => {
-        if (!searchQuery) return true;
-        const query = searchQuery.toLowerCase();
-        return entry.title.toLowerCase().includes(query) ||
-            (entry.description && entry.description.toLowerCase().includes(query));
-    });
+    const handlePagingFilter = (newStart) => {
+        const newFilter = {
+            ...filterOptions,
+            start: newStart
+        };
+        setFilterOptions(newFilter);
+        filterOptionsRef.current = newFilter;
+        filterEntries(newFilter);
+    };
 
-    // Sort entries based on current sort setting
-    const sortedEntries = [...filteredEntries].sort((a, b) => {
-        const [field, direction] = sort.split('_');
-        const multiplier = direction === 'asc' ? 1 : -1;
-
-        switch (field) {
-            case 'Title':
-                return multiplier * a.title.localeCompare(b.title);
-            case 'Created':
-                return multiplier * (new Date(a.created) - new Date(b.created));
-            case 'Modified':
-                return multiplier * (new Date(a.modified) - new Date(b.modified));
-            case 'Status':
-                return multiplier * (a.status - b.status);
-            default:
-                return 0;
-        }
-    });
-
-    //#endregion
-
-
-    //#region "Settings Modal"
-    if (showSettingsModal && tempViewType !== null && tempColumns !== null) {
-        return (
-            <Modal title="Entry List Settings" onClose={handleCloseSettingsModal}>
-                <Select
-                    label="View"
-                    name="view-type"
-                    value={tempViewType}
-                    onChange={(e) => setTempViewType(e.target.value)}
-                    options={[
-                        { label: 'Details', value: 'details' },
-                        { label: 'Cards', value: 'cards' }
-                    ]}
-                />
-                {tempViewType === 'details' && (
-                    <div className="column-settings">
-                        <h4>Visible Columns</h4>
-                        <Checkbox
-                            label="Date Created"
-                            name="column-created"
-                            checked={tempColumns.created}
-                            onChange={(checked) => handleColumnToggle('created', checked)}
-                        />
-                        <Checkbox
-                            label="Date Modified"
-                            name="column-modified"
-                            checked={tempColumns.modified}
-                            onChange={(checked) => handleColumnToggle('modified', checked)}
-                        />
-                        <Checkbox
-                            label="Status"
-                            name="column-status"
-                            checked={tempColumns.status}
-                            onChange={(checked) => handleColumnToggle('status', checked)}
-                        />
-                        <Checkbox
-                            label="Chapter"
-                            name="column-chapter"
-                            checked={tempColumns.chapter}
-                            onChange={(checked) => handleColumnToggle('chapter', checked)}
-                        />
-                    </div>
-                )}
-                <div className="buttons">
-                    <button onClick={handleSaveSettings}>Save</button>
-                    <button className="cancel" onClick={handleCloseSettingsModal}>Cancel</button>
-                </div>
-            </Modal>);
-    }
     //#endregion
 
     //#region "Empty State"
-    if (entries.length === 0) {
+    if (!loading && entries.length === 0) {
+        const hasSearch = (filterOptions.search || '').trim().length > 0;
+
         return (
             <div className="entries-list-module">
+                <EntriesListFilter
+                    search={filterOptions.search}
+                    sort={sort}
+                    onFilter={handleFilterChange}
+                />
                 <div className="empty-state">
-                    <p>No entries yet. Create your first entry to get started!</p>
-                    <button onClick={handleNewEntry}>
-                        <Icon name="add" /> New Entry
-                    </button>
+                    <p>
+                        {hasSearch
+                            ? 'No results found in your search filter.'
+                            : 'No entries yet. Create your first entry to get started!'}
+                    </p>
+                    {!hasSearch && (
+                        <button onClick={handleNewEntry}>
+                            <Icon name="add" /> New Entry
+                        </button>
+                    )}
                 </div>
             </div>
         );
@@ -336,9 +356,33 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
     //#endregion
 
     //#region "Details View"
+    function handleFilterChange({ search, sort: newSort }) {
+        const sortValue = newSort || sort;
+
+        setSort(sortValue);
+        localStorage.setItem(`collector:journal:${journalId}:sort`, sortValue);
+
+        const newFilter = {
+            ...filterOptions,
+            search: search != null ? search : filterOptions.search,
+            sort: sortValue,
+            start: 0
+        };
+
+        setFilterOptions(newFilter);
+        filterOptionsRef.current = newFilter;
+        filterEntries(newFilter);
+    }
+
     if (!viewType || viewType == 'details') {
         return (
             <div className="entries-list-module">
+                <EntriesListFilter
+                    search={filterOptions.search}
+                    sort={sort}
+                    onFilter={handleFilterChange}
+                />
+
                 <div className="entries-table">
                     <table className="spreadsheet">
                         <thead>
@@ -368,7 +412,7 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
                             </tr>
                         </thead>
                         <tbody>
-                            {sortedEntries.map(entry => (
+                            {entries.map(entry => (
                                 <tr
                                     key={'tr_' + entry.id}
                                     onClick={() => handleViewEntry(entry.id)}
@@ -401,6 +445,12 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
                         </tbody>
                     </table>
                 </div>
+                <EntriesListPaging
+                    start={filterOptions.start}
+                    length={filterOptions.length}
+                    totalItems={totalItems}
+                    onFilter={handlePagingFilter}
+                />
             </div>
         );
     }
@@ -410,37 +460,13 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
     if (viewType == 'cards') {
         return (
             <div className="entries-list-module">
-                <div className="tool-bar cards-tool-bar">
-                    <div className="left-side">
-                        <Input
-                            name="search"
-                            type="text"
-                            value={searchQuery}
-                            placeholder="Search entries..."
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            buttons={[<button className="btn-search icon"><Icon name="search" /></button>]}
-                        />
-                    </div>
-                    <div className="right-side">
-                        <Select
-                            name="sort"
-                            value={sort}
-                            onChange={handleSortDropdown}
-                            options={[
-                                { label: 'Title (A-Z)', value: 'Title_asc' },
-                                { label: 'Title (Z-A)', value: 'Title_desc' },
-                                { label: 'Created (Oldest)', value: 'Created_asc' },
-                                { label: 'Created (Newest)', value: 'Created_desc' },
-                                { label: 'Modified (Oldest)', value: 'Modified_asc' },
-                                { label: 'Modified (Newest)', value: 'Modified_desc' },
-                                { label: 'Status (Low-High)', value: 'Status_asc' },
-                                { label: 'Status (High-Low)', value: 'Status_desc' }
-                            ]}
-                        />
-                    </div>
-                </div>
+                <EntriesListFilter
+                    search={filterOptions.search}
+                    sort={sort}
+                    onFilter={handleFilterChange}
+                />
                 <div className="entry-cards">
-                    {sortedEntries.map(entry => (
+                    {entries.map(entry => (
                         <div
                             key={'entry-card_' + entry.id}
                             className={"entry-card" + (entry.thumbnail ? " has-thumbnail" : "")}
@@ -468,6 +494,12 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
                         </div>
                     ))}
                 </div>
+                <EntriesListPaging
+                    start={filterOptions.start}
+                    length={filterOptions.length}
+                    totalItems={totalItems}
+                    onFilter={handlePagingFilter}
+                />
             </div>
         );
     }

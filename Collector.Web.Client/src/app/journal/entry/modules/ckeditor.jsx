@@ -688,12 +688,6 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                         'listIndent',
                         'listItemId',
                         'tableCellWidth',
-                        'tableCellHeight',
-                        'tableCellPadding',
-                        'tableCellBorderStyle',
-                        'tableCellBorderColor',
-                        'tableCellBorderWidth',
-                        'tableCellBackgroundColor',
                         'colspan',
                         'rowspan',
                         'htmlAttributes',
@@ -756,11 +750,9 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                         // Find all text nodes with \n and htmlDivParagraph elements
                         for (const item of range.getItems()) {
                             if (item && item.data && item.data.indexOf('\n') >= 0) {
-                                console.log('text node with \n found', item);
                                 textNodesToProcess.push(item);
                             }
                             if (item && item.name === 'htmlDivParagraph') {
-                                console.log('htmlDivParagraph found', item);
                                 htmlDivParagraphs.push(item);
                             }
                         }

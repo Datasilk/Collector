@@ -25,19 +25,23 @@ namespace Collector.Web.Server.SignalR
         {
             try
             {
-                Console.WriteLine($"DownloadVideo called: url={url}, journalId={journalId}, entryId={entryId}, moduleId={moduleId}");
+                Console.WriteLine($"[VideoHub] DownloadVideo called: url={url}, journalId={journalId}, entryId={entryId}, moduleId={moduleId}");
                 
                 await Clients.Caller.SendAsync("DownloadProgress", 0, "Starting download...");
 
                 // Detect if it's a YouTube URL
                 if (!IsYouTubeUrl(url))
                 {
+                    Console.WriteLine("[VideoHub] URL is not a YouTube URL, aborting download.");
                     await Clients.Caller.SendAsync("DownloadError", "Only YouTube URLs are supported at this time");
                     return;
                 }
 
                 // Check if video already exists by URL
                 var existingVideo = await _videoRepo.GetByUrl(url);
+                Console.WriteLine(existingVideo != null
+                    ? $"[VideoHub] Existing JournalVideo found for URL. Id={existingVideo.Id}, Downloaded={existingVideo.Downloaded}, Filename={existingVideo.Filename}"
+                    : "[VideoHub] No existing JournalVideo found for URL. A new record will be created.");
                 
                 int videoId;
                 string fileName;
@@ -47,10 +51,11 @@ namespace Collector.Web.Server.SignalR
                 if (existingVideo != null)
                 {
                     _logger.LogInformation("Video already exists with ID: {VideoId}, Downloaded: {Downloaded}", existingVideo.Id, existingVideo.Downloaded);
+                    Console.WriteLine($"[VideoHub] Reusing existing JournalVideo. Id={existingVideo.Id}, Downloaded={existingVideo.Downloaded}");
                     
                     videoId = existingVideo.Id;
                     fileName = existingVideo.Filename;
-                    relativePath = Path.Combine(entryId, fileName);
+                    relativePath = Path.Combine(existingVideo.JournalEntryId.ToString(), fileName);
                     title = existingVideo.Title;
 
                     // Send video ID and path back to client immediately
@@ -65,8 +70,9 @@ namespace Collector.Web.Server.SignalR
                     // If already downloaded, send completion immediately
                     if (existingVideo.Downloaded)
                     {
+                        Console.WriteLine("[VideoHub] Existing video already downloaded. Verifying thumbnail and returning to client.");
                         var thumbnailFileName2 = $"{Path.GetFileNameWithoutExtension(fileName)}_thumb.jpg";
-                        var thumbnailRelativePath2 = Path.Combine(entryId, thumbnailFileName2);
+                        var thumbnailRelativePath2 = Path.Combine(existingVideo.JournalEntryId.ToString(), thumbnailFileName2);
                         var thumbnailFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), thumbnailRelativePath2);
                         
                         // Check if thumbnail exists, if not create it
@@ -93,24 +99,29 @@ namespace Collector.Web.Server.SignalR
                             thumbnailPath = thumbnailPath,
                             width = existingVideo.Width,
                             height = existingVideo.Height,
-                            duration = existingVideo.Duration
+                            duration = existingVideo.Duration,
+                            entryId = existingVideo.JournalEntryId.ToString()
                         });
                         
                         _logger.LogInformation("Video {VideoId} already downloaded, skipping download", videoId);
+                        Console.WriteLine($"[VideoHub] Completed existing video flow for Id={videoId}. Skipping yt-dlp download.");
                         return;
                     }
                 }
                 else
                 {
                     // Get original video title from yt-dlp
+                    Console.WriteLine("[VideoHub] Getting original video title from yt-dlp...");
                     var originalTitle = await GetVideoTitle(url);
                     
                     // Truncate title to max 128 characters
                     title = originalTitle?.Length > 128 ? originalTitle.Substring(0, 128) : originalTitle ?? "";
+                    Console.WriteLine($"[VideoHub] Original title from yt-dlp='{originalTitle}'. Truncated/normalized title='{title}'.");
 
                     // Generate unique filename
                     fileName = $"{Guid.NewGuid()}.mp4";
                     relativePath = Path.Combine(entryId, fileName);
+                    Console.WriteLine($"[VideoHub] Generated new filename '{fileName}' and relativePath '{relativePath}'.");
 
                     // Save video record to database before downloading
                     var video = new JournalVideo
@@ -132,6 +143,7 @@ namespace Collector.Web.Server.SignalR
 
                     videoId = await _videoRepo.Add(video);
                     _logger.LogInformation("Video record created with ID: {VideoId}", videoId);
+                    Console.WriteLine($"[VideoHub] Created new JournalVideo record. Id={videoId}, JournalId={journalId}, EntryId={entryId}, ModuleId={moduleId}, Url={url}");
 
                     // Send video ID and path back to client immediately so it can be saved
                     await Clients.Caller.SendAsync("VideoRecordCreated", new 
@@ -143,12 +155,14 @@ namespace Collector.Web.Server.SignalR
                 }
 
                 var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), relativePath);
+                Console.WriteLine($"[VideoHub] Video full path resolved to '{videoFullPath}'.");
 
                 // Create directory if it doesn't exist
                 var directory = Path.GetDirectoryName(videoFullPath);
                 if (!Directory.Exists(directory))
                 {
                     Directory.CreateDirectory(directory);
+                    Console.WriteLine($"[VideoHub] Created video directory '{directory}'.");
                 }
 
                 // Delete any .part files in the directory (leftover from failed downloads)
@@ -167,6 +181,7 @@ namespace Collector.Web.Server.SignalR
                 //}
 
                 await Clients.Caller.SendAsync("DownloadProgress", 0, "Downloading: " + title);
+                Console.WriteLine($"[VideoHub] Starting yt-dlp download to '{videoFullPath}' for URL='{url}'.");
 
                 // Use yt-dlp to download the video
                 var startInfo = new ProcessStartInfo
@@ -238,22 +253,88 @@ namespace Collector.Web.Server.SignalR
                     if (process.ExitCode != 0)
                     {
                         var error = await process.StandardError.ReadToEndAsync();
+                        Console.WriteLine($"[VideoHub] yt-dlp exited with code {process.ExitCode}. Error='{error}'.");
                         await Clients.Caller.SendAsync("DownloadError", $"Failed to download video: {error}");
                         return;
+                    }
+                    else
+                    {
+                        Console.WriteLine("[VideoHub] yt-dlp reported successful exit code (0) on initial download.");
+                    }
+                }
+
+                // Ensure the video file actually exists on disk before continuing
+                if (!File.Exists(videoFullPath))
+                {
+                    _logger.LogWarning("yt-dlp reported success but video file not found at {Path}. Retrying once...", videoFullPath);
+                    Console.WriteLine($"[VideoHub] WARNING: video file missing after initial yt-dlp. Path='{videoFullPath}'. Retrying once...");
+
+                    // Retry the download once
+                    var retryStartInfo = new ProcessStartInfo
+                    {
+                        FileName = "yt-dlp",
+                        Arguments = $"-f \"bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best\" --merge-output-format mp4 --no-keep-video -o \"{videoFullPath}\" \"{url}\"",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+
+                    using (var retryProcess = Process.Start(retryStartInfo))
+                    {
+                        if (retryProcess == null)
+                        {
+                            Console.WriteLine("[VideoHub] Failed to start yt-dlp retry process.");
+                            await Clients.Caller.SendAsync("DownloadError", "Failed to start yt-dlp process on retry");
+                            return;
+                        }
+
+                        retryProcess.BeginOutputReadLine();
+                        retryProcess.BeginErrorReadLine();
+                        await retryProcess.WaitForExitAsync();
+
+                        if (retryProcess.ExitCode != 0)
+                        {
+                            var retryError = await retryProcess.StandardError.ReadToEndAsync();
+                            Console.WriteLine($"[VideoHub] yt-dlp retry exited with code {retryProcess.ExitCode}. Error='{retryError}'.");
+                            await Clients.Caller.SendAsync("DownloadError", $"Failed to download video on retry: {retryError}");
+                            return;
+                        }
+                        else
+                        {
+                            Console.WriteLine("[VideoHub] yt-dlp retry reported successful exit code (0).");
+                        }
+                    }
+
+                    // Check again after retry
+                    if (!File.Exists(videoFullPath))
+                    {
+                        _logger.LogError("yt-dlp reported success but video file still not found at {Path} after retry", videoFullPath);
+                        Console.WriteLine($"[VideoHub] ERROR: video file still missing after retry. Path='{videoFullPath}'.");
+                        await Clients.Caller.SendAsync("DownloadError", "Failed to download video: file not found on server after retry.");
+                        return;
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[VideoHub] Video file found after retry at '{videoFullPath}'.");
                     }
                 }
 
                 await Clients.Caller.SendAsync("DownloadProgress", 92, "Generating preview thumbnail...");
+                Console.WriteLine("[VideoHub] Generating main thumbnail...");
 
                 // Generate main thumbnail
                 var thumbnailFileName = $"{Path.GetFileNameWithoutExtension(fileName)}_thumb.jpg";
                 var thumbnailRelativePath = Path.Combine(entryId, thumbnailFileName);
                 var thumbnailSuccess = await GenerateThumbnail(relativePath, thumbnailRelativePath, url);
+                Console.WriteLine($"[VideoHub] Main thumbnail generation result: success={thumbnailSuccess}, thumbnailRelativePath='{thumbnailRelativePath}'.");
 
                 await Clients.Caller.SendAsync("DownloadProgress", 96, "Processing video metadata...");
+                Console.WriteLine("[VideoHub] Getting video metadata with ffprobe wrapper...");
 
                 // Get video metadata
                 var (width, height, duration) = await GetVideoMetadata(relativePath);
+                Console.WriteLine($"[VideoHub] Video metadata: width={width}, height={height}, duration={duration} seconds.");
 
                 // Send completion with video data
                 await Clients.Caller.SendAsync("DownloadComplete", new
@@ -265,21 +346,25 @@ namespace Collector.Web.Server.SignalR
                     height,
                     duration
                 });
+                Console.WriteLine($"[VideoHub] Sent DownloadComplete to client for videoId={videoId}.");
 
                 // Generate seek preview thumbnails
                 await Clients.Caller.SendAsync("DownloadProgress", 94, "Generating seek preview thumbnails...");
+                Console.WriteLine("[VideoHub] Generating seek preview thumbnails...");
                 await GenerateSeekPreviewThumbnails(relativePath);
 
                 // Update database with download completion
                 await _videoRepo.UpdateDownloaded(videoId, true, fileName, duration, width, height);
                 _logger.LogInformation("Video {VideoId} download completed", videoId);
+                Console.WriteLine($"[VideoHub] Updated JournalVideo.Downloaded=true for Id={videoId}.");
 
                 await Clients.Caller.SendAsync("DownloadProgress", 100, "Complete!");
+                Console.WriteLine($"[VideoHub] DownloadVideo flow completed successfully for videoId={videoId}.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"DownloadVideo error: {ex.Message}");
-                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                Console.WriteLine($"[VideoHub] DownloadVideo error: {ex.Message}");
+                Console.WriteLine($"[VideoHub] Stack trace: {ex.StackTrace}");
                 await Clients.Caller.SendAsync("DownloadError", $"Error: {ex.Message}");
             }
         }
@@ -416,6 +501,22 @@ namespace Collector.Web.Server.SignalR
                 {
                     var previewFileName = $"preview_{second}.jpg";
                     var previewRelativePath = Path.Combine(Path.GetDirectoryName(videoRelativePath), videoFileNameWithoutExt, previewFileName);
+
+                    // Ensure the full directory path for the preview thumbnail exists
+                    try
+                    {
+                        var previewDirectory = Path.GetDirectoryName(Path.Combine(Files.GetPath(Files.Paths.Videos), previewRelativePath));
+                        if (!string.IsNullOrEmpty(previewDirectory) && !Directory.Exists(previewDirectory))
+                        {
+                            Directory.CreateDirectory(previewDirectory);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to create directory for seek preview thumbnail at {Second}s", second);
+                        failCount++;
+                        continue;
+                    }
 
                     // Use the same thumbnail generation method, but with crop enabled (no yt-dlp fallback for seek previews)
                     var success = await GenerateThumbnail(videoRelativePath, previewRelativePath, null, 160, 90, true, second);

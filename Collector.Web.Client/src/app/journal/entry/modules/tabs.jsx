@@ -3,10 +3,13 @@ import { useState, useEffect, useRef } from 'react';
 import Icon from '@/components/ui/icon';
 import Input from '@/components/forms/input';
 import ModuleList from '../module-list';
+import TabsSettingsModal from './tabs-settings-modal';
 //modules
 import modules from '../modules';
+//context
+import { useSession } from '@/context/session';
 
-export default function TabsModule({ module, entryId, journalId, onUpdate, isEditable = true, manuallyAdded = false }) {
+export default function TabsModule({ module, entryId, journalId, onUpdate, isEditable = true, manuallyAdded = false, tabButtons }) {
     //state
     const [tabs, setTabs] = useState(module.tabs || []);
     const [activeTabId, setActiveTabId] = useState(null);
@@ -23,6 +26,9 @@ export default function TabsModule({ module, entryId, journalId, onUpdate, isEdi
     const dragStartPosRef = useRef({ x: 0, y: 0 });
     const tabIdsBeforeDragRef = useRef(null);
     const reorderedTabsRef = useRef(null);
+
+    //context
+    const session = useSession();
 
     //effect
     useEffect(() => {
@@ -58,7 +64,7 @@ export default function TabsModule({ module, entryId, journalId, onUpdate, isEdi
 
     useEffect(() => {
         moduleRef.current = module;
-        setTabs(module.tabs);
+        setTabs(module.tabs || []);
     }, [module]);
 
 
@@ -66,6 +72,35 @@ export default function TabsModule({ module, entryId, journalId, onUpdate, isEdi
     const generateRandomId = () => {
         return String(Math.floor(Math.random() * 1000000));
     };
+
+    const cancelDragEvent = (e) => {
+        window.noDrag = true;
+        e.stopPropagation();
+        return;
+    };
+
+    const resetDragEvent = () => {
+        window.noDrag = false;
+        return;
+    };
+
+    useEffect(() => {
+        if (!manuallyAdded) return;
+        if (tabs && tabs.length > 0) return;
+
+        const newTab = {
+            id: generateRandomId(),
+            title: 'New Tab',
+            modules: []
+        };
+
+        const updatedTabs = [newTab];
+        setTabs(updatedTabs);
+        setActiveTabId(newTab.id);
+
+        const updatedModule = { ...moduleRef.current, tabs: updatedTabs };
+        onUpdate(updatedModule);
+    }, [manuallyAdded]);
 
     const handleAddTab = () => {
         if (!isEditable) return;
@@ -261,6 +296,7 @@ export default function TabsModule({ module, entryId, journalId, onUpdate, isEdi
     };
 
     const getActiveTab = () => {
+        if (!tabs || tabs.length === 0) return null;
         return tabs.find(tab => tab.id === activeTabId);
     };
 
@@ -332,6 +368,26 @@ export default function TabsModule({ module, entryId, journalId, onUpdate, isEdi
         setShowAddModuleDropdown(false);
     };
 
+    const handleShowSettingsModal = () => {
+        session.showModal(() => (
+            <TabsSettingsModal
+                module={moduleRef.current}
+                onUpdate={onUpdate}
+            />
+        ));
+    };
+
+    useEffect(() => {
+        if (!tabButtons) return;
+        tabButtons([
+            {
+                icon: 'settings',
+                title: 'Settings',
+                callback: handleShowSettingsModal
+            }
+        ]);
+    }, [tabButtons, handleShowSettingsModal]);
+
     const handleDroppedModule = (updatedEntryJson) => {
         updateActiveTabModules(updatedEntryJson.modules);
     };
@@ -339,7 +395,7 @@ export default function TabsModule({ module, entryId, journalId, onUpdate, isEdi
     const activeTab = getActiveTab();
 
     return (
-        <div className="tabs-module">
+        <div className={`tabs-module ${module.style === 1 ? 'side-menu' : ''}`}>
             <div className="tabs-toolbar tool-bar">
                 <div className="tabs-list">
                     {tabs.map(tab => (
@@ -359,6 +415,8 @@ export default function TabsModule({ module, entryId, journalId, onUpdate, isEdi
                                     onBlur={handleTabTitleBlur}
                                     onKeyDown={(e) => handleTabTitleKeyDown(e, tab.id)}
                                     onClick={(e) => e.stopPropagation()}
+                                    onMouseDown={cancelDragEvent}
+                                    onMouseUp={resetDragEvent}
                                 />
                             ) : (
                                 <span className="tab-title">
@@ -395,7 +453,6 @@ export default function TabsModule({ module, entryId, journalId, onUpdate, isEdi
                         </button>
                     )}
                 </div>
-                
             </div>
             <div className="tab-content">
                 {activeTab && (<>

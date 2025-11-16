@@ -496,6 +496,34 @@ namespace Collector.API.Controllers
             }
         }
 
+        [HttpPost("{journalId}/entries/filter")]
+        public IActionResult FilterEntries(int journalId, [FromBody] JournalEntriesFilterModel filter)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var journal = _journalsRepository.GetById(journalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found" });
+
+                var search = filter?.Search ?? string.Empty;
+                var sort = filter?.Sort ?? string.Empty;
+                var start = filter?.Start ?? 0;
+                var length = filter?.Length ?? 50;
+
+                var result = _entriesRepository.Filter(journalId, search, sort, start, length);
+
+                return Json(new ApiResponse { success = true, data = result });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
         [HttpGet("entries/{id}")]
         public IActionResult GetEntry(Guid id)
         {

@@ -247,6 +247,10 @@
     white-space: nowrap;
 }
 
+.module-entries-list .filters.tool-bar{
+    margin-bottom:1em;
+}
+
 /* Entries Cards */
 .module-entries-list .entry-cards{
     display:grid;
@@ -303,6 +307,10 @@
     position:relative;
     top:-1em;
     right:-1em;
+}
+
+.module-entries-list .pagination{
+    text-align: center;
 }
 
 .module-entries-list .cards-tool-bar{

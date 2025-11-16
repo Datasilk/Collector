@@ -6,6 +6,7 @@ import TabsModule from './modules/tabs';
 import ModuleListModule from './modules/module-list';
 import VideoPlayerModule from './modules/video-player';
 import FileDownloadModule from './modules/file-download';
+import PdfViewerModule from './modules/pdf-viewer';
 
 const modules = [
     {
@@ -56,6 +57,13 @@ const modules = [
         icon: 'download',
         type: 'file-download',
         module: FileDownloadModule
+    },
+    {
+        id: 'pdf-viewer',
+        name: 'PDF Viewer',
+        icon: 'picture_as_pdf',
+        type: 'pdf-viewer',
+        module: PdfViewerModule
     }
 ];
 

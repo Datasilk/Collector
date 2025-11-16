@@ -63,6 +63,19 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         setDeleteListener(module, removeModule);
     }, [module.id]);
 
+    // Auto-download video if autoTryAgain is set
+    useEffect(() => {
+        console.log('module', module);
+        if (module.autoTryAgain && module.url && !module.videoId && !isDownloading) {
+            setVideoUrl(module.url);
+            console.log('auto try again!');
+            // Trigger download after a short delay to ensure state is updated
+            setTimeout(() => {
+                handleDownloadVideo(module.url);
+            }, 2000);
+        }
+    }, [module.autoTryAgain, module.url, module.videoId]);
+
     // Pause other videos when this one starts playing
     useEffect(() => {
         if (isPlaying && videoRef.current) {
@@ -150,6 +163,21 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                                 // Find next parent module
                                 currentElement = currentElement.parentElement?.closest('.module');
                             }
+                            
+                            // Add placeholder div at bottom of entry content
+                            const entryContent = document.querySelector('.entry-content');
+                            if (entryContent) {
+                                // Calculate PiP player height (400px width * 9/16 aspect ratio = 225px)
+                                const pipWidth = 400;
+                                const pipHeight = pipWidth * (9 / 16);
+                                
+                                const placeholder = document.createElement('div');
+                                placeholder.className = 'pip-placeholder';
+                                placeholder.style.width = '100%';
+                                placeholder.style.height = `${pipHeight}px`;
+                                placeholder.setAttribute('data-pip-placeholder', module.id);
+                                entryContent.appendChild(placeholder);
+                            }
                         }
                         setIsPiPMode(true);
                     } else if (entry.isIntersecting) {
@@ -168,6 +196,12 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                                 
                                 // Find next parent module
                                 currentElement = currentElement.parentElement?.closest('.module');
+                            }
+                            
+                            // Remove placeholder div from module-list
+                            const placeholder = document.querySelector(`[data-pip-placeholder="${module.id}"]`);
+                            if (placeholder) {
+                                placeholder.remove();
                             }
                         }
                         setIsPiPMode(false);
@@ -211,6 +245,12 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                         // Find next parent module
                         currentElement = currentElement.parentElement?.closest('.module');
                     }
+                    
+                    // Remove placeholder div from module-list
+                    const placeholder = document.querySelector(`[data-pip-placeholder="${module.id}"]`);
+                    if (placeholder) {
+                        placeholder.remove();
+                    }
                 }
                 
                 setIsPiPMode(false);
@@ -238,6 +278,24 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
             };
         }
     }, [isDragging, duration]);
+
+    // Auto-upload a dropped video file when this module was created via drag & drop
+    useEffect(() => {
+        try {
+            if (!module.autoUploadDroppedVideo || module.videoId) return;
+            if (!window.__droppedVideoFiles) return;
+            const file = window.__droppedVideoFiles[module.id];
+            if (!file) return;
+
+            // Clear the stored file so it is only used once
+            delete window.__droppedVideoFiles[module.id];
+
+            // Reuse the same upload logic used by the file input handler
+            uploadVideoFile(file);
+        } catch (err) {
+            console.error('Error auto-uploading dropped video file:', err);
+        }
+    }, [module.id, module.autoUploadDroppedVideo, module.videoId]);
 
     // Auto-hide controls on initial load
     useEffect(() => {
@@ -343,10 +401,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         return () => document.removeEventListener('keydown', handleKeyDown);
     }, [isFocused, isPlaying, volume, duration]);      
 
-    const handleFileChange = async (e) => {
-        if (!isEditable) return;
-
-        const file = e.target.files[0];
+    const uploadVideoFile = async (file) => {
         if (!file) return;
 
         // Check if file is a video
@@ -389,8 +444,17 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         }
     };
 
-    const handleDownloadVideo = () => {
-        if (!videoUrl.trim()) return;
+    const handleFileChange = async (e) => {
+        if (!isEditable) return;
+
+        const file = e.target.files[0];
+        if (!file) return;
+
+        uploadVideoFile(file);
+    };
+
+    const handleDownloadVideo = (url) => {
+        if (!url.trim()) return;
 
         setIsDownloading(true);
         setDownloadError(null);
@@ -416,7 +480,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                     ...moduleRef.current,
                     videoId: data.id,
                     videoPath: data.videoPath,
-                    url: videoUrl.trim(),
+                    url: url.trim(),
                     title: data.title,
                     downloaded: false
                 };
@@ -442,7 +506,8 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                 moduleRef.current = {
                     ...moduleRef.current,
                     thumbnailPath: data.thumbnailPath,
-                    downloaded: true
+                    downloaded: true,
+                    entryId: data.entryId
                 };
                 onUpdate(moduleRef.current);
             });
@@ -461,7 +526,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
 
             // Invoke download
 
-            conn.invoke('DownloadVideo', videoUrl.trim(), parseInt(journalId), entryId, module.id)
+            conn.invoke('DownloadVideo', url.trim(), parseInt(journalId), entryId, module.id)
                 .then(() => { })
                 .catch(err => {
                     // Only show error if it's not a connection closed error after successful completion
@@ -482,7 +547,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
     const handleUrlKeyDown = (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
-            handleDownloadVideo();
+            handleDownloadVideo(videoUrl);
         }
     };
 
@@ -645,11 +710,14 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         // Extract entry ID and video filename from videoPath
         const pathParts = module.videoPath.split('/');
         if (pathParts.length < 2) return null;
-        
+
+        // Prefer the entryId explicitly provided on the module (from the server),
+        // fall back to the entryId parsed from the videoPath
         const entryIdFromPath = pathParts[0];
+        const effectiveEntryId = module.entryId || entryIdFromPath;
         const videoFileName = pathParts[pathParts.length - 1];
         
-        return `${apiBasePath()}/video/preview/${entryIdFromPath}/${videoFileName}/${time}`;
+        return `${apiBasePath()}/video/preview/${effectiveEntryId}/${videoFileName}/${time}`;
     };
 
     const loadPreviewThumbnail = async (time) => {
@@ -949,7 +1017,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                     <p>The video has not been downloaded yet.</p>
                     <button onClick={() => {
                         setVideoUrl(module.url);
-                        handleDownloadVideo();
+                        handleDownloadVideo(module.url);
                     }}>
                         <Icon name="download" />
                         Try Again
