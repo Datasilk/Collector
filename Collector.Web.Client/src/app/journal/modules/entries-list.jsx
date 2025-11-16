@@ -4,9 +4,9 @@ import Icon from '@/components/ui/icon';
 import { useSession } from '@/context/session';
 import { Journals } from '@/api/user/journals';
 import { apiBasePath } from '@/helpers/endpoints.js';
-import EntriesListSettingsModal from './entries-list-settings-modal';
-import EntriesListFilter from './entries-list-filter';
-import EntriesListPaging from './entries-list-paging';
+import EntriesListSettingsModal from './entries-list/entries-list-settings-modal';
+import EntriesListFilter from './entries-list/entries-list-filter';
+import EntriesListPaging from './entries-list/entries-list-paging';
 
 export default function EntriesListModule({ module, journalId, isEditable = false, tabButtons, onUpdate }) {
     const navigate = useNavigate();
@@ -243,6 +243,7 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
                     search={filterOptions.search}
                     sort={sort}
                     onFilter={handleFilterChange}
+                    journalId={journalId}
                 />
             </div>
             <div className="entries-list-module loading">
@@ -337,6 +338,7 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
                     search={filterOptions.search}
                     sort={sort}
                     onFilter={handleFilterChange}
+                    journalId={journalId}
                 />
                 <div className="empty-state">
                     <p>
@@ -381,6 +383,7 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
                     search={filterOptions.search}
                     sort={sort}
                     onFilter={handleFilterChange}
+                    journalId={journalId}
                 />
 
                 <div className="entries-table">
@@ -464,6 +467,7 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
                     search={filterOptions.search}
                     sort={sort}
                     onFilter={handleFilterChange}
+                    journalId={journalId}
                 />
                 <div className="entry-cards">
                     {entries.map(entry => (

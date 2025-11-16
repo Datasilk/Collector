@@ -5,7 +5,6 @@ import Icon from '@/components/ui/icon';
 import { useSession } from '@/context/session';
 //api
 import { Journals } from '@/api/user/journals';
-import { Videos } from '@/api/user/videos';
 //helpers
 import { uploadImageForModule, uploadPdfForModule, uploadFileForModule } from '@/helpers/files';
 //modules
@@ -19,6 +18,8 @@ export default function ModuleList({
     entryJson,
     entryId,
     journalId,
+    journal = null,
+    chapters = [],
     isEditing,
     showHoverTab = true,
     showHoverOutline = true,
@@ -377,40 +378,9 @@ export default function ModuleList({
             const containerWidth = moduleElement.parentElement.offsetWidth;
             const finalWidth = moduleElement.offsetWidth / containerWidth;
             const snappedWidth = snapToWidth(finalWidth * 100);
-
-            // Update module width via API
             const module = entryJson.modules.find(m => m.id == resizingModuleRef.current.id);
-            if (module && journalId) {
-                try {
-                    const api = Journals(session);
-                    const updateData = {
-                        JournalId: parseInt(journalId, 10),
-                        JournalEntryId: entryId || module.entryId || '00000000-0000-0000-0000-000000000000',
-                        ModuleId: String(resizingModuleRef.current.id),
-                        Width: parseFloat(snappedWidth),
-                        Height: parseFloat(module.height || 1),
-                        Sort: parseInt(module.sort || 999, 10)
-                    };
-
-                    const response = await api.updateModule(updateData);
-                    if (response.data.success) {
-
-                        // Update local module data - this triggers re-render with new className
-                        if (updatedModule) {
-                            updatedModule({ ...module, width: snappedWidth });
-                        }
-                    } else {
-                        // If API call fails, revert inline style
-                        moduleElement.style.width = '';
-                    }
-                } catch (err) {
-                    console.error('Error updating module width:', err);
-                    // Revert inline style on error
-                    moduleElement.style.width = '';
-                }
-            } else {
-                // Remove inline style if no API call needed
-                moduleElement.style.width = '';
+            if (module) {
+                updatedModule({ ...module, width: snappedWidth });
             }
 
             // Remove resizing class from all handles
@@ -1357,6 +1327,8 @@ export default function ModuleList({
                             module={module}
                             entryId={entryId}
                             journalId={journalId}
+                            journal={journal}
+                            chapters={chapters}
                             onUpdate={handleUpdatedModule}
                             isEditable={isEditing}
                             manuallyAdded={module.manuallyAdded}

@@ -12,5 +12,6 @@ namespace Collector.Data.Interfaces
         void ChangeColor(int journalId, string color);
         void Archive(int journalId);
         void Unarchive(int journalId);
+        void UpdateEntryId(int journalId, Guid? entryId);
     }
 }

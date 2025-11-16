@@ -336,6 +336,21 @@ namespace Collector.Web.Server.SignalR
                 var (width, height, duration) = await GetVideoMetadata(relativePath);
                 Console.WriteLine($"[VideoHub] Video metadata: width={width}, height={height}, duration={duration} seconds.");
 
+                // Calculate file size in megabytes from disk
+                decimal fileSizeMb = 0;
+                try
+                {
+                    var fileInfo = new FileInfo(videoFullPath);
+                    if (fileInfo.Exists)
+                    {
+                        fileSizeMb = Math.Round((decimal)fileInfo.Length / (1024 * 1024), 2);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to get video file size for {VideoPath}", videoFullPath);
+                }
+
                 // Send completion with video data
                 await Clients.Caller.SendAsync("DownloadComplete", new
                 {
@@ -354,7 +369,7 @@ namespace Collector.Web.Server.SignalR
                 await GenerateSeekPreviewThumbnails(relativePath);
 
                 // Update database with download completion
-                await _videoRepo.UpdateDownloaded(videoId, true, fileName, duration, width, height);
+                await _videoRepo.UpdateDownloaded(videoId, true, fileName, duration, width, height, fileSizeMb);
                 _logger.LogInformation("Video {VideoId} download completed", videoId);
                 Console.WriteLine($"[VideoHub] Updated JournalVideo.Downloaded=true for Id={videoId}.");
 

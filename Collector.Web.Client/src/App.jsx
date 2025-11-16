@@ -40,11 +40,11 @@ function App() {
   };
 
   return (
-    <SessionProvider>
-      <Router>
+    <Router>
+      <SessionProvider>
         <Routing />
-      </Router>
-    </SessionProvider>
+      </SessionProvider>
+    </Router>
   );
 }
 

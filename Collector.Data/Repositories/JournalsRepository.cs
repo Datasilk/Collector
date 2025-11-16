@@ -68,5 +68,13 @@ namespace Collector.Data.Repositories
                 WHERE [Id] = @journalId", 
                 new { journalId });
         }
+
+        public void UpdateEntryId(int journalId, Guid? entryId)
+        {
+            _dbConnection.Execute(@"UPDATE [dbo].[Journals]
+                SET [EntryId] = @entryId
+                WHERE [Id] = @journalId",
+                new { journalId, entryId });
+        }
     }
 }

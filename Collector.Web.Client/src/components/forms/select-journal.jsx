@@ -10,7 +10,7 @@ import Select from '@/components/forms/select';
  * category and journal using localStorage and notify parent via onChange.
  * </description>
  */
-export default function SelectJournal({ onChange }) {
+export default function SelectJournal({ onChange, journalId = null }) {
     const session = useSession();
 
     const [categories, setCategories] = useState([]);
@@ -27,6 +27,10 @@ export default function SelectJournal({ onChange }) {
     }, []);
 
     useEffect(() => {
+        if (journalId) {
+            return;
+        }
+
         if (!selectedCategoryId || categories.length === 0) {
             setJournals([]);
             setSelectedJournalId('');
@@ -85,7 +89,33 @@ export default function SelectJournal({ onChange }) {
                 const data = response.data.data || [];
                 setCategories(data);
 
-                if (data.length > 0) {
+                if (journalId && data.length > 0) {
+                    // When a specific journalId is provided, preselect its category and journal
+                    Journals(session).getJournal(journalId).then(journalResponse => {
+                        if (journalResponse.data && journalResponse.data.success) {
+                            const journal = journalResponse.data.data;
+                            const categoryId = journal.categoryId;
+                            const category = data.find(c => c.id == categoryId);
+
+                            if (category && category.journals) {
+                                setSelectedCategoryId(String(categoryId));
+                                setJournals(category.journals);
+                                setSelectedJournalId(String(journalId));
+                                notifyChange(String(categoryId), String(journalId), false);
+                            } else {
+                                setSelectedCategoryId('');
+                                setJournals([]);
+                                setSelectedJournalId('');
+                                notifyChange('', '', false);
+                            }
+                        }
+                        setLoading(false);
+                    }).catch(err => {
+                        console.error('Error fetching journal for preselection:', err);
+                        setLoading(false);
+                        notifyChange(selectedCategoryId, selectedJournalId, false);
+                    });
+                } else if (data.length > 0) {
                     // Try to restore last selected category
                     let storedCategoryId = null;
                     try {
@@ -108,15 +138,18 @@ export default function SelectJournal({ onChange }) {
                     } catch {
                         // ignore storage errors
                     }
-                } else {
+                } else if (!journalId) {
                     setSelectedCategoryId('');
                     setJournals([]);
                     setSelectedJournalId('');
                     notifyChange('', '', false);
                 }
             }
-            setLoading(false);
-            notifyChange(selectedCategoryId, selectedJournalId, false);
+
+            if (!journalId) {
+                setLoading(false);
+                notifyChange(selectedCategoryId, selectedJournalId, false);
+            }
         }).catch(err => {
             console.error('Error fetching categories:', err);
             setLoading(false);

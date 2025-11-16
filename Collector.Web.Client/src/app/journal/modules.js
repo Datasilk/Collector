@@ -7,8 +7,17 @@ import ModuleListModule from './modules/module-list';
 import VideoPlayerModule from './modules/video-player';
 import FileDownloadModule from './modules/file-download';
 import PdfViewerModule from './modules/pdf-viewer';
+import EntriesListModule from './modules/entries-list';
 
 const modules = [
+    {
+        id: 'entries-list',
+        type: 'entries-list',
+        name: 'Entries List',
+        icon: 'list',
+        module: EntriesListModule,
+        showTab: false
+    },
     {
         id: 'text-editor',
         name: 'Text Editor',

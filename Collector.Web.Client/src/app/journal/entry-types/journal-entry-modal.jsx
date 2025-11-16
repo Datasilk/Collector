@@ -7,10 +7,10 @@ import SelectJournal from '@/components/forms/select-journal';
  * <summary>Journal Entry Modal</summary>
  * <description>Modal for creating a new journal entry by selecting category and journal.</description>
  */
-export default function JournalEntryModal({ onClose }) {
+export default function JournalEntryModal({ onClose, journalId = null }) {
     const navigate = useNavigate();
 
-    const [selectedJournalId, setSelectedJournalId] = useState('');
+    const [selectedJournalId, setSelectedJournalId] = useState(journalId);
 
     const handleCreateEntry = () => {
         if (selectedJournalId) {
@@ -23,8 +23,9 @@ export default function JournalEntryModal({ onClose }) {
         <Modal title="Create Journal Entry" onClose={onClose}>
             <div className="modal-form">
                 <SelectJournal
-                    onChange={({ categoryId, journalId }) => {
-                        setSelectedJournalId(journalId || '');
+                    journalId={journalId}
+                    onChange={({ categoryId, journalId: selectedId }) => {
+                        setSelectedJournalId(selectedId || '');
                     }}
                 />
                 <div className="buttons">

@@ -7,7 +7,7 @@ import TreeView from '@/components/ui/tree-view';
 import Modal from '@/components/ui/modal';
 import Icon from '@/components/ui/icon';
 import Input from '@/components/forms/input';
-import entryTypes from './entry-types';
+import NewEntry from './components/new-entry';
 import './layout.css';
 
 /**
@@ -438,28 +438,11 @@ export default function JournalLayout({ children }) {
                     </div>
                     <div className="sidebar">
                         <div className="sidebar-top">
-                            {!loading && !error && categories.length > 0 &&
-                                <div className="tool-bar entry-type-dropdown" ref={entryTypeDropdownRef}>
-                                    <button className="button" onClick={handleToggleEntryTypeDropdown}>
-                                        <Icon name="add"></Icon>New Entry
-                                    </button>
-                                    {showEntryTypeDropdown && (
-                                        <div className="dropdown-menu">
-                                            {entryTypes.map(entryType => (
-                                                <div
-                                                    key={entryType.id}
-                                                    className="dropdown-item"
-                                                    onClick={() => handleSelectEntryType(entryType)}
-                                                >
-                                                    <Icon name={entryType.icon}></Icon>
-                                                    <span>{entryType.name}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
+                            {!loading && !error && categories.length > 0 && (
+                                <div className="tool-bar">
+                                    <NewEntry />
                                 </div>
-                            }
-
+                            )}
                             <div className="journal-tree">
                                 {loading ? (
                                     <div className="loading">Loading categories...</div>
@@ -628,10 +611,6 @@ export default function JournalLayout({ children }) {
                 </Modal>
             )}
 
-            {/* Entry Type Modal */}
-            {activeEntryTypeModal && (
-                <activeEntryTypeModal.modal onClose={handleCloseEntryTypeModal} />
-            )}
         </div>
     );
 }

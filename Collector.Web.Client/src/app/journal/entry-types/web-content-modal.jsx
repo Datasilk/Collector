@@ -11,7 +11,7 @@ import { apiBasePath } from '@/helpers/endpoints.js';
  * <summary>Web Content Modal</summary>
  * <description>Modal for creating a new entry from web content by providing a URL to scrape.</description>
  */
-export default function WebContentModal({ onClose }) {
+export default function WebContentModal({ onClose, journalId = null }) {
     const navigate = useNavigate();
 
     const [url, setUrl] = useState('');
@@ -76,8 +76,9 @@ export default function WebContentModal({ onClose }) {
                 {!isScraping && (
                     <>
                         <SelectJournal
-                            onChange={({ categoryId, journalId, loading }) => {
-                                setSelectedJournalId(journalId || '');
+                            journalId={journalId}
+                            onChange={({ categoryId, journalId: selectedId, loading }) => {
+                                setSelectedJournalId(selectedId || '');
                                 setSelectionLoading(loading);
                             }}
                         />

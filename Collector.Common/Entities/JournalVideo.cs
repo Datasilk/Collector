@@ -18,5 +18,6 @@ namespace Collector.Common.Entities
         public string Metadata { get; set; }
         public string Title { get; set; }
         public string Description { get; set; }
+        public decimal FileSizeMb { get; set; }
     }
 }

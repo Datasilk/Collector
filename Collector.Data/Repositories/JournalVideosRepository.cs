@@ -53,9 +53,9 @@ namespace Collector.Data.Repositories
         public async Task<int> Add(JournalVideo video)
         {
             var sql = @"
-                INSERT INTO JournalVideos (JournalId, JournalEntryId, ModuleId, Filename, OriginalFilename, Url, Downloaded, Duration, Width, Height, Metadata, Title, Description)
+                INSERT INTO JournalVideos (JournalId, JournalEntryId, ModuleId, Filename, OriginalFilename, Url, Downloaded, Duration, Width, Height, Metadata, Title, Description, FileSizeMb)
                 OUTPUT INSERTED.Id
-                VALUES (@JournalId, @JournalEntryId, @ModuleId, @Filename, @OriginalFilename, @Url, @Downloaded, @Duration, @Width, @Height, @Metadata, @Title, @Description)";
+                VALUES (@JournalId, @JournalEntryId, @ModuleId, @Filename, @OriginalFilename, @Url, @Downloaded, @Duration, @Width, @Height, @Metadata, @Title, @Description, @FileSizeMb)";
             
             return await _db.QuerySingleAsync<int>(sql, video);
         }
@@ -70,7 +70,8 @@ namespace Collector.Data.Repositories
                     Height = @Height,
                     Metadata = @Metadata,
                     Title = @Title,
-                    Description = @Description
+                    Description = @Description,
+                    FileSizeMb = @FileSizeMb
                 WHERE Id = @Id";
             
             var rowsAffected = await _db.ExecuteAsync(sql, video);
@@ -91,10 +92,10 @@ namespace Collector.Data.Repositories
             return rowsAffected > 0;
         }
 
-        public async Task<bool> UpdateDownloaded(int id, bool downloaded, string filename, int duration, int width, int height)
+        public async Task<bool> UpdateDownloaded(int id, bool downloaded, string filename, int duration, int width, int height, decimal fileSizeMb)
         {
-            var sql = @"UPDATE JournalVideos SET Downloaded = @Downloaded, Filename = @Filename, Duration = @Duration, Width = @Width, Height = @Height WHERE Id = @Id";
-            var rowsAffected = await _db.ExecuteAsync(sql, new { Id = id, Downloaded = downloaded, Filename = filename, Duration = duration, Width = width, Height = height });
+            var sql = @"UPDATE JournalVideos SET Downloaded = @Downloaded, Filename = @Filename, Duration = @Duration, Width = @Width, Height = @Height, FileSizeMb = @FileSizeMb WHERE Id = @Id";
+            var rowsAffected = await _db.ExecuteAsync(sql, new { Id = id, Downloaded = downloaded, Filename = filename, Duration = duration, Width = width, Height = height, FileSizeMb = fileSizeMb });
             return rowsAffected > 0;
         }
 

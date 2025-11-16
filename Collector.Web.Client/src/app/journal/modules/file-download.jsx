@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 //components
 import Icon from '@/components/ui/icon';
 import Modal from '@/components/ui/modal';
-import FileDownloadModal from '@/app/journal/entry/components/file-download-modal';
+import FileDownloadModal from '../components/file-download-modal';
 //context
 import { useSession } from '@/context/session';
 //api

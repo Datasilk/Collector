@@ -2,8 +2,9 @@ import React, { useState, useRef } from 'react';
 import Input from '@/components/forms/input';
 import Select from '@/components/forms/select';
 import Icon from '@/components/ui/icon';
+import NewEntry from '../../components/new-entry';
 
-export default function EntriesListFilter({ search, sort, onFilter }) {
+export default function EntriesListFilter({ search, sort, onFilter, journalId }) {
     const [localSearch, setLocalSearch] = useState(search || '');
     const [localSort, setLocalSort] = useState(sort || 'Title_asc');
     const debounceTimerRef = useRef(null);
@@ -52,8 +53,8 @@ export default function EntriesListFilter({ search, sort, onFilter }) {
     };
 
     return (
-        <div className="filters tool-bar">
-            <div className="left-side">
+        <div className="entries-filter-bar tool-bar">
+            <div className="filters left-side">
                 <Input
                     name="search"
                     type="text"
@@ -71,8 +72,6 @@ export default function EntriesListFilter({ search, sort, onFilter }) {
                         </button>
                     ]}
                 />
-            </div>
-            <div className="right-side">
                 <Select
                     name="sort"
                     value={localSort}
@@ -88,6 +87,9 @@ export default function EntriesListFilter({ search, sort, onFilter }) {
                         { label: 'Status (High-Low)', value: 'Status_desc' }
                     ]}
                 />
+            </div>
+            <div className="right-side">
+                <NewEntry journalId={journalId} />
             </div>
         </div>
     );

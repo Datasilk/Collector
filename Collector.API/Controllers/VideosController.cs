@@ -133,6 +133,49 @@ namespace Collector.API.Controllers
                 // Build file path
                 var videoPath = Path.Combine(video.JournalEntryId.ToString(), video.Filename);
                 var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoPath);
+                var changed = false;
+
+                // Ensure FileSizeMb is populated
+                if (video.FileSizeMb == 0)
+                {
+                    try
+                    {
+                        var fileInfo = new FileInfo(videoFullPath);
+                        if (fileInfo.Exists)
+                        {
+                            video.FileSizeMb = Math.Round((decimal)fileInfo.Length / (1024 * 1024), 2);
+                            changed = true;
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore file size errors here; streaming will still proceed if file exists
+                    }
+                }
+
+                // Ensure width, height, and duration are populated
+                if (video.Width == 0 || video.Height == 0 || video.Duration == 0)
+                {
+                    var (width, height, duration) = await GetVideoMetadata(videoPath);
+
+                    if (width > 0 && height > 0)
+                    {
+                        video.Width = width;
+                        video.Height = height;
+                        changed = true;
+                    }
+
+                    if (duration > 0)
+                    {
+                        video.Duration = duration;
+                        changed = true;
+                    }
+                }
+
+                if (changed)
+                {
+                    await _videoRepo.Update(video);
+                }
 
                 if (!System.IO.File.Exists(videoFullPath))
                 {

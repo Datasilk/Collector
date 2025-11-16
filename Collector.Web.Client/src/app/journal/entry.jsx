@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 //css
-import './page.css';
+import './entry.css';
 //components
 import Icon from '@/components/ui/icon';
 import Input from '@/components/forms/input';
 import ToggleSwitch from '@/components/ui/toggle-switch';
 import ModuleList from './module-list';
-import SettingsModal from './components/settings-modal';
+import SettingsModal from './components/entry-settings-modal';
 import Modal from '@/components/ui/modal';
 //context
 import { useSession } from '@/context/session';
@@ -64,24 +64,19 @@ export default function JournalEntryPage() {
     const historyButtonRef = useRef(null);
 
     //apis
-    const { addEntry, renameEntry, getChapters } = Journals(session);
+    const { addEntry, renameEntry, getChapters, updateJournalEntryId } = Journals(session);
     const { getSnapshotsByEntry, getSnapshot, createSnapshot } = JournalSnapshots(session);
 
     //effect
     useEffect(() => {
-        if (!entry || entry.id != entryId && entryId != 'new' && entryId != null) {
-            fetchEntryDetails();
-
-            // Load chapters
-            getChapters(journalId).then(response => {
-                if (response.data?.success && response.data.data) {
-                    setChapters(response.data.data);
-                }
-            });
-        }
-        //scroll to top of page
-        window.scrollTo(0, 0);
+        fetchEntryDetails();
     }, [journalId, entryId, snapshotId]);
+
+    useEffect(() => {
+        if(!journal || journal.id != journalId){
+            loadChapters();
+        }
+    }, [journalId]);
 
     useEffect(() => {
         if (isTitleEditing && titleInputRef.current) {
@@ -124,24 +119,86 @@ export default function JournalEntryPage() {
     }, [showTopModuleDropdown, showBottomModuleDropdown, showHistoryDropdown]);
 
     //actions
+    const getEntryId = (journalData) => {
+        return entryId != null ? entryId : (journalData ? journalData.entryId : journal.entryId);
+    };
 
     //#region Entry
     const fetchEntryDetails = async () => {
         try {
             setLoading(true);
             const api = Journals(session);
-            const journalResponse = await api.getJournal(journalId);
+            const numericJournalId = parseInt(journalId);
+            let journalData = journal;
 
-            if (!journalResponse.data.success) {
-                setError(journalResponse.data.message || 'Failed to load journal details');
+            if (!journalData || journalData.id !== numericJournalId) {
+                const journalResponse = await api.getJournal(journalId);
+
+                if (!journalResponse.data.success) {
+                    setError(journalResponse.data.message || 'Failed to load journal details');
+                    setLoading(false);
+                    return;
+                }
+
+                journalData = journalResponse.data.data;
+                setJournal(journalData);
+            }
+            const newEntryId = getEntryId(journalData);
+            const isNewEntry = newEntryId === 'new' || newEntryId == null;
+
+            if (!newEntryId && !snapshotId) {
+                //create new entry for journal and include an entries-list module
+                const defaultJournalEntryJson = {
+                    modules: [
+                        {
+                            type: 'entries-list',
+                            manuallyAdded: false
+                        }
+                    ]
+                };
+
+                const newEntryForJournal = {
+                    journalId: parseInt(journalId),
+                    title: journalData.title,
+                    description: journalData.description ?? '',
+                    status: 1
+                };
+
+                const createdResponse = await addEntry(newEntryForJournal);
+
+                if (!createdResponse.data?.success || !createdResponse.data.data) {
+                    setError(createdResponse.data?.message || 'Failed to create default journal entry');
+                    setLoading(false);
+                    return;
+                }
+
+                const createdEntry = createdResponse.data.data;
+
+                try {
+                    const contentString = JSON.stringify(defaultJournalEntryJson);
+                    await api.updateEntryContent(createdEntry.id, contentString);
+                } catch (contentErr) {
+                    console.error('Error saving default journal entry content:', contentErr);
+                }
+
+                try {
+                    await updateJournalEntryId(parseInt(journalId), createdEntry.id);
+                    setJournal({ ...journalData, entryId: createdEntry.id });
+                } catch (updateErr) {
+                    console.error('Error updating journal EntryId:', updateErr);
+                }
+
+                setEntry(createdEntry);
+                entryRef.current = createdEntry;
+                setEditedTitle(createdEntry.title || '');
+                setEditedDescription(createdEntry.description || '');
+                setEntryJson(defaultJournalEntryJson);
+                entryJsonRef.current = defaultJournalEntryJson;
+                setIsTitleEditing(true);
                 setLoading(false);
+                window.scrollTo(0, 0);
                 return;
             }
-
-            const journalData = journalResponse.data.data;
-            setJournal(journalData);
-
-            const isNewEntry = entryId === 'new' || entryId == null;
 
             const defaultEntryJson = {
                 modules: [
@@ -177,6 +234,7 @@ export default function JournalEntryPage() {
                 };
                 setEntryJson(newEntryJson);
                 entryJsonRef.current = newEntryJson;
+                window.scrollTo(0, 0);
 
             } else if (snapshotId) {
                 // Load snapshot data
@@ -221,9 +279,10 @@ export default function JournalEntryPage() {
 
                 // Disable editing for snapshots
                 setIsEditing(false);
+                window.scrollTo(0, 0);
             } else {
                 // Get existing entry data
-                const entryResponse = await api.getEntry(entryId);
+                const entryResponse = await api.getEntry(newEntryId);
                 if (!entryResponse.data.success) {
                     setError(entryResponse.data.message || 'Failed to load entry details');
                     setLoading(false);
@@ -238,7 +297,7 @@ export default function JournalEntryPage() {
 
                 // Fetch entry content (JSON data)
                 try {
-                    const contentResponse = await api.getEntryContent(entryId);
+                    const contentResponse = await api.getEntryContent(newEntryId);
                     if (contentResponse.data.success && contentResponse.data.data) {
                         try {
                             const contentJson = JSON.parse(contentResponse.data.data);
@@ -256,6 +315,7 @@ export default function JournalEntryPage() {
                 } catch (contentErr) {
                     console.error('Error fetching entry content:', contentErr);
                 }
+                window.scrollTo(0, 0);
             }
             if(location.search == '?edit'){
                 setIsEditing(true);
@@ -266,6 +326,14 @@ export default function JournalEntryPage() {
             setError('Failed to load entry details. Please try again later.');
             setLoading(false);
         }
+    };
+
+    const loadChapters = () => {
+        getChapters(journalId).then(response => {
+            if (response.data?.success && response.data.data) {
+                setChapters(response.data.data);
+            }
+        });
     };
 
     const formatDate = (dateString) => {
@@ -332,8 +400,9 @@ export default function JournalEntryPage() {
 
     const updateEntryTitle = async () => {
         if (editedTitle.trim() === '') return;
+        const newEntryId = getEntryId();
 
-        if (entryId !== 'new' && entry.title === editedTitle.trim()) {
+        if (newEntryId !== 'new' && entry.title === editedTitle.trim()) {
             //title is the same, do nothing
             setIsTitleEditing(false);
             return;
@@ -343,7 +412,7 @@ export default function JournalEntryPage() {
         setSaveStatus('saving');
 
         try {
-            if (entryId === 'new') {
+            if (newEntryId === 'new') {
                 // For new entries, create the entry first
                 const newEntry = {
                     journalId: parseInt(journalId),
@@ -552,11 +621,12 @@ export default function JournalEntryPage() {
 
     //#region Snapshots
     const handleToggleHistoryDropdown = async () => {
+        const newEntryId = getEntryId();
         if (!showHistoryDropdown) {
             // Load snapshots when opening dropdown
             setLoadingSnapshots(true);
             try {
-                const response = await getSnapshotsByEntry(entryId);
+                const response = await getSnapshotsByEntry(newEntryId);
                 if (response.data?.success && response.data.data) {
                     setSnapshots(response.data.data);
                 }
@@ -577,11 +647,12 @@ export default function JournalEntryPage() {
     const handleConfirmCreateSnapshot = async () => {
         setShowCreateSnapshotModal(false);
         try {
-            const response = await createSnapshot(entryId);
+            const newEntryId = getEntryId();
+            const response = await createSnapshot(newEntryId);
             if (response.data?.success) {
                 setShowSnapshotCreatedModal(true);
                 // Refresh snapshots list
-                const snapshotsResponse = await getSnapshotsByEntry(entryId);
+                const snapshotsResponse = await getSnapshotsByEntry(newEntryId);
                 if (snapshotsResponse.data?.success && snapshotsResponse.data.data) {
                     setSnapshots(snapshotsResponse.data.data);
                 }
@@ -602,13 +673,15 @@ export default function JournalEntryPage() {
     const handleSnapshotClick = (snapshot) => {
         setShowHistoryDropdown(false);
         // Navigate to snapshot route
-        navigate(`/journal/${journalId}/entry/${entryId}/snapshot/${snapshot.id}`);
+        const newEntryId = getEntryId();
+        navigate(`/journal/${journalId}/entry/${newEntryId}/snapshot/${snapshot.id}`);
     };
 
     const handleViewLatestVersion = () => {
         setShowHistoryDropdown(false);
         // Navigate to entry without snapshot
-        navigate(`/journal/${journalId}/entry/${entryId}`);
+        const newEntryId = getEntryId();
+        navigate(`/journal/${journalId}/entry/${newEntryId}`);
     };
 
     const formatSnapshotDate = (dateString) => {
@@ -715,9 +788,11 @@ export default function JournalEntryPage() {
             )}
             <div className="entry-header">
                 <div className="entry-navigation tool-bar">
-                    <button className="back-button" onClick={handleBackToJournal}>
-                        <Icon name="arrow_back" /> Back to {journal?.title || 'Journal'}
-                    </button>
+                    {journal.entryId != getEntryId() && (
+                        <button className="back-button" onClick={handleBackToJournal}>
+                            <Icon name="arrow_back" /> Back to {journal?.title || 'Journal'}
+                        </button>
+                    )}
 
                     <div className="right-side entry-status-badge">
                         {saveStatus && (
@@ -900,8 +975,10 @@ export default function JournalEntryPage() {
                 {!loading && (
                     <ModuleList
                         entryJson={entryJson}
-                        entryId={entryId}
+                        entryId={getEntryId()}
                         journalId={journalId}
+                        journal={journal}
+                        chapters={chapters}
                         isEditing={isEditing}
                         canDragDrop={isEditing}
                         updatedModule={handleUpdatedModule}

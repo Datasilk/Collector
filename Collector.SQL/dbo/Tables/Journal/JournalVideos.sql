@@ -14,7 +14,8 @@ CREATE TABLE [dbo].[JournalVideos]
     [Created] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     [Metadata] NVARCHAR(128) NULL, 
     [Title] NVARCHAR(128) NULL DEFAULT '', 
-    [Description] NVARCHAR(50) NULL
+    [Description] NVARCHAR(50) NULL,
+    [FileSizeMb] DECIMAL(10, 2) NOT NULL DEFAULT 0
 )
 GO
 CREATE INDEX [IX_JournalVideos_ModuleId] ON [dbo].[JournalVideos] (ModuleId)

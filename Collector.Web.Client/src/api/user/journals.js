@@ -22,6 +22,7 @@ const Journals = (args) => Api({...args, useToken:true}).endpoints(({api}) => {
         changeJournalColor: (id, color) => api.post(`${apiPath}/change-color`, { Id: id, Color: color }),
         archiveJournal: (id) => api.get(`${apiPath}/archive/${id}`),
         unarchiveJournal: (id) => api.get(`${apiPath}/unarchive/${id}`),
+        updateJournalEntryId: (journalId, entryId) => api.post(`${apiPath}/update-entry-id`, { JournalId: journalId, EntryId: entryId }),
         
         // Journal Entries
         getEntries: (journalId) => api.get(`${apiPath}/${journalId}/entries`),

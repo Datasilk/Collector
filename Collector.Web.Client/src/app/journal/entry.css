@@ -93,6 +93,11 @@ body.scrolled .entry-content{
     from { opacity: 0; }
     to { opacity: 1; }
 }
+/* entry tool-bar */
+.entry-navigation > .right-side,
+.right-side.history-dropdown-container{
+    margin:0;
+}
 
 /* Entry title section */
 .entry-title-section {
@@ -152,7 +157,6 @@ body.scrolled .entry-title-display h1 {
     opacity:1;
 }
 
-/* Input component overrides for title */
 .form-group.input-entry-title {
     margin-bottom: 0;
 }
@@ -936,6 +940,16 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
 .journal-entry-page.editing .entry-modules .secret-content {
   /* Display the asterisks */
   outline:2px dotted #7763ed;
+}
+
+/* entries list */
+.entries-filter-bar{
+    margin-bottom:1em;
+}
+
+.entries-filter-bar .left-side,
+.entries-filter-bar .right-side{
+    margin:0;
 }
 
 /* checklists */

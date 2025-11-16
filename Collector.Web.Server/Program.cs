@@ -1,5 +1,6 @@
 using System.Reflection;
 using Serilog;
+using Serilog.Events;
 using Collector.Common;
 using Collector.Auth.Services;
 using Collector.API.Services;
@@ -10,10 +11,20 @@ using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Host.UseSerilog((host, config) => config
-    .ReadFrom.Configuration(host.Configuration)
-    .Enrich.FromLogContext()
-);
+builder.Host.UseSerilog((host, config) =>
+{
+    config
+        .Enrich.FromLogContext()
+        // Write to console but filter out all Microsoft.* logs
+        .WriteTo.Logger(lc => lc
+            .Filter.ByExcluding(le =>
+                le.Properties.TryGetValue("SourceContext", out var sc)
+                && sc is ScalarValue sv
+                && sv.Value is string s
+                && s.StartsWith("Microsoft"))
+            .WriteTo.Console(outputTemplate: "{Message:lj}{NewLine}{Exception}")
+        );
+});
 
 builder.Services.AddCors(options =>
 {
@@ -176,5 +187,11 @@ app.MapControllers();
 
 // SPA fallback to index.html for React app
 app.MapFallbackToFile("index.html");
+
+Console.WriteLine(
+    "Collector Web Server {0} started.",
+    typeof(Program).Assembly
+        .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+        ?.InformationalVersion.Split("+")[0] ?? "unknown");
 
 app.Run();

@@ -60,6 +60,28 @@ namespace Collector.API.Controllers
             }
         }
 
+        [HttpPost("update-entry-id")]
+        public IActionResult UpdateEntryId([FromBody] UpdateJournalEntryIdModel request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var journal = _journalsRepository.GetById(request.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found" });
+
+                _journalsRepository.UpdateEntryId(request.JournalId, request.EntryId);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
         [HttpPost("categories/filter")]
         public IActionResult FilterCategories([FromBody] JournalCategoryFilterModel filter)
         {
@@ -345,6 +367,7 @@ namespace Collector.API.Controllers
                     journal.AppUserId,
                     journal.Created,
                     journal.Status,
+                    journal.EntryId,
                     journal.Modules,
                     Settings = settings,
                     Layout = layout

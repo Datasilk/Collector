@@ -711,8 +711,6 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         const pathParts = module.videoPath.split('/');
         if (pathParts.length < 2) return null;
 
-        // Prefer the entryId explicitly provided on the module (from the server),
-        // fall back to the entryId parsed from the videoPath
         const entryIdFromPath = pathParts[0];
         const effectiveEntryId = module.entryId || entryIdFromPath;
         const videoFileName = pathParts[pathParts.length - 1];

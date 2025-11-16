@@ -16,7 +16,7 @@ namespace Collector.Data.Interfaces
         Task<bool> Update(JournalVideo video);
         Task<bool> UpdateTitle(int id, string title);
         Task<bool> UpdateDescription(int id, string description);
-        Task<bool> UpdateDownloaded(int id, bool downloaded, string filename, int duration, int width, int height);
+        Task<bool> UpdateDownloaded(int id, bool downloaded, string filename, int duration, int width, int height, decimal fileSizeMb);
         Task<bool> Delete(int id);
         Task<bool> DeleteByModuleId(Guid entryId, string moduleId);
     }
