@@ -17,9 +17,9 @@ namespace Collector.Data.Repositories
         public int Add(Journal journal)
         {
             return _dbConnection.QuerySingle<int>(@"INSERT INTO [dbo].[Journals] 
-                ([AppUserId], [CategoryId], [Title], [ThemeId], [Color]) 
+                ([AppUserId], [CategoryId], [Title], [Color]) 
                 OUTPUT INSERTED.[Id]
-                VALUES (@AppUserId, @CategoryId, @Title, @ThemeId, @Color)", 
+                VALUES (@AppUserId, @CategoryId, @Title, @Color)", 
                 journal);
         }
 

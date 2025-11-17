@@ -5,6 +5,18 @@ const appName = import.meta.env.VITE_APP_NAME.toLowerCase();
 const key = 'session:user:' + appName;
 const defaultUser = { fullname: 'Anonymous User', email: '' };
 
+const tokenCookieName = 'collector_token';
+
+const setAuthCookie = (token) => {
+    const secureFlag = window.location.protocol === 'https:' ? '; Secure' : '';
+    if (token) {
+        const expires = new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)).toUTCString();
+        document.cookie = `${tokenCookieName}=${encodeURIComponent(token)}; Path=/; Expires=${expires}; SameSite=Lax${secureFlag}`;
+    } else {
+        document.cookie = `${tokenCookieName}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax${secureFlag}`;
+    }
+};
+
 const getUser = () => {
     return localStorage.getItem(key) ? JSON.parse(localStorage.getItem(key)) : defaultUser;
 };
@@ -20,9 +32,13 @@ const userContext = (user, setState) => {
             };
             setState(newUser);
             localStorage.setItem(key, JSON.stringify(newUser));
+            if (newUser.token) {
+                setAuthCookie(newUser.token);
+            }
         } else {
             localStorage.removeItem(key);
-            setState(null); 
+            setState(null);
+            setAuthCookie(null);
         }
     }
 

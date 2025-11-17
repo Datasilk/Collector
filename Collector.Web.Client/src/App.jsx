@@ -12,17 +12,23 @@ import { addSvg } from './helpers/svg';
 function App() {
   //ref
   const scrollRef = useRef(0);
+  const timerRef = useRef(null);
 
   useEffect(() => {
     window.addEventListener('resize', handleWindowResize);
 
     window.addEventListener('scroll', () => {
+      if(timerRef.current){
+          clearTimeout(timerRef.current);
+        }
       if (window.scrollY > 0 && scrollRef.current == 0) {
         scrollRef.current = window.scrollY;
         document.body.classList.add('scrolled');
       } else if (window.scrollY <= 0) {
         scrollRef.current = 0;
-        document.body.classList.remove('scrolled');
+        timerRef.current = setTimeout(() => {
+          document.body.classList.remove('scrolled');
+        }, 250);
       }
     });
     handleWindowResize();

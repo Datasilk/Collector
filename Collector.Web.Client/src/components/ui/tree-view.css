@@ -58,9 +58,7 @@
 
 .tree-view-content {
     margin-left: 24px;
-    margin-bottom: 1em;
     padding-left: 8px;
-    padding-bottom: 1em;
     /*border-left: 2px dotted #9b6fff;
     border-bottom: 2px dotted #9b6fff;*/
     animation: tree-view-fade-in 0.2s;

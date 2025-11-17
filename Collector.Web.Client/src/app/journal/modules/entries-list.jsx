@@ -7,8 +7,9 @@ import { apiBasePath } from '@/helpers/endpoints.js';
 import EntriesListSettingsModal from './entries-list/entries-list-settings-modal';
 import EntriesListFilter from './entries-list/entries-list-filter';
 import EntriesListPaging from './entries-list/entries-list-paging';
+import NewEntry from '../components/new-entry';
 
-export default function EntriesListModule({ module, journalId, isEditable = false, tabButtons, onUpdate }) {
+export default function EntriesListModule({ module, journalId, entryId, isEditable = false, tabButtons, onUpdate }) {
     const navigate = useNavigate();
     const session = useSession();
 
@@ -85,7 +86,7 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
             .then(response => {
                 if (response.data && response.data.success) {
                     const data = response.data.data || {};
-                    setEntries(data.entries || []);
+                    setEntries(data.entries.filter(a => a.id != entryId) || []);
                     const total = data.totalCount || 0;
                     setTotalItems(total);
                     setTotalPages(total > 0 ? Math.ceil(total / requestFilter.length) : 1);
@@ -334,12 +335,14 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
 
         return (
             <div className="entries-list-module">
-                <EntriesListFilter
-                    search={filterOptions.search}
-                    sort={sort}
-                    onFilter={handleFilterChange}
-                    journalId={journalId}
+                {hasSearch && (
+                    <EntriesListFilter
+                        search={filterOptions.search}
+                        sort={sort}
+                        onFilter={handleFilterChange}
+                        journalId={journalId}
                 />
+                )}
                 <div className="empty-state">
                     <p>
                         {hasSearch
@@ -347,9 +350,9 @@ export default function EntriesListModule({ module, journalId, isEditable = fals
                             : 'No entries yet. Create your first entry to get started!'}
                     </p>
                     {!hasSearch && (
-                        <button onClick={handleNewEntry}>
-                            <Icon name="add" /> New Entry
-                        </button>
+                        <div className="centered">
+                            <NewEntry journalId={journalId} />
+                        </div>
                     )}
                 </div>
             </div>

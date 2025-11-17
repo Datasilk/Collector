@@ -63,13 +63,9 @@ export default function ModuleList({
     const tabButtonsRef = useRef([]);
     const tabButtonsTimer = useRef(null);
     const deleteListenersRef = useRef([]);
+    const isJournalEntry = journal?.entryId == entryId;
 
     //effect
-    useEffect(() => {
-        if (containerId === 'main' && hasPinned && journalId) {
-            fetchPinnedModules();
-        }
-    }, [containerId, hasPinned, journalId]);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -113,37 +109,28 @@ export default function ModuleList({
     };
 
     const removeModule = async (moduleId) => {
-        //find listener associated with module used to call unmount method
         const listener = deleteListenersRef.current.find(listener => listener.moduleId == moduleId);
         if (listener) {
-            // Wait for the callback promise to resolve (e.g., user confirmation)
             const moduleItem = findModuleInHierarchy(entryJson.modules, moduleId);
             if (!moduleItem) {
                 console.error(`Module with id ${moduleId} not found in hierarchy`);
                 return;
             }
             listener.callback(moduleItem);
-            //remove listener from list
             deleteListenersRef.current = deleteListenersRef.current.filter(listener => listener.moduleId != moduleId);
-
-            // Use removeModuleFromHierarchy to remove the module
             const updatedModules = removeModuleFromHierarchy(entryJson.modules, moduleId);
 
             if (removedModule) {
-                //notify parent with updated modules
                 removedModule(moduleId, updatedModules); 
             }
         } else if (removedModule) {
-            // Use removeModuleFromHierarchy to remove the module
             const updatedModules = removeModuleFromHierarchy(entryJson.modules, moduleId);
-            removedModule(moduleId, updatedModules); //notify parent with updated modules
+            removedModule(moduleId, updatedModules);
         }
     };
 
     const handleUpdatedModule = (module) => {
         if (!updatedModule) return;
-
-        // Remove manuallyAdded property before passing to parent
         const { manuallyAdded, ...cleanModule } = module;
         updatedModule(cleanModule);
     };
@@ -164,12 +151,9 @@ export default function ModuleList({
     };
 
     const isModulePinned = (moduleId) => {
-        // First check pinnedModules array from API
         if (pinnedModules && pinnedModules.length > 0) {
             return pinnedModules.some(pm => pm.moduleId == moduleId);
         }
-
-        // Fallback: check if module has pinned property set to true
         const module = entryJson.modules.find(m => m.id == moduleId);
         return module?.pinned === true;
     };
@@ -184,7 +168,6 @@ export default function ModuleList({
                 handleUpdatedModule(updatedModuleData);
             }
 
-            // Add module to journal
             const api = Journals(session);
             const moduleData = {
                 journalId: journalId,
@@ -200,31 +183,19 @@ export default function ModuleList({
                 if (onPinModule) {
                     onPinModule(moduleId);
                 }
-
-                // Update pinned modules list
                 await fetchPinnedModules();
-
-                // Wait for DOM to update before showing tooltip
                 setTimeout(() => {
-                    // Create and show tooltip
                     const moduleElement = document.querySelector(`.module-id-${moduleId}`);
                     if (moduleElement) {
                         const tabContainer = moduleElement.querySelector('.module-tab-container');
                         if (tabContainer) {
-                            // Create tooltip element
                             const tooltip = document.createElement('div');
                             tooltip.className = 'pin-tooltip';
                             tooltip.textContent = 'Module added to journal';
-
-                            // Insert tooltip at the beginning of tab container
                             tabContainer.insertBefore(tooltip, tabContainer.firstChild);
-
-                            // Trigger fade-in animation
                             setTimeout(() => {
                                 tooltip.style.opacity = '1';
                             }, 10);
-
-                            // Fade out and remove after 3 seconds
                             setTimeout(() => {
                                 tooltip.style.opacity = '0';
                                 setTimeout(() => {
@@ -252,31 +223,19 @@ export default function ModuleList({
                 if (onUnPinModule) {
                     onUnPinModule(moduleId);
                 }
-
-                // Update pinned modules list
                 if (entryId) await fetchPinnedModules();
-
-                // Wait for DOM to update before showing tooltip
                 setTimeout(() => {
-                    // Create and show tooltip
                     const moduleElement = document.querySelector(`.module-id-${moduleId}`);
                     if (moduleElement) {
                         const tabContainer = moduleElement.querySelector('.module-tab-container');
                         if (tabContainer) {
-                            // Create tooltip element
                             const tooltip = document.createElement('div');
                             tooltip.className = 'pin-tooltip';
                             tooltip.textContent = 'Module removed from journal';
-
-                            // Insert tooltip at the beginning of tab container
                             tabContainer.insertBefore(tooltip, tabContainer.firstChild);
-
-                            // Trigger fade-in animation
                             setTimeout(() => {
                                 tooltip.style.opacity = '1';
                             }, 10);
-
-                            // Fade out and remove after 3 seconds
                             setTimeout(() => {
                                 tooltip.style.opacity = '0';
                                 setTimeout(() => {
@@ -1285,12 +1244,12 @@ export default function ModuleList({
                                                         </div>
                                                     )}
                                                 </>)}
-                                            {canUnpin && module.showPinned !== false && (isModulePinned(module.id) && ( //unpin button
+                                            {!isJournalEntry && canUnpin && module.showPinned !== false && (isModulePinned(module.id) && ( //unpin button
                                                 <button className="icon" onClick={() => unpinModule(module)} title="Unpin from journal">
                                                     <Icon name="keep_off" />
                                                 </button>
                                             ))}
-                                            {canPin && module.showPinned !== false && (!isModulePinned(module.id) && ( //pin button
+                                            {!isJournalEntry && canPin && module.showPinned !== false && (!isModulePinned(module.id) && ( //pin button
                                                 <button className="icon" onClick={() => pinModule(module)} title="Pin to journal">
                                                     <Icon name="push_pin" />
                                                 </button>

@@ -165,6 +165,19 @@ if (app.Environment.IsDevelopment())
 app.UseCors();
 //app.UseHttpsRedirection();
 app.UseRouting();
+app.Use(async (context, next) =>
+{
+    const string tokenCookieName = "collector_token";
+    if (!context.Request.Headers.ContainsKey("Authorization"))
+    {
+        if (context.Request.Cookies.TryGetValue(tokenCookieName, out var token) && !string.IsNullOrEmpty(token))
+        {
+            context.Request.Headers["Authorization"] = $"Bearer {token}";
+        }
+    }
+
+    await next();
+});
 app.UseAuthentication();
 app.UseAuthorization();
 

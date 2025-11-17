@@ -214,6 +214,102 @@ BEGIN
 END
 PRINT ''
 
+-- JournalCategories sequence
+DECLARE @maxJournalCategoryId BIGINT = 0
+SELECT @maxJournalCategoryId = ISNULL(MAX(Id), 0) FROM [dbo].[JournalCategories]
+PRINT 'Max JournalCategories ID: ' + CAST(@maxJournalCategoryId AS NVARCHAR(20))
+IF @maxJournalCategoryId > 0
+BEGIN
+    DECLARE @resetJournalCategories NVARCHAR(200) = 'ALTER SEQUENCE [dbo].[SequenceJournalCategories] RESTART WITH ' + CAST(@maxJournalCategoryId + 1 AS NVARCHAR(20))
+    EXEC sp_executesql @resetJournalCategories
+    PRINT 'Reset SequenceJournalCategories to ' + CAST(@maxJournalCategoryId + 1 AS NVARCHAR(20))
+END
+ELSE
+BEGIN
+    PRINT 'No records in JournalCategories table, sequence left at default'
+END
+PRINT ''
+
+-- JournalEntrySnapshots sequence
+DECLARE @maxJournalEntrySnapshotId BIGINT = 0
+SELECT @maxJournalEntrySnapshotId = ISNULL(MAX(Id), 0) FROM [dbo].[JournalEntrySnapshots]
+PRINT 'Max JournalEntrySnapshots ID: ' + CAST(@maxJournalEntrySnapshotId AS NVARCHAR(20))
+IF @maxJournalEntrySnapshotId > 0
+BEGIN
+    DECLARE @resetJournalEntrySnapshots NVARCHAR(200) = 'ALTER SEQUENCE [dbo].[SequenceJournalEntrySnapshots] RESTART WITH ' + CAST(@maxJournalEntrySnapshotId + 1 AS NVARCHAR(20))
+    EXEC sp_executesql @resetJournalEntrySnapshots
+    PRINT 'Reset SequenceJournalEntrySnapshots to ' + CAST(@maxJournalEntrySnapshotId + 1 AS NVARCHAR(20))
+END
+ELSE
+BEGIN
+    PRINT 'No records in JournalEntrySnapshots table, sequence left at default'
+END
+PRINT ''
+
+-- Journals sequence
+DECLARE @maxJournalId BIGINT = 0
+SELECT @maxJournalId = ISNULL(MAX(Id), 0) FROM [dbo].[Journals]
+PRINT 'Max Journals ID: ' + CAST(@maxJournalId AS NVARCHAR(20))
+IF @maxJournalId > 0
+BEGIN
+    DECLARE @resetJournals NVARCHAR(200) = 'ALTER SEQUENCE [dbo].[SequenceJournals] RESTART WITH ' + CAST(@maxJournalId + 1 AS NVARCHAR(20))
+    EXEC sp_executesql @resetJournals
+    PRINT 'Reset SequenceJournals to ' + CAST(@maxJournalId + 1 AS NVARCHAR(20))
+END
+ELSE
+BEGIN
+    PRINT 'No records in Journals table, sequence left at default'
+END
+PRINT ''
+
+-- JournalFiles sequence
+DECLARE @maxJournalFileId BIGINT = 0
+SELECT @maxJournalFileId = ISNULL(MAX(Id), 0) FROM [dbo].[JournalFiles]
+PRINT 'Max JournalFiles ID: ' + CAST(@maxJournalFileId AS NVARCHAR(20))
+IF @maxJournalFileId > 0
+BEGIN
+    DECLARE @resetJournalFiles NVARCHAR(200) = 'ALTER SEQUENCE [dbo].[SequenceJournalFiles] RESTART WITH ' + CAST(@maxJournalFileId + 1 AS NVARCHAR(20))
+    EXEC sp_executesql @resetJournalFiles
+    PRINT 'Reset SequenceJournalFiles to ' + CAST(@maxJournalFileId + 1 AS NVARCHAR(20))
+END
+ELSE
+BEGIN
+    PRINT 'No records in JournalFiles table, sequence left at default'
+END
+PRINT ''
+
+-- JournalImages sequence
+DECLARE @maxJournalImageId BIGINT = 0
+SELECT @maxJournalImageId = ISNULL(MAX(Id), 0) FROM [dbo].[JournalImages]
+PRINT 'Max JournalImages ID: ' + CAST(@maxJournalImageId AS NVARCHAR(20))
+IF @maxJournalImageId > 0
+BEGIN
+    DECLARE @resetJournalImages NVARCHAR(200) = 'ALTER SEQUENCE [dbo].[SequenceJournalImages] RESTART WITH ' + CAST(@maxJournalImageId + 1 AS NVARCHAR(20))
+    EXEC sp_executesql @resetJournalImages
+    PRINT 'Reset SequenceJournalImages to ' + CAST(@maxJournalImageId + 1 AS NVARCHAR(20))
+END
+ELSE
+BEGIN
+    PRINT 'No records in JournalImages table, sequence left at default'
+END
+PRINT ''
+
+-- JournalVideos sequence
+DECLARE @maxJournalVideoId BIGINT = 0
+SELECT @maxJournalVideoId = ISNULL(MAX(Id), 0) FROM [dbo].[JournalVideos]
+PRINT 'Max JournalVideos ID: ' + CAST(@maxJournalVideoId AS NVARCHAR(20))
+IF @maxJournalVideoId > 0
+BEGIN
+    DECLARE @resetJournalVideos NVARCHAR(200) = 'ALTER SEQUENCE [dbo].[SequenceJournalVideos] RESTART WITH ' + CAST(@maxJournalVideoId + 1 AS NVARCHAR(20))
+    EXEC sp_executesql @resetJournalVideos
+    PRINT 'Reset SequenceJournalVideos to ' + CAST(@maxJournalVideoId + 1 AS NVARCHAR(20))
+END
+ELSE
+BEGIN
+    PRINT 'No records in JournalVideos table, sequence left at default'
+END
+PRINT ''
+
 -- StatisticsProjects sequence
 DECLARE @maxStatisticsProjectId BIGINT = 0
 SELECT @maxStatisticsProjectId = ISNULL(MAX(projectId), 0) FROM [dbo].[StatisticsProjects]
