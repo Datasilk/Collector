@@ -68,6 +68,18 @@ body {
 .col-2{
   width:50%;
   display:inline-block;
+  float:left;
+}
+
+.row{
+  display:block;
+  vertical-align: top;
+  padding-bottom:0.5em;
+}
+.row:after{
+  content: "";
+  display: table;
+  clear: both;
 }
 
 h1 {

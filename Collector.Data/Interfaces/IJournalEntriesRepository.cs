@@ -9,7 +9,7 @@ namespace Collector.Data.Interfaces
         Guid Add(JournalEntry journalEntry);
         JournalEntry GetById(Guid journalEntryId);
         List<JournalEntry> GetAllByJournalId(int journalId);
-        JournalEntryFilterResult Filter(int journalId, string search, string sort, int start, int length);
+        JournalEntryFilterResult Filter(int journalId, string search, string sort, int start, int length, List<int> tagIds);
         void Rename(Guid journalEntryId, string title);
         void UpdateDescription(Guid journalEntryId, string description);
         void Archive(Guid journalEntryId);

@@ -20,6 +20,8 @@ namespace Collector.API.Controllers
         private readonly IJournalModulesRepository _modulesRepository;
         private readonly IJournalChaptersRepository _chaptersRepository;
         private readonly IJournalImagesRepository _imagesRepository;
+        private readonly IJournalTagsRepository _journalTagsRepository;
+        private readonly IJournalEntryTagsRepository _journalEntryTagsRepository;
         private readonly IAppUserRepository _userRepository;
 
         public JournalsController(
@@ -29,6 +31,8 @@ namespace Collector.API.Controllers
             IJournalModulesRepository modulesRepository,
             IJournalChaptersRepository chaptersRepository,
             IJournalImagesRepository imagesRepository,
+            IJournalTagsRepository journalTagsRepository,
+            IJournalEntryTagsRepository journalEntryTagsRepository,
             IAppUserRepository userRepository)
         {
             _categoriesRepository = categoriesRepository;
@@ -37,6 +41,8 @@ namespace Collector.API.Controllers
             _modulesRepository = modulesRepository;
             _chaptersRepository = chaptersRepository;
             _imagesRepository = imagesRepository;
+            _journalTagsRepository = journalTagsRepository;
+            _journalEntryTagsRepository = journalEntryTagsRepository;
             _userRepository = userRepository;
         }
 
@@ -537,7 +543,7 @@ namespace Collector.API.Controllers
                 var start = filter?.Start ?? 0;
                 var length = filter?.Length ?? 50;
 
-                var result = _entriesRepository.Filter(journalId, search, sort, start, length);
+                var result = _entriesRepository.Filter(journalId, search, sort, start, length, filter?.Tags);
 
                 return Json(new ApiResponse { success = true, data = result });
             }
@@ -563,6 +569,10 @@ namespace Collector.API.Controllers
                 var journal = _journalsRepository.GetById(entry.JournalId);
                 if (journal == null || journal.AppUserId != userId)
                     return Json(new ApiResponse { success = false, message = "Not authorized to access this entry" });
+
+                var tags = _journalEntryTagsRepository.GetByEntryId(id);
+
+                entry.Tags = tags;
 
                 return Json(new ApiResponse { success = true, data = entry });
             }

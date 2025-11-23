@@ -55,28 +55,21 @@ export default function FileDownloadModule({ module, entryId, journalId, onUpdat
         }
     }, [module]);
     
-    const handleFileChange = async (e) => {
-        if (!isEditable) return;
-        
-        const file = e.target.files[0];
-        if (!file) return;
-        
+    const processFileUpload = async (file) => {
+        if (!isEditable || !file) return;
+
         setIsUploading(true);
         setUploadError(null);
-        
+
         try {
-            // Generate a unique filename using timestamp and original filename
             const timestamp = new Date().getTime();
             const fileName = `${timestamp}-${file.name}`;
-            
-            // Path format: {journalId}/{entryId}/{filename}
             const path = `${journalId}/${entryId}/${fileName}`;
-            
+
             const response = await upload(path, file);
-            
+
             if (response.data.success) {
                 try {
-                    // Save file metadata to JournalFiles table
                     const fileMetadata = {
                         JournalId: journalId,
                         JournalEntryId: entryId,
@@ -85,24 +78,24 @@ export default function FileDownloadModule({ module, entryId, journalId, onUpdat
                         FileSize: file.size,
                         DateUploaded: new Date().toISOString()
                     };
-                    
+
                     await addFileMetadata(fileMetadata);
-                    
-                    // Update the module with the file info
-                    onUpdate({ 
-                        ...module, 
+
+                    onUpdate({
+                        ...module,
                         filename: fileName,
                         originalFilename: file.name,
-                        fileSize: file.size
+                        fileSize: file.size,
+                        uploadFromClipboard: null
                     });
                 } catch (error) {
                     console.error('Error saving file metadata:', error);
-                    // Still update the module even if metadata save fails
-                    onUpdate({ 
-                        ...module, 
+                    onUpdate({
+                        ...module,
                         filename: fileName,
                         originalFilename: file.name,
-                        fileSize: file.size
+                        fileSize: file.size,
+                        uploadFromClipboard: null
                     });
                 }
             } else {
@@ -115,6 +108,32 @@ export default function FileDownloadModule({ module, entryId, journalId, onUpdat
             setIsUploading(false);
         }
     };
+
+    const handleFileChange = async (e) => {
+        if (!isEditable) return;
+        const file = e.target.files[0];
+        if (!file) return;
+        await processFileUpload(file);
+    };
+
+    useEffect(() => {
+        if (!isEditable || !module.uploadFromClipboard) return;
+        if (typeof window === 'undefined') return;
+
+        const clipboardFiles = window.clipboardFileBuffer || {};
+        const file = clipboardFiles[module.id];
+
+        if (!file) {
+            onUpdate({ ...module, uploadFromClipboard: null });
+            return;
+        }
+
+        processFileUpload(file).finally(() => {
+            if (window.clipboardFileBuffer) {
+                delete window.clipboardFileBuffer[module.id];
+            }
+        });
+    }, [isEditable, module.uploadFromClipboard, module.id]);
 
     const removeModule = (moduleItem) => {
         if (deleteFileMetadata) {

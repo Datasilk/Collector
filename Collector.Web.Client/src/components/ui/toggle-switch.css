@@ -29,7 +29,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: #ccc;
+    background-color: #b59ef0;
     transition: .3s;
     border-radius: 24px;
     outline: 2px solid transparent;
@@ -82,5 +82,5 @@
 }
 
 .toggle-switch input:checked:hover + .slider {
-    background-color: #6652dc;
+    background-color: #7763ed;
 }

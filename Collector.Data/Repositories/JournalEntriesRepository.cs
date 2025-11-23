@@ -89,7 +89,7 @@ namespace Collector.Data.Repositories
                 new { journalId }).ToList();
         }
 
-        public JournalEntryFilterResult Filter(int journalId, string search, string sort, int start, int length)
+        public JournalEntryFilterResult Filter(int journalId, string search, string sort, int start, int length, List<int> tagIds)
         {
             // Normalize inputs
             search = search ?? string.Empty;
@@ -128,24 +128,70 @@ namespace Collector.Data.Repositories
                     break;
             }
 
-            var whereClause = @"[JournalId] = @journalId AND [Status] > 0";
+            var baseWhere = "je.[JournalId] = @journalId AND je.[Status] > 0";
             if (!string.IsNullOrWhiteSpace(search))
             {
-                whereClause += " AND ([Title] LIKE @search OR [Description] LIKE @search)";
+                baseWhere += " AND (je.[Title] LIKE @search OR je.[Description] LIKE @search)";
             }
 
-            var countSql = $@"SELECT COUNT(*) FROM [dbo].[JournalEntries] WHERE {whereClause}";
-            var dataSql = $@"SELECT * FROM [dbo].[JournalEntries]
-                WHERE {whereClause}
-                ORDER BY {orderBy}
-                OFFSET @start ROWS FETCH NEXT @length ROWS ONLY";
+            var hasTags = tagIds != null && tagIds.Count > 0;
+            List<int> distinctTagIds = null;
+            int tagCount = 0;
+            if (hasTags)
+            {
+                distinctTagIds = tagIds.Distinct().ToList();
+                tagCount = distinctTagIds.Count;
+            }
+
+            string countSql;
+            string dataSql;
+
+            if (hasTags)
+            {
+                // Filter based on JournalEntryTags join, enforcing that entries contain ALL provided tags
+                var tagFilteredSubquery = $@"
+                    SELECT je.[Id]
+                    FROM [dbo].[JournalEntryTags] jet
+                    INNER JOIN [dbo].[JournalEntries] je ON je.[Id] = jet.[JournalEntryId]
+                    WHERE {baseWhere}
+                      AND jet.[TagId] IN @tagIds
+                    GROUP BY je.[Id]
+                    HAVING COUNT(DISTINCT jet.[TagId]) = @tagCount";
+
+                countSql = $"SELECT COUNT(*) FROM ({tagFilteredSubquery}) AS matches";
+
+                dataSql = $@"
+                    SELECT je.*
+                    FROM [dbo].[JournalEntryTags] jet
+                    INNER JOIN [dbo].[JournalEntries] je ON je.[Id] = jet.[JournalEntryId]
+                    WHERE {baseWhere}
+                      AND jet.[TagId] IN @tagIds
+                    GROUP BY je.[Id], je.[JournalId], je.[Title], je.[Description], je.[Created], je.[Modified], je.[Status], je.[ChapterId], je.[Encrypted], je.[Thumbnail]
+                    HAVING COUNT(DISTINCT jet.[TagId]) = @tagCount
+                    ORDER BY {orderBy}
+                    OFFSET @start ROWS FETCH NEXT @length ROWS ONLY";
+            }
+            else
+            {
+                // Simpler path when no tags are provided: query directly from JournalEntries
+                countSql = $"SELECT COUNT(*) FROM [dbo].[JournalEntries] je WHERE {baseWhere}";
+
+                dataSql = $@"
+                    SELECT *
+                    FROM [dbo].[JournalEntries] je
+                    WHERE {baseWhere}
+                    ORDER BY {orderBy}
+                    OFFSET @start ROWS FETCH NEXT @length ROWS ONLY";
+            }
 
             var parameters = new
             {
                 journalId,
                 search = string.IsNullOrWhiteSpace(search) ? null : $"%{search}%",
                 start,
-                length
+                length,
+                tagIds = hasTags ? distinctTagIds : null,
+                tagCount
             };
 
             var totalCount = _dbConnection.ExecuteScalar<int>(countSql, parameters);

@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 //components
 import Icon from '@/components/ui/icon';
 //context
@@ -61,8 +61,10 @@ export default function ModuleList({
     const dropIndexRef = useRef(null);
     const containerRef = useRef(null);
     const tabButtonsRef = useRef([]);
+    const tabButtonHandlersRef = useRef(new Map());
     const tabButtonsTimer = useRef(null);
     const deleteListenersRef = useRef([]);
+    const hoveredModuleIdRef = useRef(null);
     const isJournalEntry = journal?.entryId == entryId;
 
     //effect
@@ -92,20 +94,24 @@ export default function ModuleList({
         return String(Math.floor(Math.random() * 1000000));
     };
 
-    const addModuleAbove = (type) => {
-        if (!currentModuleId) return;
+    const addModuleAbove = (type, options, targetModuleId = null) => {
+        const moduleId = targetModuleId ?? currentModuleId;
+        if (!moduleId) return;
 
         const newModuleId = generateRandomId();
         const newModule = {
             id: newModuleId,
             type: type,
-            manuallyAdded: true
+            manuallyAdded: true,
+            ...(options ?? {})
         };
 
         setShowModuleAboveDropdown(false);
         if (addedModule) {
-            addedModule(newModule, currentModuleId);
+            addedModule(newModule, moduleId);
         }
+
+        return newModule;
     };
 
     const removeModule = async (moduleId) => {
@@ -135,6 +141,141 @@ export default function ModuleList({
         updatedModule(cleanModule);
     };
     //#endregion
+
+    //#region Clipboard
+    const handleContainerPaste = (event) => {
+        if (!isEditing) return;
+        if (containerId !== 'main') return;
+
+        const clipboardData = event.clipboardData || window?.clipboardData;
+        if (!clipboardData?.items?.length) return;
+
+        const clipboardFiles = Array.from(clipboardData.items)
+            .filter(item => item.kind === 'file')
+            .map(item => item.getAsFile())
+            .filter(file => !!file);
+
+        if (!clipboardFiles.length) return;
+
+        event.preventDefault();
+
+        if (typeof window === 'undefined') return;
+
+        const ensureClipboardStores = () => {
+            window.clipboardImages = window.clipboardImages || {};
+            window.clipboardFileBuffer = window.clipboardFileBuffer || {};
+            window.__droppedVideoFiles = window.__droppedVideoFiles || {};
+        };
+        ensureClipboardStores();
+
+        const createDescriptor = (file) => {
+            const fileType = (file.type || '').toLowerCase();
+            const fileName = (file.name || '').toLowerCase();
+
+            if (fileType.startsWith('image/')) {
+                return {
+                    moduleType: 'image',
+                    options: { uploadFromClipboard: true, manuallyAdded: false },
+                    storeFile: (moduleId) => {
+                        window.clipboardImages[moduleId] = file;
+                    }
+                };
+            }
+
+            if (fileType.startsWith('video/')) {
+                return {
+                    moduleType: 'video-player',
+                    options: { autoUploadDroppedVideo: true, manuallyAdded: false },
+                    storeFile: (moduleId) => {
+                        window.__droppedVideoFiles[moduleId] = file;
+                    }
+                };
+            }
+
+            const isPdf = fileType === 'application/pdf' || fileName.endsWith('.pdf');
+            if (isPdf) {
+                return {
+                    moduleType: 'pdf-viewer',
+                    options: { uploadFromClipboard: true, manuallyAdded: false },
+                    storeFile: (moduleId) => {
+                        window.clipboardFileBuffer[moduleId] = file;
+                    }
+                };
+            }
+
+            return {
+                moduleType: 'file-download',
+                options: { uploadFromClipboard: true, manuallyAdded: false },
+                storeFile: (moduleId) => {
+                    window.clipboardFileBuffer[moduleId] = file;
+                }
+            };
+        };
+
+        const descriptors = clipboardFiles
+            .map(file => createDescriptor(file))
+            .filter(descriptor => !!descriptor);
+
+        if (!descriptors.length) return;
+
+        const hoveredModuleId = window.moduleHovered ?? hoveredModuleIdRef.current ?? null;
+
+        const insertAboveModule = (descriptorList, targetModuleId) => {
+            for (let i = descriptorList.length - 1; i >= 0; i--) {
+                const descriptor = descriptorList[i];
+                const newModule = addModuleAbove(
+                    descriptor.moduleType,
+                    { ...descriptor.options },
+                    targetModuleId
+                );
+                if (newModule) {
+                    descriptor.storeFile(newModule.id);
+                }
+            }
+        };
+
+        if (hoveredModuleId) {
+            insertAboveModule(descriptors, hoveredModuleId);
+            return;
+        }
+
+        if (!droppedModule) return;
+
+        const updatedModules = [...(entryJson.modules || [])];
+
+        descriptors.forEach(descriptor => {
+            const newModuleId = generateRandomId();
+            const moduleData = {
+                id: newModuleId,
+                type: descriptor.moduleType,
+                manuallyAdded: descriptor.options?.manuallyAdded ?? true,
+                ...descriptor.options
+            };
+            updatedModules.push(moduleData);
+            descriptor.storeFile(newModuleId);
+        });
+
+        const updatedEntryJson = {
+            ...entryJson,
+            modules: updatedModules
+        };
+
+        droppedModule(updatedEntryJson, updatedModules);
+    };
+    //#endregion
+
+    useEffect(() => {
+        if (!isEditing || containerId !== 'main') return;
+
+        const handleDocumentPaste = (event) => {
+            handleContainerPaste(event);
+        };
+
+        document.addEventListener('paste', handleDocumentPaste);
+        return () => {
+            document.removeEventListener('paste', handleDocumentPaste);
+        };
+    }, [isEditing, containerId, entryJson]);
 
     //#region Pin Module
 
@@ -1124,27 +1265,82 @@ export default function ModuleList({
         });
         if (node == null) return;
         node.classList.add('hover');
+        const moduleId = node.getAttribute('data-id');
+        hoveredModuleIdRef.current = moduleId;
+        if (typeof window !== 'undefined') {
+            window.moduleHovered = moduleId;
+        }
     };
 
-    const handleMouseLeave = (e) => {
+    const handleMouseLeaveContainer = (e) => {
         e.stopPropagation();
         window.mouseOverElem = null;
         window.mouseOverNode = null;
         document.querySelectorAll('.module.hover').forEach(el => {
             el.classList.remove('hover');
         });
+        hoveredModuleIdRef.current = null;
+        if (typeof window !== 'undefined') {
+            window.moduleHovered = null;
+        }
     };
     //#endregion
 
     //#region Events
-    const handleSetTabButtons = (buttons, moduleId) => {
-        tabButtonsRef.current = [...tabButtonsRef.current, { moduleId: moduleId, buttons: buttons }];
-        if (tabButtonsTimer.current) clearTimeout(tabButtonsTimer.current);
+    const areButtonSetsEqual = (prevButtons = [], nextButtons = []) => {
+        if (prevButtons.length !== nextButtons.length) return false;
+        for (let i = 0; i < prevButtons.length; i++) {
+            const prev = prevButtons[i];
+            const next = nextButtons[i];
+            if (
+                prev.icon !== next.icon ||
+                prev.title !== next.title ||
+                prev.callback !== next.callback ||
+                prev.disabled !== next.disabled
+            ) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    const handleSetTabButtons = useCallback((buttons, moduleId) => {
+        if (!moduleId) return;
+        const normalizedButtons = Array.isArray(buttons) ? buttons : [];
+        const existingIndex = tabButtonsRef.current.findIndex(item => item.moduleId === moduleId);
+        const nextEntry = { moduleId, buttons: normalizedButtons };
+
+        if (existingIndex >= 0) {
+            const existingEntry = tabButtonsRef.current[existingIndex];
+            if (areButtonSetsEqual(existingEntry.buttons, normalizedButtons)) {
+                return;
+            }
+            tabButtonsRef.current = [
+                ...tabButtonsRef.current.slice(0, existingIndex),
+                nextEntry,
+                ...tabButtonsRef.current.slice(existingIndex + 1)
+            ];
+        } else {
+            tabButtonsRef.current = [...tabButtonsRef.current, nextEntry];
+        }
+
+        if (tabButtonsTimer.current) {
+            clearTimeout(tabButtonsTimer.current);
+        }
+
         tabButtonsTimer.current = setTimeout(() => {
             setTabButtons(tabButtonsRef.current);
             tabButtonsTimer.current = null;
         }, 100);
-    };
+    }, []);
+
+    const getTabButtonsHandler = useCallback((moduleId) => {
+        if (!moduleId) return () => {};
+        if (!tabButtonHandlersRef.current.has(moduleId)) {
+            tabButtonHandlersRef.current.set(moduleId, (buttons) => handleSetTabButtons(buttons, moduleId));
+        }
+        return tabButtonHandlersRef.current.get(moduleId);
+    }, [handleSetTabButtons]);
 
     const handleDeleteListener = (module, callback) => {
         deleteListenersRef.current = [...deleteListenersRef.current, { moduleId: module.id, callback: callback }];
@@ -1159,7 +1355,8 @@ export default function ModuleList({
             ref={containerRef}
             data-id={containerId}
             onDragOver={handleContainerDragOver}
-            onMouseLeave={isEditing ? handleMouseLeave : undefined}
+            onPaste={isEditing && containerId === 'main' ? handleContainerPaste : undefined}
+            onMouseLeave={isEditing ? handleMouseLeaveContainer : undefined}
             onDrop={isEditing && containerId == 'main' ? handleDrop : undefined}
         >
             {entryJson.modules.map((module, index) => {
@@ -1291,7 +1488,7 @@ export default function ModuleList({
                             onUpdate={handleUpdatedModule}
                             isEditable={isEditing}
                             manuallyAdded={module.manuallyAdded}
-                            tabButtons={(buttons) => handleSetTabButtons(buttons, module.id)}
+                            tabButtons={getTabButtonsHandler(module.id)}
                             setDeleteListener={handleDeleteListener}
                             fromSnapshotId={fromSnapshotId}
                         />

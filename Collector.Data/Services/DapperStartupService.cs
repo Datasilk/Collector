@@ -47,6 +47,8 @@ namespace Collector.Data.Services
             builder.Services.AddTransient<IJournalVideosRepository, JournalVideosRepository>();
             builder.Services.AddTransient<IJournalFilesRepository, JournalFilesRepository>();
             builder.Services.AddTransient<IJournalSnapshotsRepository, JournalSnapshotsRepository>();
+            builder.Services.AddTransient<IJournalTagsRepository, JournalTagsRepository>();
+            builder.Services.AddTransient<IJournalEntryTagsRepository, JournalEntryTagsRepository>();
         }
     }
 }

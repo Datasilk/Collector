@@ -8,12 +8,15 @@ import Input from '@/components/forms/input';
 import ToggleSwitch from '@/components/ui/toggle-switch';
 import ModuleList from './module-list';
 import SettingsModal from './components/entry-settings-modal';
+import NewEntryTag from './components/new-entry-tag';
+import TagsList from './components/tags-list';
 import Modal from '@/components/ui/modal';
 //context
 import { useSession } from '@/context/session';
 //api
 import { Journals } from '@/api/user/journals';
 import { JournalSnapshots } from '@/api/user/journal-snapshots';
+import { JournalTags } from '@/api/user/journal-tags';
 //modules
 import modules from './modules';
 
@@ -37,6 +40,7 @@ export default function JournalEntryPage() {
     const [error, setError] = useState(null);
     const [saveStatus, setSaveStatus] = useState(null);
     const [entryJson, setEntryJson] = useState({ modules: [] });
+    const [entryTags, setEntryTags] = useState([]);
     const [showTopModuleDropdown, setShowTopModuleDropdown] = useState(false);
     const [showBottomModuleDropdown, setShowBottomModuleDropdown] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
@@ -66,6 +70,7 @@ export default function JournalEntryPage() {
     //apis
     const { addEntry, renameEntry, getChapters, updateJournalEntryId } = Journals(session);
     const { getSnapshotsByEntry, getSnapshot, createSnapshot } = JournalSnapshots(session);
+    const { removeTagFromEntry } = JournalTags(session);
 
     //effect
     useEffect(() => {
@@ -109,6 +114,8 @@ export default function JournalEntryPage() {
                     setShowHistoryDropdown(false);
                 }
             }
+
+            // Tag dropdown click handling is managed inside NewEntryTag component
         };
 
         document.addEventListener('mousedown', handleClickOutside);
@@ -190,6 +197,7 @@ export default function JournalEntryPage() {
 
                 setEntry(createdEntry);
                 entryRef.current = createdEntry;
+                setEntryTags([]);
                 setEditedTitle(createdEntry.title || '');
                 setEditedDescription(createdEntry.description || '');
                 setEntryJson(defaultJournalEntryJson);
@@ -224,6 +232,7 @@ export default function JournalEntryPage() {
 
                 setEntry(newEntry);
                 entryRef.current = newEntry;
+                setEntryTags([]);
                 setEditedTitle(newEntry.title);
                 setEditedDescription(newEntry.description);
                 setIsTitleEditing(true); // Automatically show title editor for new entries
@@ -261,6 +270,7 @@ export default function JournalEntryPage() {
                 };
                 setEntry(snapshotEntry);
                 entryRef.current = snapshotEntry;
+                setEntryTags([]);
                 setEditedTitle(snapshotData.title);
                 setEditedDescription(snapshotData.description);
 
@@ -289,9 +299,13 @@ export default function JournalEntryPage() {
                     return;
                 }
 
-                const entryData = entryResponse.data.data;
+                const entryResponseData = entryResponse.data.data;
+                const entryData = entryResponseData.entry || entryResponseData;
+                const tagsData = entryResponseData.tags || entryData.tags || [];
+
                 setEntry(entryData);
                 entryRef.current = entryData;
+                setEntryTags(tagsData);
                 setEditedTitle(entryData.title);
                 setEditedDescription(entryData.description);
 
@@ -712,6 +726,17 @@ export default function JournalEntryPage() {
         });
     }, 500);
 
+    const handleRemoveEntryTag = async (tag) => {
+        if (!entry || !entry.id || !tag || tag.tagId == null) return;
+
+        try {
+            await removeTagFromEntry(entry.id, tag.tagId);
+            setEntryTags(prev => prev.filter(t => t.tagId !== tag.tagId));
+        } catch (err) {
+            console.error('Error removing tag from entry:', err);
+        }
+    };
+
     //#endregion
 
     //#region Rendering
@@ -800,6 +825,22 @@ export default function JournalEntryPage() {
                                 {getSaveStatusMessage()}
                             </div>
                         )}
+                        <NewEntryTag
+                            entry={entry}
+                            journalId={journalId}
+                            onAddTag={(tag) => {
+                                if (!tag || tag.id == null) return;
+                                setEntryTags(prev => {
+                                    const exists = prev.some(t => t.tagId === tag.id);
+                                    if (exists) return prev;
+                                    return [...prev, { tagId: tag.id, name: tag.tag }];
+                                });
+                            }}
+                        />
+                        <TagsList
+                            tags={entryTags}
+                            onRemoveTag={handleRemoveEntryTag}
+                        />
                         {chapters.length > 0 && getChapterName() != '' && (
                             <span className="chapter-label" title={'Chapter #' + getChapter().sort}>
                                 <Icon name="book" /> {getChapterName()}

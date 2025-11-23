@@ -17,6 +17,7 @@ export default function ImageModule({ module, entryId, journalId, onUpdate, isEd
     
     //refs
     const fileInputRef = useRef(null);
+    const clipboardUploadRef = useRef(false);
     
     //context
     const session = useSession();
@@ -40,39 +41,33 @@ export default function ImageModule({ module, entryId, journalId, onUpdate, isEd
         setDeleteListener(module, removeModule);
     }, [module.id]);
     
-    const handleFileChange = async (e) => {
-        if (!isEditable) return;
-        
-        const file = e.target.files[0];
-        if (!file) return;
-        
-        // Check if file is an image
-        if (!file.type.startsWith('image/')) {
+    const processImageUpload = async (file, { fromClipboard = false } = {}) => {
+        if (!isEditable || !file) return;
+
+        const fileType = file.type || '';
+        if (!fileType.startsWith('image/')) {
             setUploadError('Please select an image file');
             return;
         }
-        
+
         setIsUploading(true);
         setUploadError(null);
-        
+
         try {
-            // Generate a unique filename using timestamp and original filename
             const timestamp = new Date().getTime();
-            const fileExtension = file.name.split('.').pop();
+            const extensionFromName = file.name?.includes('.') ? file.name.split('.').pop() : null;
+            const fallbackExtension = fileType.split('/').pop() || 'png';
+            const fileExtension = extensionFromName || fallbackExtension;
             const fileName = `${timestamp}-${module.id}.${fileExtension}`;
-            
-            // Path format: journal-entries/{entryId}/{moduleId}.{extension}
             const path = `journal-entries/${entryId}/${fileName}`;
-            
+
             const response = await upload(path, file);
-            
+
             if (response.data.success) {
                 setIsLoadingImage(true);
-                // Get image dimensions
                 const img = new Image();
                 img.onload = async () => {
                     try {
-                        // Save image metadata to JournalImages table
                         const imageMetadata = {
                             JournalId: journalId,
                             JournalEntryId: entryId,
@@ -81,35 +76,77 @@ export default function ImageModule({ module, entryId, journalId, onUpdate, isEd
                             Width: img.width,
                             Height: img.height
                         };
-                        
+
                         await addImageMetadata(imageMetadata);
-                        
-                        // Update the module with the image path
-                        onUpdate({ ...module, image: fileName });
+
+                        onUpdate({ ...module, image: fileName, uploadFromClipboard: null });
                         setIsLoadingImage(false);
                     } catch (error) {
                         console.error('Error saving image metadata:', error);
-                        // Still update the module even if metadata save fails
-                        onUpdate({ ...module, image: fileName });
+                        onUpdate({ ...module, image: fileName, uploadFromClipboard: null });
                         setIsLoadingImage(false);
                     }
                 };
                 img.onerror = () => {
-                    // If image fails to load, still update the module
-                    onUpdate({ ...module, image: fileName });
+                    onUpdate({ ...module, image: fileName, uploadFromClipboard: null });
                     setIsLoadingImage(false);
                 };
                 img.src = URL.createObjectURL(file);
             } else {
                 setUploadError(response.data.message || 'Failed to upload image');
+                if (fromClipboard && module.uploadFromClipboard) {
+                    onUpdate({ ...module, uploadFromClipboard: false });
+                }
             }
         } catch (error) {
             console.error('Error uploading image:', error);
             setUploadError('An error occurred while uploading the image');
+            if (fromClipboard && module.uploadFromClipboard) {
+                onUpdate({ ...module, uploadFromClipboard: null });
+            }
         } finally {
             setIsUploading(false);
         }
     };
+
+    const handleFileChange = async (e) => {
+        if (!isEditable) return;
+        const file = e.target.files[0];
+        if (!file) return;
+        await processImageUpload(file);
+    };
+
+    useEffect(() => {
+        if (!isEditable || !module.uploadFromClipboard || clipboardUploadRef.current) return;
+        if (typeof window === 'undefined') return;
+
+        const clipboardImages = window.clipboardImages || null;
+        let file = clipboardImages?.[module.id];
+
+        if (!file && window.clipboardImage) {
+            file = window.clipboardImage.file;
+        }
+
+        clipboardUploadRef.current = true;
+
+        if (!file) {
+            onUpdate({ ...module, uploadFromClipboard: null });
+            clipboardUploadRef.current = false;
+            return;
+        }
+
+        processImageUpload(file, { fromClipboard: true }).finally(() => {
+            if (typeof window !== 'undefined') {
+                if (window.clipboardImages && window.clipboardImages[module.id]) {
+                    delete window.clipboardImages[module.id];
+                }
+                if (window.clipboardImage) {
+                    delete window.clipboardImage;
+                }
+            }
+            clipboardUploadRef.current = false;
+        });
+    }, [isEditable, module.uploadFromClipboard, module.id]);
 
     const removeModule = (moduleItem) => {
         if (deleteImageMetadata) {

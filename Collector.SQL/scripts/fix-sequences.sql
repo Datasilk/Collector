@@ -310,6 +310,22 @@ BEGIN
 END
 PRINT ''
 
+-- JournalTags sequence
+DECLARE @maxJournalTagId BIGINT = 0
+SELECT @maxJournalTagId = ISNULL(MAX(Id), 0) FROM [dbo].[JournalTags]
+PRINT 'Max JournalTags ID: ' + CAST(@maxJournalTagId AS NVARCHAR(20))
+IF @maxJournalTagId > 0
+BEGIN
+    DECLARE @resetJournalTags NVARCHAR(200) = 'ALTER SEQUENCE [dbo].[SequenceJournalTags] RESTART WITH ' + CAST(@maxJournalTagId + 1 AS NVARCHAR(20))
+    EXEC sp_executesql @resetJournalTags
+    PRINT 'Reset SequenceJournalTags to ' + CAST(@maxJournalTagId + 1 AS NVARCHAR(20))
+END
+ELSE
+BEGIN
+    PRINT 'No records in JournalTags table, sequence left at default'
+END
+PRINT ''
+
 -- StatisticsProjects sequence
 DECLARE @maxStatisticsProjectId BIGINT = 0
 SELECT @maxStatisticsProjectId = ISNULL(MAX(projectId), 0) FROM [dbo].[StatisticsProjects]

@@ -69,7 +69,7 @@ export default function EntriesListModule({ module, journalId, entryId, isEditab
     // actions
 
     //#region "Entries"
-    const filterEntries = (customFilter, callback) => {
+    const filterEntries = async (customFilter, callback) => {
         setLoading(true);
         const api = Journals(session);
         const requestFilter = customFilter || {
@@ -77,30 +77,37 @@ export default function EntriesListModule({ module, journalId, entryId, isEditab
             sort: filterOptions.sort || sort
         };
 
-        api.filterEntries(journalId, {
-            Search: requestFilter.search || '',
-            Sort: requestFilter.sort || sort,
-            Start: requestFilter.start,
-            Length: requestFilter.length
-        })
-            .then(response => {
-                if (response.data && response.data.success) {
-                    const data = response.data.data || {};
-                    setEntries(data.entries.filter(a => a.id != entryId) || []);
-                    const total = data.totalCount || 0;
-                    setTotalItems(total);
-                    setTotalPages(total > 0 ? Math.ceil(total / requestFilter.length) : 1);
-                    if (total > 0 && filterWhileLoading == false) {
-                        setFilterWhileLoading(true);
-                    }
-                }
-                setLoading(false);
-                if (callback) callback();
-            })
-            .catch(err => {
-                console.error('Error fetching entries:', err);
-                setLoading(false);
+        try {
+            console.log(module);
+            const filterTagIds = (module?.tags || []);
+
+            const response = await api.filterEntries(journalId, {
+                Search: requestFilter.search || '',
+                Sort: requestFilter.sort || sort,
+                Start: requestFilter.start,
+                Length: requestFilter.length,
+                Tags: filterTagIds
             });
+
+            if (response.data && response.data.success) {
+                const data = response.data.data || {};
+                const resultEntries = (data.entries || []).filter(a => a.id != entryId) || [];
+                const total = data.totalCount || 0;
+
+                setEntries(resultEntries);
+                setTotalItems(total);
+                setTotalPages(total > 0 ? Math.ceil(total / requestFilter.length) : 1);
+                if (total > 0 && filterWhileLoading == false) {
+                    setFilterWhileLoading(true);
+                }
+            }
+
+            if (callback) callback();
+        } catch (err) {
+            console.error('Error fetching entries:', err);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const fetchChapters = async () => {
@@ -117,10 +124,6 @@ export default function EntriesListModule({ module, journalId, entryId, isEditab
 
     const handleViewEntry = (entryId) => {
         navigate(`/journal/${journalId}/entry/${entryId}`);
-    };
-
-    const handleNewEntry = () => {
-        navigate(`/journal/${journalId}/entry/new`);
     };
 
     //#endregion
@@ -173,10 +176,12 @@ export default function EntriesListModule({ module, journalId, entryId, isEditab
         session.showModal(() => (
             <EntriesListSettingsModal
                 journalId={journalId}
+                entryId={entryId}
+                module={module}
                 defaultViewType={viewTypeRef.current}
                 defaultColumns={columnsRef.current}
                 defaultTotal={filterOptionsRef.current.length}
-                onSaved={(newViewType, newColumns, entriesPerPage) => {
+                onSaved={(newViewType, newColumns, entriesPerPage, tagIds) => {
                     setViewType(newViewType);
                     setColumns(newColumns);
                     viewTypeRef.current = newViewType;
@@ -185,7 +190,8 @@ export default function EntriesListModule({ module, journalId, entryId, isEditab
                     // Build updated filter, optionally applying a new page size
                     const newFilter = {
                         ...filterOptions,
-                        length: entriesPerPage && entriesPerPage > 0 ? entriesPerPage : filterOptions.length
+                        length: entriesPerPage && entriesPerPage > 0 ? entriesPerPage : filterOptions.length,
+                        ...(Array.isArray(tagIds) ? { tags: tagIds } : {})
                     };
 
                     setFilterOptions(newFilter);
@@ -194,14 +200,19 @@ export default function EntriesListModule({ module, journalId, entryId, isEditab
                     // Re-filter entries using the updated page size
                     filterEntries(newFilter);
 
-                    // Persist page size on the module when provided
-                    if (entriesPerPage && entriesPerPage > 0 && typeof onUpdate === 'function') {
+                    // Persist tags and page size on the module
+                    if (typeof onUpdate === 'function') {
                         const updatedModule = {
                             ...module,
-                            paging: {
-                                ...(module?.paging || {}),
-                                total: entriesPerPage
-                            }
+                            ...(Array.isArray(tagIds) ? { tags: tagIds } : {}),
+                            ...(entriesPerPage && entriesPerPage > 0
+                                ? {
+                                    paging: {
+                                        ...(module?.paging || {}),
+                                        total: entriesPerPage
+                                    }
+                                }
+                                : {})
                         };
                         onUpdate(updatedModule);
                     }
@@ -429,7 +440,7 @@ export default function EntriesListModule({ module, journalId, entryId, isEditab
                                     {columns.modified && <td className="entry-modified">{formatDate(entry.modified)}</td>}
                                     {columns.status && (
                                         <td className="entry-status-column">
-                                            <span className={`entry-status ${getStatusClass(entry)}`}>
+                                            <span className={`entry-status status-indicator ${getStatusClass(entry)}`}>
                                                 {getStatusText(entry)}
                                             </span>
                                         </td>

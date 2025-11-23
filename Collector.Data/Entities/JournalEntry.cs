@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Collector.Data.Entities
 {
@@ -14,5 +16,8 @@ namespace Collector.Data.Entities
         public int? ChapterId { get; set; }
         public bool Encrypted { get; set; }
         public string Thumbnail { get; set; }
+
+        [NotMapped]
+        public List<JournalEntryTag> Tags { get; set; } = new List<JournalEntryTag>();
     }
 }

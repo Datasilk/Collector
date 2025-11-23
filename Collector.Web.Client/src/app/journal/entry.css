@@ -22,9 +22,106 @@ body.scrolled .entry-header {
 }
 
 .entry-status-badge {
-    display: block;
+    display: flex;
     align-items: center;
     gap: 0.5em;
+}
+
+.entry-tags-region {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+    margin-right: 0.5em;
+}
+
+.entry-tags-container {
+    position: relative;
+    display: inline-block;
+}
+
+.entry-tags-container > button {
+    margin-right: 0.25em;
+    font-size:0.9em;
+}
+
+.entry-tags-container > button .material-symbols-rounded{
+    font-size:1.2em;
+}
+
+.entry-tags-dropdown {
+    min-width: 16em;
+}
+
+.entry-tags-dropdown .form-group {
+    margin: 0.5em 0.75em;
+}
+
+.entry-tags-dropdown .form-group .form-label {
+    display: none;
+}
+
+.entry-tags-dropdown .form-group .form-field {
+    display: flex;
+    align-items: center;
+}
+
+.entry-tags-dropdown .form-group input {
+    width: 100%;
+}
+
+.entry-tags-dropdown .form-group .buttons {
+    margin-left: 0.25em;
+}
+
+.entry-tags-dropdown .form-group .buttons .icon {
+    margin: 0;
+}
+
+.tag-search-results {
+    max-height: 14em;
+    overflow-y: auto;
+}
+
+.tag-result-item {
+    white-space: nowrap;
+}
+
+.tag-result-add {
+    font-style: italic;
+    opacity: 0.9;
+}
+
+.entry-tags-list {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.25em;
+}
+
+.entry-tag-pill {
+    padding: 0.25em 0.6em 0.25em 1em;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    background-color: #b7d6ff;
+    color: #0f58ad;
+    white-space: nowrap;
+}
+
+.entry-tag-pill button {
+    border:none !important;
+    padding:0 0.5em;
+}
+
+.entry-tag-pill button .material-symbols-rounded{
+    color:#0f58ad;
+    opacity:0.3;
+    font-size:1.4em;
+    transition: opacity 0.2s ease;
+}
+
+.entry-tag-pill button:hover .material-symbols-rounded{
+    color:#cc0000;
+    opacity:1;
 }
 
 .chapter-label {
@@ -56,7 +153,7 @@ body.scrolled .entry-header {
 }
 
 .toggle-switch-edit-entry{
-    background-color:#ede3fa;
+    background-color:#d4c6f9;
     border-radius:1em;
     padding:0.5em;
     color:#7037de;
@@ -514,7 +611,7 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
 }
 
 .entry-modules {
-    margin-bottom: 2em;
+    margin: 0 0.5em 2em 0.5em;
     transition: outline 0.2s ease;
     transition: border-radius 0.2s ease;
     min-height:2em;
@@ -994,6 +1091,18 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     display:inline-block;
 }
 
+.entries-list-module tbody td {
+    padding: 0;
+}
+
+.entries-list-module tbody td:first-child{
+    padding: 0 0 0 1em;
+}
+
+.entries-list-module td.entry-title{
+    font-size:0.9em;
+}
+
 .entries-list-module td.entry-created,
 .entries-list-module td.entry-modified{
     opacity:0.65;
@@ -1008,6 +1117,17 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     opacity: 0.75;
     font-size: 0.9em;
 }
+
+
+/* Entries List Settings Modal */
+.module-entires-list-modal .row {
+    margin-bottom: 1em;
+}
+
+.module-entires-list-modal .col-2 {
+    padding-right: 1em;
+}
+
 /* Journal Settings Modal - Chapters Tab */
 .tab-chapters .spreadsheet th:first-child {
     width: 3.75em;
@@ -1328,6 +1448,207 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     width: 100%;
 }
 
+.pdf-viewer-container {
+    position: relative;
+}
+
+.pdf-viewer-container .pdf-controls-overlay {
+    position: absolute;
+    top: 0.75em;
+    right: 0.75em;
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    z-index: 10;
+}
+
+.pdf-viewer-container .pdf-controls-overlay .zoom-buttons {
+    display: flex;
+    align-items: center;
+    gap: 0.35em;
+    background: rgba(0, 0, 0, 0.65);
+    padding: 0.25em;
+    border-radius: 999px;
+    position: relative;
+    overflow: hidden;
+}
+
+.pdf-viewer-container .pdf-controls-overlay .zoom-buttons::before,
+.pdf-viewer-container .pdf-controls-overlay .page-indicator::before {
+    content: '';
+    position: absolute;
+    top: 0.25em;
+    left: 0.25em;
+    right: 0.25em;
+    bottom: 0.25em;
+    background: rgba(255, 255, 255, 0);
+    border-radius: 999px;
+    transition: background 0.2s ease;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.pdf-viewer-container .pdf-controls-overlay .zoom-buttons:hover::before,
+.pdf-viewer-container .pdf-controls-overlay .page-indicator:hover::before {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.pdf-viewer-container .pdf-controls-overlay .zoom-buttons .zoom-label {
+    color: #fff;
+    font-size: 0.9em;
+    font-weight: 600;
+    min-width: 3.5em;
+    text-align: center;
+    position: relative;
+    z-index: 1;
+}
+
+.pdf-viewer-container .pdf-controls-overlay .page-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.25em;
+    background: rgba(0, 0, 0, 0.65);
+    color: #fff;
+    padding: 0.25em 1.6em 0.25em 1em;
+    border-radius: 999px;
+    font-size: 0.85em;
+    position: relative;
+    overflow: hidden;
+    height: 40px;
+}
+
+.pdf-viewer-container .pdf-controls-overlay .page-indicator input {
+    width: 3em;
+    background: transparent;
+    border: none;
+    color: #fff;
+    text-align: center;
+    font-size: 0.9em;
+    font-weight: 600;
+    outline: none;
+    height: 100%;
+    display: flex;
+    align-items: center;
+}
+
+.pdf-viewer-container .pdf-controls-overlay .page-indicator input::-webkit-outer-spin-button,
+.pdf-viewer-container .pdf-controls-overlay .page-indicator input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.pdf-viewer-container .pdf-controls-overlay .page-indicator input[type="number"] {
+    appearance: textfield;
+    -moz-appearance: textfield;
+}
+
+.pdf-viewer-container .pdf-controls-overlay .page-buttons {
+    display: flex;
+    align-items: center;
+    gap: 0.35em;
+    background: rgba(0, 0, 0, 0.65);
+    padding: 0.25em;
+    border-radius: 999px;
+    position: relative;
+    overflow: hidden;
+}
+
+.pdf-viewer-container .pdf-controls-overlay .page-buttons::before {
+    content: '';
+    position: absolute;
+    top: 0.2em;
+    left: 0.2em;
+    right: 0.2em;
+    bottom: 0.2em;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0);
+    transition: background 0.2s ease;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.pdf-viewer-container .pdf-controls-overlay .page-buttons:hover::before {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.pdf-viewer-container .pdf-controls-overlay .page-buttons button {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+    margin:0;
+}
+
+.pdf-viewer-container .pdf-controls-overlay .page-buttons button::before {
+    content: '';
+    position: absolute;
+    top: 0.2em;
+    left: 0.2em;
+    right: 0.2em;
+    bottom: 0.2em;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0);
+    transition: background 0.2s ease;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.pdf-viewer-container .pdf-controls-overlay .page-buttons button > * {
+    position: relative;
+    z-index: 1;
+}
+
+.pdf-viewer-container .pdf-controls-overlay .zoom-buttons button {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: #fff;
+    position: relative;
+    z-index: 1;
+    margin:0;
+}
+
+.pdf-viewer-container .pdf-controls-overlay .zoom-buttons button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.pdf-viewer-container .pdf-controls-overlay .zoom-buttons button:not(:disabled):hover::before {
+    background: rgba(255, 255, 255, 0.18);
+}
+
+.pdf-viewer-container .pdf-controls-overlay .zoom-buttons button::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0);
+    transition: background 0.2s ease;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.pdf-viewer-container .pdf-controls-overlay .page-buttons button:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.pdf-viewer-container .pdf-controls-overlay .page-buttons button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
 .entry-modules .pdf-viewer-container {
     width: 100%;
 }
@@ -1336,8 +1657,48 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     width: 100%;
 }
 
+.entry-modules .pdf-viewer-container .pdf-page-viewport {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 5/6;
+}
+
+.entry-modules .pdf-viewer-container .pdf-page-viewport-content {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f5f5f5;
+    border-radius: 0.4em;
+    overflow: hidden;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+    cursor: default;
+}
+
+.entry-modules .pdf-viewer-container .pdf-page-viewport-content.can-pan {
+    cursor: grab;
+}
+
+.entry-modules .pdf-viewer-container .pdf-page-viewport-content.is-panning {
+    cursor: grabbing;
+}
+
+.entry-modules .pdf-viewer-container .pdf-page-pan-wrapper {
+    transition: transform 0.05s ease-out;
+}
+
+.entry-modules .pdf-viewer-container .pdf-page-scale-wrapper {
+    transform-origin: center center;
+    will-change: transform;
+}
+
 .entry-modules .pdf-viewer-container .react-pdf__Document {
     width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .entry-modules .pdf-viewer-container .react-pdf__Page {
@@ -1345,9 +1706,16 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     justify-content: center;
 }
 
-.entry-modules .pdf-viewer-container .react-pdf__Page canvas {
-    width: 100% !important;
-    height: auto !important;
+
+
+.entry-modules .pdf-viewer-container .loading-message,
+.entry-modules .pdf-viewer-container .pdf-loading-message {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5em;
+    padding: 1em;
+    color: #444;
 }
 
 /* tabs */
