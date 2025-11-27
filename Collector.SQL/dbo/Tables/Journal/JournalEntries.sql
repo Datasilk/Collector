@@ -5,6 +5,7 @@ CREATE TABLE [dbo].[JournalEntries]
     [ChapterId] INT NULL, 
     [Title] NVARCHAR(128) NOT NULL, 
     [Description] NVARCHAR(512) NOT NULL, 
+    [Url] NVARCHAR(255) NULL, 
     [Created] DATETIME2 NOT NULL DEFAULT GETUTCDATE(), 
     [Modified] DATETIME2 NOT NULL DEFAULT GETUTCDATE(), 
     [Status] INT NOT NULL DEFAULT 1, --0=deleted, 1=active, 2=published, 3=archived

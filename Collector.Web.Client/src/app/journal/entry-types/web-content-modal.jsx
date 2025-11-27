@@ -6,13 +6,17 @@ import Input from '@/components/forms/input';
 import Icon from '@/components/ui/icon';
 import SelectJournal from '@/components/forms/select-journal';
 import { apiBasePath } from '@/helpers/endpoints.js';
+import { useSession } from '@/context/session';
+import { JournalTags } from '@/api/user/journal-tags';
 
 /**
  * <summary>Web Content Modal</summary>
  * <description>Modal for creating a new entry from web content by providing a URL to scrape.</description>
  */
-export default function WebContentModal({ onClose, journalId = null }) {
+export default function WebContentModal({ onClose, journalId = null, defaultTagIds = null }) {
     const navigate = useNavigate();
+    const session = useSession();
+    const { addTagToEntry } = JournalTags(session);
 
     const [url, setUrl] = useState('');
     const [selectedJournalId, setSelectedJournalId] = useState('');
@@ -48,6 +52,16 @@ export default function WebContentModal({ onClose, journalId = null }) {
             const result = await webContentHub.invoke('ScrapeUrl', urlToScrape, journalId);
 
             if (result && result.success && result.entryId) {
+                if (Array.isArray(defaultTagIds) && defaultTagIds.length > 0) {
+                    try {
+                        await Promise.all(
+                            defaultTagIds.map(tagId => addTagToEntry(result.entryId, tagId))
+                        );
+                    } catch (err) {
+                        console.error('Error applying default tags to scraped entry:', err);
+                    }
+                }
+
                 navigate(`/journal/${journalId}/entry/${result.entryId}?edit`, { replace: true });
                 onClose();
             }

@@ -10,6 +10,7 @@ namespace Collector.Data.Entities
         public int JournalId { get; set; }
         public string Title { get; set; }
         public string Description { get; set; }
+        public string Url { get; set; }
         public DateTime Created { get; set; }
         public DateTime Modified { get; set; }
         public int Status { get; set; }

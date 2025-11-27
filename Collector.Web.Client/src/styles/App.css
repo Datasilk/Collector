@@ -142,6 +142,12 @@ button.stretch, .button.stretch{
     margin-right:0 !important;
 }
 
+button.disabled, .button.disabled{
+  opacity:0.6;
+  cursor:not-allowed;
+  pointer-events:none;
+}
+
 hr{
   border-style: solid;
   border-color: rgba(0,0,0,0.1);

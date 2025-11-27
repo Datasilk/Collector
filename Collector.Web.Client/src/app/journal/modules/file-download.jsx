@@ -48,7 +48,7 @@ export default function FileDownloadModule({ module, entryId, journalId, onUpdat
             tabButtons([
                 {
                     icon: 'settings',
-                    title: 'Settings',
+                    title: 'File Download Settings',
                     callback: handleShowSettingsModal
                 }
             ]);

@@ -21,13 +21,14 @@ namespace Collector.Data.Repositories
         {
             journalEntry.Id = Guid.NewGuid();
             _dbConnection.Execute(@"INSERT INTO [dbo].[JournalEntries] 
-                ([Id], [JournalId], [Title], [Description]) 
-                VALUES (@id, @journalId, @title, @description)", 
+                ([Id], [JournalId], [Title], [Description], [Url]) 
+                VALUES (@id, @journalId, @title, @description, @url)", 
                 new { 
                     id = journalEntry.Id,
                     journalId = journalEntry.JournalId, 
                     title = journalEntry.Title, 
-                    description = journalEntry.Description 
+                    description = journalEntry.Description,
+                    url = journalEntry.Url
                 });
             return journalEntry.Id;
         }
@@ -166,7 +167,7 @@ namespace Collector.Data.Repositories
                     INNER JOIN [dbo].[JournalEntries] je ON je.[Id] = jet.[JournalEntryId]
                     WHERE {baseWhere}
                       AND jet.[TagId] IN @tagIds
-                    GROUP BY je.[Id], je.[JournalId], je.[Title], je.[Description], je.[Created], je.[Modified], je.[Status], je.[ChapterId], je.[Encrypted], je.[Thumbnail]
+                    GROUP BY je.[Id], je.[JournalId], je.[Title], je.[Description], je.[Created], je.[Modified], je.[Status], je.[ChapterId], je.[Encrypted], je.[Thumbnail], je.[Url]
                     HAVING COUNT(DISTINCT jet.[TagId]) = @tagCount
                     ORDER BY {orderBy}
                     OFFSET @start ROWS FETCH NEXT @length ROWS ONLY";

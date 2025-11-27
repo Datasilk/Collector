@@ -23,7 +23,7 @@ export default function ModuleList({
     isEditing,
     showHoverTab = true,
     showHoverOutline = true,
-    showLabel = true,
+    showLabel = false,
     canAddAbove = true,
     canPin = true,
     canUnpin = true,
@@ -38,8 +38,7 @@ export default function ModuleList({
     onUnPinModule,
     modulesRegistry = null,
     containerId = 'main',
-    fromSnapshotId = null,
-    hasPinned = false
+    fromSnapshotId = null
 }) {
     // context
     const session = useSession();
@@ -48,6 +47,7 @@ export default function ModuleList({
     const [currentModuleId, setCurrentModuleId] = useState(null);
     const [pinnedModules, setPinnedModules] = useState([]);
     const [tabButtons, setTabButtons] = useState([]);
+    const [hasUpdated, setHasUpdated] = useState(null);
 
     // refs
     const moduleDropdownRef = useRef(null);
@@ -85,6 +85,10 @@ export default function ModuleList({
             document.removeEventListener('mousedown', handleClickOutside);
         };
     }, [showModuleAboveDropdown]);
+
+    useEffect(() => {
+        setHasUpdated(1 + (999999 * Math.random()));
+    }, [entryJson]);
 
     // actions
 
@@ -262,7 +266,6 @@ export default function ModuleList({
 
         droppedModule(updatedEntryJson, updatedModules);
     };
-    //#endregion
 
     useEffect(() => {
         if (!isEditing || containerId !== 'main') return;
@@ -276,6 +279,8 @@ export default function ModuleList({
             document.removeEventListener('paste', handleDocumentPaste);
         };
     }, [isEditing, containerId, entryJson]);
+
+    //#endregion
 
     //#region Pin Module
 
@@ -1420,6 +1425,7 @@ export default function ModuleList({
                                                             setCurrentModuleId(module.id);
                                                             setShowModuleAboveDropdown(true);
                                                         }}
+                                                        title="Add new module above"
                                                     >
                                                         <Icon name="add" />
                                                     </button>
@@ -1486,11 +1492,13 @@ export default function ModuleList({
                             journal={journal}
                             chapters={chapters}
                             onUpdate={handleUpdatedModule}
+                            hasUpdated={hasUpdated}
                             isEditable={isEditing}
                             manuallyAdded={module.manuallyAdded}
                             tabButtons={getTabButtonsHandler(module.id)}
                             setDeleteListener={handleDeleteListener}
                             fromSnapshotId={fromSnapshotId}
+                            
                         />
                     </div>
                 )

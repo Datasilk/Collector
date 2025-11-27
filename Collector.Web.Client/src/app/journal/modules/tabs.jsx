@@ -382,7 +382,7 @@ export default function TabsModule({ module, entryId, journalId, onUpdate, isEdi
         tabButtons([
             {
                 icon: 'settings',
-                title: 'Settings',
+                title: 'Tabs Settings',
                 callback: handleShowSettingsModal
             }
         ]);

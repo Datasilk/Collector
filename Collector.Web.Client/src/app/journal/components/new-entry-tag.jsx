@@ -21,7 +21,7 @@ export default function NewEntryTag({
     if (!entry || !entry.id || entry.id === 0) return null;
 
     const session = useSession();
-    const { getEntryTags, searchTags, createOrGetTag, addTagToEntry } = JournalTags(session);
+    const { searchTags, createOrGetTag, getTags } = JournalTags(session);
 
     const [showTagDropdown, setShowTagDropdown] = useState(false);
     const [tagSearch, setTagSearch] = useState('');
@@ -30,6 +30,10 @@ export default function NewEntryTag({
 
     const tagDropdownRef = useRef(null);
     const tagButtonRef = useRef(null);
+
+    useEffect(() => {
+        loadAllTags();
+    }, [journalId]);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -47,6 +51,20 @@ export default function NewEntryTag({
             document.removeEventListener('mousedown', handleClickOutside);
         };
     }, [showTagDropdown]);
+
+    const loadAllTags = async () => {
+        try {
+            const response = await getTags(journalId);
+            if (response.data?.success && Array.isArray(response.data.data)) {
+                setTagResults(response.data.data.slice(0, 10));
+            } else {
+                setTagResults([]);
+            }
+        } catch (err) {
+            console.error('Error loading tags:', err);
+            setTagResults([]);
+        }
+    };
 
     // NewEntryTag no longer auto-loads entry tags; parent owns current tag list
 
@@ -72,13 +90,12 @@ export default function NewEntryTag({
     const handleTagSearch = async (searchValue) => {
         const value = (searchValue ?? tagSearch).trim();
         if (!value) {
-            setTagResults([]);
+            await loadAllTags();
             return;
         }
 
         try {
-            const numericJournalId = parseInt(journalId);
-            const response = await searchTags(numericJournalId, value, 10);
+            const response = await searchTags(journalId, value, 10);
             if (response.data?.success && response.data.data) {
                 setTagResults(response.data.data);
             } else {
@@ -92,7 +109,7 @@ export default function NewEntryTag({
 
     const handleAddTagFromInput = async () => {
         const value = (tagSearch || '').trim();
-        if (!value || !entry || !entry.id || entry.id === 0) return;
+        if (!value) return;
 
         try {
             const numericJournalId = parseInt(journalId);
@@ -100,11 +117,6 @@ export default function NewEntryTag({
             if (!createResponse.data?.success || !createResponse.data.data) return;
 
             const tag = createResponse.data.data;
-            try {
-                await addTagToEntry(entry.id, tag.id);
-            } catch (err) {
-                console.error('Error attaching tag to entry:', err);
-            }
 
             if (typeof onAddTag === 'function') {
                 onAddTag(tag);
@@ -124,26 +136,14 @@ export default function NewEntryTag({
         }
     };
 
-    const handleTagResultClick = async (tag) => {
-        if (!entry || !entry.id || entry.id === 0) return;
-
-        try {
-            try {
-                await addTagToEntry(entry.id, tag.id);
-            } catch (err) {
-                console.error('Error attaching existing tag to entry:', err);
-            }
-
-            if (typeof onAddTag === 'function') {
-                onAddTag(tag);
-            }
-
-            setTagSearch('');
-            setTagResults([]);
-            setShowTagDropdown(false);
-        } catch (err) {
-            console.error('Error selecting existing tag:', err);
+    const handleTagResultClick = (tag) => {
+        if (typeof onAddTag === 'function') {
+            onAddTag(tag);
         }
+
+        setTagSearch('');
+        setTagResults([]);
+        setShowTagDropdown(false);
     };
 
     const handleAddTagSuggestionClick = () => {

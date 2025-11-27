@@ -366,8 +366,6 @@ export default function PdfViewerModule({ module, entryId, journalId, onUpdate, 
         </div>
     );
 
-    console.log('repainting...');
-
     const { baseWidth, scaledWidth, scaledHeight } = getScaledDimensions();
     const pageWidth = scaledWidth || undefined;
     const canPan = Boolean(

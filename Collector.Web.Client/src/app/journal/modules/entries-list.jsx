@@ -9,7 +9,7 @@ import EntriesListFilter from './entries-list/entries-list-filter';
 import EntriesListPaging from './entries-list/entries-list-paging';
 import NewEntry from '../components/new-entry';
 
-export default function EntriesListModule({ module, journalId, entryId, isEditable = false, tabButtons, onUpdate }) {
+export default function EntriesListModule({ module, journalId, entryId, hasUpdated, isEditable = false, tabButtons, onUpdate }) {
     const navigate = useNavigate();
     const session = useSession();
 
@@ -61,6 +61,10 @@ export default function EntriesListModule({ module, journalId, entryId, isEditab
         loadSettings();
     }, [journalId]);
 
+    useEffect(() => {
+        updateTabButtons();
+    }, [hasUpdated]);
+
     // keep filterOptionsRef in sync with state (fallback for other updates)
     useEffect(() => {
         filterOptionsRef.current = filterOptions;
@@ -78,7 +82,6 @@ export default function EntriesListModule({ module, journalId, entryId, isEditab
         };
 
         try {
-            console.log(module);
             const filterTagIds = (module?.tags || []);
 
             const response = await api.filterEntries(journalId, {
@@ -158,19 +161,21 @@ export default function EntriesListModule({ module, journalId, entryId, isEditab
             }
 
             // After settings (if any) are applied, fetch entries using the resolved filter
-            filterEntries(nextFilter || filterOptions, () => {
-                if (tabButtons) tabButtons([
-                    {
-                        icon: 'settings',
-                        title: 'Settings',
-                        callback: handleShowSettingsModal
-                    }
-                ]);
-            });
+            filterEntries(nextFilter || filterOptions, updateTabButtons);
         } catch (err) {
             console.error('Error loading entry list settings:', err);
         }
     };
+
+    const updateTabButtons = () => {
+        if (tabButtons) tabButtons([
+            {
+                icon: 'settings',
+                title: 'Entries List Settings',
+                callback: handleShowSettingsModal
+            }
+        ]);
+    }
 
     const handleShowSettingsModal = () => {
         session.showModal(() => (
@@ -181,45 +186,47 @@ export default function EntriesListModule({ module, journalId, entryId, isEditab
                 defaultViewType={viewTypeRef.current}
                 defaultColumns={columnsRef.current}
                 defaultTotal={filterOptionsRef.current.length}
-                onSaved={(newViewType, newColumns, entriesPerPage, tagIds) => {
-                    setViewType(newViewType);
-                    setColumns(newColumns);
-                    viewTypeRef.current = newViewType;
-                    columnsRef.current = newColumns;
-
-                    // Build updated filter, optionally applying a new page size
-                    const newFilter = {
-                        ...filterOptions,
-                        length: entriesPerPage && entriesPerPage > 0 ? entriesPerPage : filterOptions.length,
-                        ...(Array.isArray(tagIds) ? { tags: tagIds } : {})
-                    };
-
-                    setFilterOptions(newFilter);
-                    filterOptionsRef.current = newFilter;
-
-                    // Re-filter entries using the updated page size
-                    filterEntries(newFilter);
-
-                    // Persist tags and page size on the module
-                    if (typeof onUpdate === 'function') {
-                        const updatedModule = {
-                            ...module,
-                            ...(Array.isArray(tagIds) ? { tags: tagIds } : {}),
-                            ...(entriesPerPage && entriesPerPage > 0
-                                ? {
-                                    paging: {
-                                        ...(module?.paging || {}),
-                                        total: entriesPerPage
-                                    }
-                                }
-                                : {})
-                        };
-                        onUpdate(updatedModule);
-                    }
-                }}
+                onSaved={handleOnSavedSettings}
             />
         ));
     };
+
+    const handleOnSavedSettings = (newViewType, newColumns, entriesPerPage, tagIds) => {
+        setViewType(newViewType);
+        setColumns(newColumns);
+        viewTypeRef.current = newViewType;
+        columnsRef.current = newColumns;
+
+        // Build updated filter, optionally applying a new page size
+        const newFilter = {
+            ...filterOptions,
+            length: entriesPerPage && entriesPerPage > 0 ? entriesPerPage : filterOptions.length,
+            ...(Array.isArray(tagIds) ? { tags: tagIds } : {})
+        };
+
+        setFilterOptions(newFilter);
+        filterOptionsRef.current = newFilter;
+
+        // Re-filter entries using the updated page size
+        filterEntries(newFilter);
+
+        // Persist tags and page size on the module
+        if (typeof onUpdate === 'function') {
+            const updatedModule = {
+                ...module,
+                ...(Array.isArray(tagIds) ? { tags: tagIds } : {}),
+                ...(entriesPerPage && entriesPerPage > 0
+                    ? {
+                        paging: {
+                            ...(module?.paging || {}),
+                            total: entriesPerPage
+                        }
+                    }
+                    : {})
+            };
+            onUpdate(updatedModule);
+        }
+    }
     //#endregion
 
     //#region Details View
@@ -247,26 +254,6 @@ export default function EntriesListModule({ module, journalId, entryId, isEditab
         if (currentField !== field) return null;
         return currentDirection === 'asc' ? 'arrow_upward' : 'arrow_downward';
     };
-
-    if (loading) {
-        return (<>
-            <div className="entries-list-module">
-                <EntriesListFilter
-                    search={filterOptions.search}
-                    sort={sort}
-                    onFilter={handleFilterChange}
-                    journalId={journalId}
-                />
-            </div>
-            <div className="entries-list-module loading">
-
-                <div className="loading-state">
-                    <Icon name="progress_activity" spin={true} />
-                    <span>Loading entries...</span>
-                </div>
-            </div>
-        </>);
-    }
 
     //#endregion
 
@@ -340,6 +327,34 @@ export default function EntriesListModule({ module, journalId, entryId, isEditab
 
     //#endregion
 
+    //#region loading
+
+    if (loading) {
+        return (<>
+            <div className="entries-list-module">
+                <div className="entries-filter-bar tool-bar">
+                    <EntriesListFilter
+                        search={filterOptions.search}
+                        sort={sort}
+                        onFilter={handleFilterChange}
+                    />
+                    <div className="right-side">
+                        <NewEntry journalId={journalId} defaultTagIds={module?.tags || []} />
+                    </div>
+                </div>
+            </div>
+            <div className="entries-list-module loading">
+
+                <div className="loading-state">
+                    <Icon name="progress_activity" spin={true} />
+                    <span>Loading entries...</span>
+                </div>
+            </div>
+        </>);
+    }
+
+    //#endregion
+
     //#region "Empty State"
     if (!loading && entries.length === 0) {
         const hasSearch = (filterOptions.search || '').trim().length > 0;
@@ -347,12 +362,24 @@ export default function EntriesListModule({ module, journalId, entryId, isEditab
         return (
             <div className="entries-list-module">
                 {hasSearch && (
-                    <EntriesListFilter
-                        search={filterOptions.search}
-                        sort={sort}
-                        onFilter={handleFilterChange}
-                        journalId={journalId}
-                />
+                    <div className="entries-filter-bar tool-bar">
+                        <EntriesListFilter
+                            search={filterOptions.search}
+                            sort={sort}
+                            onFilter={handleFilterChange}
+                        />
+                        <div className="right-side">
+                            <NewEntry journalId={journalId} defaultTagIds={module?.tags || []} />
+                        </div>
+                        <div className="right-side">
+                            <EntriesListPaging
+                                start={filterOptions.start}
+                                length={filterOptions.length}
+                                totalItems={totalItems}
+                                onFilter={handlePagingFilter}
+                            />
+                        </div>
+                    </div>
                 )}
                 <div className="empty-state">
                     <p>
@@ -362,7 +389,7 @@ export default function EntriesListModule({ module, journalId, entryId, isEditab
                     </p>
                     {!hasSearch && (
                         <div className="centered">
-                            <NewEntry journalId={journalId} />
+                            <NewEntry journalId={journalId} defaultTagIds={module?.tags || []} />
                         </div>
                     )}
                 </div>
@@ -393,12 +420,24 @@ export default function EntriesListModule({ module, journalId, entryId, isEditab
     if (!viewType || viewType == 'details') {
         return (
             <div className="entries-list-module">
-                <EntriesListFilter
-                    search={filterOptions.search}
-                    sort={sort}
-                    onFilter={handleFilterChange}
-                    journalId={journalId}
-                />
+                <div className="entries-filter-bar tool-bar">
+                    <EntriesListFilter
+                        search={filterOptions.search}
+                        sort={sort}
+                        onFilter={handleFilterChange}
+                    />
+                    <div className="right-side">
+                        <NewEntry journalId={journalId} defaultTagIds={module?.tags || []} />
+                    </div>
+                    <div className="right-side">
+                        <EntriesListPaging
+                            start={filterOptions.start}
+                            length={filterOptions.length}
+                            totalItems={totalItems}
+                            onFilter={handlePagingFilter}
+                        />
+                    </div>
+                </div>
 
                 <div className="entries-table">
                     <table className="spreadsheet">
@@ -477,12 +516,24 @@ export default function EntriesListModule({ module, journalId, entryId, isEditab
     if (viewType == 'cards') {
         return (
             <div className="entries-list-module">
-                <EntriesListFilter
-                    search={filterOptions.search}
-                    sort={sort}
-                    onFilter={handleFilterChange}
-                    journalId={journalId}
-                />
+                <div className="entries-filter-bar tool-bar">
+                    <EntriesListFilter
+                        search={filterOptions.search}
+                        sort={sort}
+                        onFilter={handleFilterChange}
+                    />
+                    <div className="right-side">
+                        <NewEntry journalId={journalId} defaultTagIds={module?.tags || []} />
+                    </div>
+                    <div className="right-side">
+                        <EntriesListPaging
+                            start={filterOptions.start}
+                            length={filterOptions.length}
+                            totalItems={totalItems}
+                            onFilter={handlePagingFilter}
+                        />
+                    </div>
+                </div>
                 <div className="entry-cards">
                     {entries.map(entry => (
                         <div

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 //css
 import './entry.css';
 //components
@@ -28,6 +28,7 @@ export default function JournalEntryPage() {
     //context
     const { journalId, entryId, snapshotId } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const session = useSession();
 
     //state
@@ -66,19 +67,30 @@ export default function JournalEntryPage() {
     const currentChapter = useRef(null);
     const historyDropdownRef = useRef(null);
     const historyButtonRef = useRef(null);
+    const lastEntryRef = useRef(null);
 
     //apis
     const { addEntry, renameEntry, getChapters, updateJournalEntryId } = Journals(session);
     const { getSnapshotsByEntry, getSnapshot, createSnapshot } = JournalSnapshots(session);
-    const { removeTagFromEntry } = JournalTags(session);
+    const { addTagToEntry, removeTagFromEntry } = JournalTags(session);
 
     //effect
     useEffect(() => {
+        //reset state
+        setupEntry(null, null, [], false);
+        setLoading(true);
+
+        //reset refs
+        secretsTimerRef.current = null;
+        currentChapterName.current = null;
+        currentChapter.current = null;
+
+        //load entry details
         fetchEntryDetails();
     }, [journalId, entryId, snapshotId]);
 
     useEffect(() => {
-        if(!journal || journal.id != journalId){
+        if (!journal || journal.id != journalId) {
             loadChapters();
         }
     }, [journalId]);
@@ -130,6 +142,28 @@ export default function JournalEntryPage() {
         return entryId != null ? entryId : (journalData ? journalData.entryId : journal.entryId);
     };
 
+    const updateEntryHistory = (currentEntry) => {
+        if (!currentEntry || !currentEntry.id || currentEntry.id === 0) return;
+        if (typeof window === 'undefined') return;
+        if (!Array.isArray(window.entryHistory)) {
+            window.entryHistory = [];
+        }
+        const history = window.entryHistory;
+        const last = history.length > 0 ? history[history.length - 1] : null;
+        if (!last || last.id !== currentEntry.id) {
+            history.push({
+                id: currentEntry.id,
+                journalId: currentEntry.journalId,
+                title: currentEntry.title
+            });
+        }
+        if (history.length > 1) {
+            lastEntryRef.current = history[history.length - 2];
+        } else {
+            lastEntryRef.current = null;
+        }
+    };
+
     //#region Entry
     const fetchEntryDetails = async () => {
         try {
@@ -142,9 +176,7 @@ export default function JournalEntryPage() {
                 const journalResponse = await api.getJournal(journalId);
 
                 if (!journalResponse.data.success) {
-                    setError(journalResponse.data.message || 'Failed to load journal details');
-                    setLoading(false);
-                    return;
+                    return showError(journalResponse.data.message || 'Failed to load journal details');
                 }
 
                 journalData = journalResponse.data.data;
@@ -153,70 +185,15 @@ export default function JournalEntryPage() {
             const newEntryId = getEntryId(journalData);
             const isNewEntry = newEntryId === 'new' || newEntryId == null;
 
-            if (!newEntryId && !snapshotId) {
-                //create new entry for journal and include an entries-list module
-                const defaultJournalEntryJson = {
-                    modules: [
-                        {
-                            type: 'entries-list',
-                            manuallyAdded: false
-                        }
-                    ]
-                };
-
-                const newEntryForJournal = {
-                    journalId: parseInt(journalId),
-                    title: journalData.title,
-                    description: journalData.description ?? '',
-                    status: 1
-                };
-
-                const createdResponse = await addEntry(newEntryForJournal);
-
-                if (!createdResponse.data?.success || !createdResponse.data.data) {
-                    setError(createdResponse.data?.message || 'Failed to create default journal entry');
-                    setLoading(false);
-                    return;
-                }
-
-                const createdEntry = createdResponse.data.data;
-
-                try {
-                    const contentString = JSON.stringify(defaultJournalEntryJson);
-                    await api.updateEntryContent(createdEntry.id, contentString);
-                } catch (contentErr) {
-                    console.error('Error saving default journal entry content:', contentErr);
-                }
-
-                try {
-                    await updateJournalEntryId(parseInt(journalId), createdEntry.id);
-                    setJournal({ ...journalData, entryId: createdEntry.id });
-                } catch (updateErr) {
-                    console.error('Error updating journal EntryId:', updateErr);
-                }
-
-                setEntry(createdEntry);
-                entryRef.current = createdEntry;
-                setEntryTags([]);
-                setEditedTitle(createdEntry.title || '');
-                setEditedDescription(createdEntry.description || '');
-                setEntryJson(defaultJournalEntryJson);
-                entryJsonRef.current = defaultJournalEntryJson;
-                setIsTitleEditing(true);
-                setLoading(false);
-                window.scrollTo(0, 0);
-                return;
+            //navigation tracking
+            if (typeof window !== 'undefined' && !Array.isArray(window.entryHistory)) {
+                window.entryHistory = [];
             }
 
-            const defaultEntryJson = {
-                modules: [
-                    {
-                        type: 'text-editor',
-                        manuallyAdded: false,
-                        html: '<p>Type or paste your content here!</p>'
-                    }
-                ]
-            };
+            if (!newEntryId && !snapshotId) {
+                //create new entry for journal
+                return loadNewJournal(journalData);
+            }
 
             if (isNewEntry) {
                 // Create a new entry template
@@ -229,60 +206,39 @@ export default function JournalEntryPage() {
                     created: new Date().toISOString(),
                     status: 1
                 };
-
-                setEntry(newEntry);
-                entryRef.current = newEntry;
-                setEntryTags([]);
-                setEditedTitle(newEntry.title);
-                setEditedDescription(newEntry.description);
-                setIsTitleEditing(true); // Automatically show title editor for new entries
-                setIsEditing(true);
                 const newEntryJson = {
-                    ...defaultEntryJson,
-                    id: generateRandomId()
+                    modules: [
+                        {
+                            id: generateRandomId(),
+                            type: 'text-editor',
+                            manuallyAdded: false,
+                            html: '<p>Type or paste your content here!</p>'
+                        }
+                    ]
                 };
-                setEntryJson(newEntryJson);
-                entryJsonRef.current = newEntryJson;
-                window.scrollTo(0, 0);
+
+                setupEntry(newEntry, newEntryJson, [], true);
 
             } else if (snapshotId) {
                 // Load snapshot data
                 const snapshotResponse = await getSnapshot(snapshotId);
                 if (!snapshotResponse.data.success) {
-                    setError(snapshotResponse.data.message || 'Failed to load snapshot');
-                    setLoading(false);
-                    return;
+                    return showError(snapshotResponse.data.message || 'Failed to load snapshot');
                 }
 
                 const snapshotData = snapshotResponse.data.data;
-
-                // Set fromSnapshotId to indicate we're viewing a snapshot
+                snapshotData.id = snapshotData.entryId;
                 setFromSnapshotId(parseInt(snapshotId));
-                // Set entry data from snapshot
-                const snapshotEntry = {
-                    id: snapshotData.entryId,
-                    journalId: snapshotData.journalId,
-                    title: snapshotData.title,
-                    description: snapshotData.description,
-                    created: snapshotData.created,
-                    modified: snapshotData.modified,
-                    status: snapshotData.status
-                };
-                setEntry(snapshotEntry);
-                entryRef.current = snapshotEntry;
-                setEntryTags([]);
-                setEditedTitle(snapshotData.title);
-                setEditedDescription(snapshotData.description);
+                updateEntryHistory(snapshotData);
 
                 // Parse and set snapshot content
                 try {
-                    const contentJson = JSON.parse(snapshotData.content || '{}');
+                    const contentJson = JSON.parse(snapshotData.content || '{modules:[]}');
                     contentJson.modules?.forEach(module => {
                         delete module.manuallyAdded;
                         if (module.id == null) module.id = generateRandomId();
                     });
-                    setEntryJson(contentJson || { modules: [] });
-                    entryJsonRef.current = contentJson || { modules: [] };
+                    setupEntry(snapshotData, contentJson, [], false);
                 } catch (parseErr) {
                     console.error('Error parsing snapshot content JSON:', parseErr);
                 }
@@ -294,34 +250,24 @@ export default function JournalEntryPage() {
                 // Get existing entry data
                 const entryResponse = await api.getEntry(newEntryId);
                 if (!entryResponse.data.success) {
-                    setError(entryResponse.data.message || 'Failed to load entry details');
-                    setLoading(false);
-                    return;
+                    return showError(entryResponse.data.message || 'Failed to load entry details');
                 }
 
-                const entryResponseData = entryResponse.data.data;
-                const entryData = entryResponseData.entry || entryResponseData;
-                const tagsData = entryResponseData.tags || entryData.tags || [];
-
-                setEntry(entryData);
-                entryRef.current = entryData;
-                setEntryTags(tagsData);
-                setEditedTitle(entryData.title);
-                setEditedDescription(entryData.description);
+                const entryData = entryResponse.data.data.entry || entryResponse.data.data;
+                const tagsData = entryResponse.data.data.tags || entryData.tags || [];
 
                 // Fetch entry content (JSON data)
                 try {
                     const contentResponse = await api.getEntryContent(newEntryId);
                     if (contentResponse.data.success && contentResponse.data.data) {
                         try {
-                            const contentJson = JSON.parse(contentResponse.data.data);
-                            contentJson.modules.forEach(module => {
+                            const contentJson = JSON.parse(contentResponse.data?.data || '{modules:[]}');
+                            contentJson.modules?.forEach(module => {
                                 //remove unneccessary properties
                                 delete module.manuallyAdded;
                                 if (module.id == null) module.id = generateRandomId();
                             });
-                            setEntryJson(contentJson || { modules: [] });
-                            entryJsonRef.current = contentJson || { modules: [] };
+                            setupEntry(entryData, contentJson, tagsData, false);
                         } catch (parseErr) {
                             console.error('Error parsing entry content JSON:', parseErr);
                         }
@@ -331,15 +277,83 @@ export default function JournalEntryPage() {
                 }
                 window.scrollTo(0, 0);
             }
-            if(location.search == '?edit'){
+            if (location.search == '?edit') {
                 setIsEditing(true);
             }
             setLoading(false);
         } catch (err) {
             console.error('Error fetching entry details:', err);
-            setError('Failed to load entry details. Please try again later.');
-            setLoading(false);
+            showError('Failed to load entry details. Please try again later.');
         }
+    };
+
+    const setupEntry = (newEntry, newEntryJson, newTags, editing) => {
+        entryRef.current = newEntry;
+        entryJsonRef.current = newEntryJson;
+        setEntry(newEntry);
+        setEntryTags(newTags);
+        setEditedTitle(newEntry?.title ?? '');
+        setEditedDescription(newEntry?.description ?? '');
+        setIsTitleEditing(editing);
+        setIsEditing(editing);
+        setEntryJson(newEntryJson);
+        applyEntryCss(newEntryJson?.css);
+        setSaveStatus(null);
+        setError(null);
+        setShowSettingsModal(false);
+        setShowCreateSnapshotModal(false);
+        setShowSnapshotCreatedModal(false);
+        window.scrollTo(0, 0);
+    }
+
+    const loadNewJournal = async (journalData) => {
+        const defaultJournalEntryJson = {
+            modules: [
+                {
+                    id: generateRandomId(),
+                    type: 'entries-list',
+                    manuallyAdded: false
+                }
+            ]
+        };
+
+        const newEntryForJournal = {
+            journalId: parseInt(journalId),
+            title: journalData.title,
+            description: journalData.description ?? '',
+            status: 1
+        };
+
+        const createdResponse = await addEntry(newEntryForJournal);
+
+        if (!createdResponse.data?.success || !createdResponse.data.data) {
+            return showError(createdResponse.data?.message || 'Failed to create default journal entry');
+        }
+
+        const createdEntry = createdResponse.data.data;
+
+        try {
+            const contentString = JSON.stringify(defaultJournalEntryJson);
+            await api.updateEntryContent(createdEntry.id, contentString);
+        } catch (contentErr) {
+            console.error('Error saving default journal entry content:', contentErr);
+        }
+
+        try {
+            await updateJournalEntryId(parseInt(journalId), createdEntry.id);
+            setJournal({ ...journalData, entryId: createdEntry.id });
+        } catch (updateErr) {
+            console.error('Error updating journal EntryId:', updateErr);
+        }
+
+        setupEntry(createdEntry, defaultJournalEntryJson, [], true);
+        updateEntryHistory(createdEntry);
+        setLoading(false);
+    }
+
+    const showError = (message) => {
+        setError(message);
+        setLoading(false);
     };
 
     const loadChapters = () => {
@@ -361,8 +375,22 @@ export default function JournalEntryPage() {
         });
     };
 
-    // Save entry content to the server
+    const applyEntryCss = (css) => {
+        if (!css) return;
+        let styleEl = document.getElementById('entry_css');
+        if (!styleEl) {
+            styleEl = document.createElement('style');
+            styleEl.id = 'entry_css';
+            document.head.appendChild(styleEl);
+        }
+
+        styleEl.textContent = css || '';
+    };
+
     const saveEntryContent = async (json) => {
+        setEntryJson(json);
+        if (JSON.stringify(json) == JSON.stringify(entryJsonRef.current)) return;
+        entryJsonRef.current = json;
         if (!entry || !entry.id || entry.id === 0 || json.modules == null || json.modules.length === 0) return;
 
         setSaveStatus('saving');
@@ -373,15 +401,17 @@ export default function JournalEntryPage() {
             const response = await api.updateEntryContent(entry.id, contentString);
 
             if (!response.data.success) {
-                throw new Error(response.data.message || 'Failed to save entry content');
+                return showError(response.data.message || 'Failed to save entry content');
             }
+
+            applyEntryCss(json.css);
 
             setSaveStatus('saved');
 
             // Clear the "saved" status after a few seconds
-            //setTimeout(() => {
-            //    setSaveStatus(null);
-            //}, 3000);
+            setTimeout(() => {
+                setSaveStatus(null);
+            }, 3000);
 
         } catch (err) {
             console.error('Error saving entry content:', err);
@@ -443,6 +473,17 @@ export default function JournalEntryPage() {
                 }
 
                 const createdEntry = response.data.data;
+                const defaultTagIds = location?.state?.defaultTagIds;
+                if (Array.isArray(defaultTagIds) && defaultTagIds.length > 0) {
+                    try {
+                        await Promise.all(
+                            defaultTagIds.map(tagId => addTagToEntry(createdEntry.id, tagId))
+                        );
+                    } catch (tagErr) {
+                        console.error('Error applying default tags to new entry:', tagErr);
+                    }
+                }
+
                 navigate(`/journal/${journalId}/entry/${createdEntry.id}?edit`, { replace: true });
                 return;
             } else {
@@ -472,8 +513,41 @@ export default function JournalEntryPage() {
     };
 
     const handleBackToJournal = () => {
+        if (typeof window !== 'undefined' && Array.isArray(window.entryHistory) && window.entryHistory.length > 0) {
+            window.entryHistory.pop();
+        }
         navigate(`/journal/${journalId}`);
     };
+
+    const handleBackToLastEntry = () => {
+        if (typeof window !== 'undefined' && Array.isArray(window.entryHistory) && window.entryHistory.length > 0) {
+            window.entryHistory.pop();
+            const history = window.entryHistory;
+            const previousEntry = history.length > 0 ? history[history.length - 1] : null;
+
+            if (previousEntry) {
+                navigate(`/journal/${journalId}/entry/${previousEntry.id}`);
+                return;
+            }
+        }
+
+        navigate(`/journal/${journalId}`);
+    };
+
+    const handleOnAddTag = async (tag) => {
+        if (!entry || !entry.id || entry.id === 0 || !tag || tag.id == null) return;
+
+        try {
+            await addTagToEntry(entry.id, tag.id);
+            setEntryTags(prev => {
+                const exists = prev.some(t => t.tagId === tag.id);
+                if (exists) return prev;
+                return [...prev, { tagId: tag.id, name: tag.tag }];
+            });
+        } catch (err) {
+            console.error('Error attaching tag to entry:', err);
+        }
+    }
 
     //#endregion
 
@@ -548,16 +622,16 @@ export default function JournalEntryPage() {
     };
 
     const addModule = (type, position = 'bottom') => {
-        const newModuleId = generateRandomId();
         const newModule = {
-            id: newModuleId,
+            id: generateRandomId(),
             type: type,
             manuallyAdded: true
         };
 
-        const newEntryJson = { ...entryJsonRef.current, modules: [...(entryJsonRef.current?.modules ?? []), newModule] };
-        setEntryJson(newEntryJson);
-        entryJsonRef.current = newEntryJson;
+        const newEntryJson = { ...entryJsonRef.current, 
+            modules: [...(entryJsonRef.current?.modules ?? []), newModule] 
+        };
+        saveEntryContent(newEntryJson);
 
         // Close the appropriate dropdown based on which one was used
         if (position === 'top') {
@@ -572,15 +646,11 @@ export default function JournalEntryPage() {
         const index = modules.findIndex(a => a.id == updatedModule.id);
         if (index > -1) {
             modules[index] = updatedModule;
-            setEntryJson({ ...entryJsonRef.current, modules });
-            entryJsonRef.current = { ...entryJsonRef.current, modules };
             saveEntryContent({ ...entryJsonRef.current, modules });
         }
     };
 
     const handleDroppedModule = (json) => {
-        setEntryJson({ ...entryJsonRef.current, ...json });
-        entryJsonRef.current = { ...entryJsonRef.current, ...json };
         saveEntryContent({ ...entryJsonRef.current, ...json });
     };
 
@@ -595,19 +665,11 @@ export default function JournalEntryPage() {
             modules: updatedModules
         };
 
-        setEntryJson(updatedEntryJson);
-        entryJsonRef.current = updatedEntryJson;
         saveEntryContent(updatedEntryJson);
     };
 
     const handleRemovedModule = (moduleId, updatedModules) => {
-        const updatedEntryJson = {
-            ...entryJsonRef.current,
-            modules: updatedModules
-        };
-        setEntryJson(updatedEntryJson);
-        entryJsonRef.current = updatedEntryJson;
-        saveEntryContent(updatedEntryJson);
+        saveEntryContent({ ...entryJsonRef.current, modules: updatedModules });
     };
     //#endregion
 
@@ -630,6 +692,12 @@ export default function JournalEntryPage() {
 
     const handleChaptersChanged = (updatedChapters) => {
         setChapters(updatedChapters);
+    };
+
+    const handleSettingsEntryUpdate = async (newEntryJson) => {
+        if (!newEntryJson || !newEntryJson.modules || newEntryJson.modules.length === 0) return;
+
+        saveEntryContent(newEntryJson);
     };
     //#endregion
 
@@ -791,6 +859,7 @@ export default function JournalEntryPage() {
                     chapters={chapters}
                     onClose={handleCloseSettings}
                     onSaved={handleSettingsSaved}
+                    onUpdate={handleSettingsEntryUpdate}
                     onChaptersChanged={handleChaptersChanged}
                 />
             )}
@@ -813,11 +882,16 @@ export default function JournalEntryPage() {
             )}
             <div className="entry-header">
                 <div className="entry-navigation tool-bar">
-                    {journal.entryId != getEntryId() && (
-                        <button className="back-button" onClick={handleBackToJournal}>
-                            <Icon name="arrow_back" /> Back to {journal?.title || 'Journal'}
+                    {lastEntryRef.current ?
+                        <button className="back-button" onClick={handleBackToLastEntry}>
+                            <Icon name="arrow_back" /> Back to {lastEntryRef.current.title}
                         </button>
-                    )}
+
+                        : journal.entryId != getEntryId() ? (
+                            <button className="back-button" onClick={handleBackToJournal}>
+                                <Icon name="arrow_back" /> Back to {journal?.title || 'Journal'}
+                            </button>
+                        ) : <></>}
 
                     <div className="right-side entry-status-badge">
                         {saveStatus && (
@@ -825,21 +899,19 @@ export default function JournalEntryPage() {
                                 {getSaveStatusMessage()}
                             </div>
                         )}
-                        <NewEntryTag
-                            entry={entry}
-                            journalId={journalId}
-                            onAddTag={(tag) => {
-                                if (!tag || tag.id == null) return;
-                                setEntryTags(prev => {
-                                    const exists = prev.some(t => t.tagId === tag.id);
-                                    if (exists) return prev;
-                                    return [...prev, { tagId: tag.id, name: tag.tag }];
-                                });
-                            }}
-                        />
                         <TagsList
                             tags={entryTags}
                             onRemoveTag={handleRemoveEntryTag}
+                        />
+                        {entryTags.length > 0 && (
+                            <div className="tag-pointer">
+                                <Icon name="chevron_left" />
+                            </div>
+                        )}
+                        <NewEntryTag
+                            entry={entry}
+                            journalId={journalId}
+                            onAddTag={handleOnAddTag}
                         />
                         {chapters.length > 0 && getChapterName() != '' && (
                             <span className="chapter-label" title={'Chapter #' + getChapter().sort}>
@@ -867,12 +939,12 @@ export default function JournalEntryPage() {
                             {showHistoryDropdown && (
                                 <div className="dropdown-menu" ref={historyDropdownRef}>
                                     <div className="tool-bar pad-sm">
-                                    <button
-                                        onClick={handleCreateSnapshotClick}
-                                        title="Record the current state of this journal entry for historical records"
-                                    >
-                                        <Icon name="add" /> Create Snapshot
-                                    </button>
+                                        <button
+                                            onClick={handleCreateSnapshotClick}
+                                            title="Record the current state of this journal entry for historical records"
+                                        >
+                                            <Icon name="add" /> Create Snapshot
+                                        </button>
                                     </div>
                                     {loadingSnapshots ? (
                                         <div className="loading-snapshots">

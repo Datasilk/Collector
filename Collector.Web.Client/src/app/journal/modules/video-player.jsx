@@ -65,10 +65,8 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
 
     // Auto-download video if autoTryAgain is set
     useEffect(() => {
-        console.log('module', module);
         if (module.autoTryAgain && module.url && !module.videoId && !isDownloading) {
             setVideoUrl(module.url);
-            console.log('auto try again!');
             // Trigger download after a short delay to ensure state is updated
             setTimeout(() => {
                 handleDownloadVideo(module.url);

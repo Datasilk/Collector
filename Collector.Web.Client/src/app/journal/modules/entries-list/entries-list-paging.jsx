@@ -34,7 +34,7 @@ export default function EntriesListPaging({ start, length, totalItems, onFilter 
                 onClick={handlePrevClick}
                 disabled={!canPrev}
                 aria-label="Previous"
-                className={!canPrev ? 'disabled' : ''}
+                className={'icon ' + (!canPrev ? 'disabled' : '')}
             >
                 <Icon name="chevron_left" />
             </button>
@@ -43,7 +43,7 @@ export default function EntriesListPaging({ start, length, totalItems, onFilter 
                 onClick={handleNextClick}
                 disabled={!canNext}
                 aria-label="Next"
-                className={!canNext ? 'disabled' : ''}
+                className={'icon ' + (!canNext ? 'disabled' : '')}
             >
                 <Icon name="chevron_right" />
             </button>

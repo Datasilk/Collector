@@ -158,7 +158,8 @@ namespace Collector.Web.Server.SignalR
                 {
                     JournalId = journalId,
                     Title = title,
-                    Description = string.Empty
+                    Description = string.Empty,
+                    Url = url
                 };
 
                 var entryId = _entriesRepository.Add(entry);

@@ -10,6 +10,7 @@ config.*.json
 !config.template.json
 .config/
 RECOVER_*
+*.jfm
 
 
 # Build results

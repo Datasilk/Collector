@@ -79,7 +79,7 @@ export default function ChecklistModule({ module, entryId, onUpdate, isEditable 
         tabButtons([
             {
                 icon: 'settings',
-                title: 'Settings',
+                title: 'Checklist Settings',
                 callback: handleShowSettingsModal
             }
         ]);

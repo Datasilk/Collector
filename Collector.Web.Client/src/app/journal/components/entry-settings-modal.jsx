@@ -9,6 +9,7 @@ import JournalChapters from '@/components/journal/journal-chapters';
 import { useSession } from '@/context/session';
 import { Journals } from '@/api/user/journals';
 import { apiBasePath } from '@/helpers/endpoints.js';
+import Editor from '@monaco-editor/react';
 
 export default function SettingsModal({
     entry,
@@ -17,6 +18,7 @@ export default function SettingsModal({
     chapters,
     onClose,
     onSaved,
+    onUpdate,
     onChaptersChanged
 }) {
     const session = useSession();
@@ -34,10 +36,50 @@ export default function SettingsModal({
     const [showChapterManagement, setShowChapterManagement] = useState(false);
     const [saveStatus, setSaveStatus] = useState(null);
 
+    const [journalTitle, setJournalTitle] = useState('');
+    const [originalJournalTitle, setOriginalJournalTitle] = useState('');
+    const [cssCode, setCssCode] = useState('');
+    const [originalCss, setOriginalCss] = useState('');
+    const [journalSaving, setJournalSaving] = useState(false);
+    const [cssSaving, setCssSaving] = useState(false);
+    const [theme] = useState('vs-dark');
+
     // Get all image modules and video modules with thumbnails from entryJson
     const imageModules = entryJson?.modules?.filter(module => module.type === 'image') || [];
     const videoModules = entryJson?.modules?.filter(module => module.type === 'video-player' && module.thumbnailPath) || [];
     const thumbnailModules = [...imageModules, ...videoModules];
+
+    useEffect(() => {
+        if (!journalId) return;
+
+        const loadJournalDetails = async () => {
+            try {
+                const api = Journals(session);
+                const response = await api.getJournal(journalId);
+                if (response.data?.success && response.data.data) {
+                    const journal = response.data.data;
+                    const title = journal.title || '';
+                    setJournalTitle(title);
+                    setOriginalJournalTitle(title);
+                } else {
+                    setJournalTitle('');
+                    setOriginalJournalTitle('');
+                }
+            } catch (err) {
+                console.error('Error loading journal details:', err);
+                setJournalTitle('');
+                setOriginalJournalTitle('');
+            }
+        };
+
+        loadJournalDetails();
+    }, [journalId, session]);
+
+    useEffect(() => {
+        const css = entryJson && entryJson.css ? entryJson.css : '';
+        setCssCode(css);
+        setOriginalCss(css);
+    }, [entryJson]);
 
     const handleSettingChange = (setting, value) => {
         const newSettings = { ...settings, [setting]: value };
@@ -154,7 +196,7 @@ export default function SettingsModal({
             await archiveEntry(entry.id);
 
             const updatedEntry = { ...entry, status: 0 };
-            
+
             setSaveStatus('saved');
             setTimeout(() => {
                 onSaved(updatedEntry);
@@ -181,11 +223,73 @@ export default function SettingsModal({
         }
     };
 
+    const handleJournalTitleChange = (e) => {
+        setJournalTitle(e.target.value);
+    };
+
+    const handleJournalCancelDetails = () => {
+        setJournalTitle(originalJournalTitle);
+    };
+
+    const handleJournalSaveDetails = async () => {
+        if (!journalId) return;
+
+        if (journalTitle === originalJournalTitle) {
+            return;
+        }
+
+        setJournalSaving(true);
+        try {
+            const api = Journals(session);
+            await api.renameJournal(journalId, journalTitle);
+            setOriginalJournalTitle(journalTitle);
+        } catch (err) {
+            console.error('Error saving journal title:', err);
+        } finally {
+            setJournalSaving(false);
+        }
+    };
+
+    const handleEditorChange = (value) => {
+        setCssCode(value || '');
+    };
+
+    const handleCancelCSS = () => {
+        setCssCode(originalCss);
+    };
+
+    const handleSaveCSS = async () => {
+        if (cssCode === originalCss) {
+            return;
+        }
+
+        setCssSaving(true);
+        try {
+            const newEntryJson = {
+                ...(entryJson || {}),
+                css: cssCode
+            };
+
+            if (onUpdate) {
+                await onUpdate(newEntryJson);
+            }
+
+            setOriginalCss(cssCode);
+        } catch (err) {
+            console.error('Error saving entry CSS:', err);
+        } finally {
+            setCssSaving(false);
+        }
+    };
+
+    const hasJournalDetailsChanges = journalTitle !== originalJournalTitle;
+    const hasCSSChanges = cssCode !== originalCss;
+
     return (
-        <Modal title="Entry Settings" onClose={onClose} width="600px" className={'selected-tab-' + selectedTab}>
+        <Modal title="Entry Settings" onClose={onClose} width="600px" className={'entry-settings-modal selected-tab-' + selectedTab}>
             {!showChapterManagement ? (
                 <>
-                    <Tabs tabs={['Details', 'Images']} selectedIndex={selectedTab} onChange={setSelectedTab}>
+                    <Tabs tabs={['Details', 'Journal', 'Images', 'CSS']} selectedIndex={selectedTab} onChange={setSelectedTab}>
                         {/* Details Tab */}
                         <div className="settings-modal-content">
                             <div className="form-row-block">
@@ -238,6 +342,52 @@ export default function SettingsModal({
                                     />
                                 </div>
                             </div>
+
+                            <div className="buttons">
+                                {entry.status !== 0 && (
+                                    <button className="btn" style={{ backgroundColor: '#c62828', color: 'white' }} onClick={handleArchiveEntry}>Archive Entry</button>
+                                )}
+                                {settingsChanged && (
+                                    <button className="btn primary" onClick={handleSaveSettings}>Save Changes</button>
+                                )}
+                                <button className="btn cancel" onClick={onClose}>Cancel</button>
+                            </div>
+                        </div>
+
+                        {/* Journal Tab */}
+                        <div className="settings-modal-content">
+                            <div className="form-row-block">
+                                <div className="form-group">
+                                    <label htmlFor="journal-title">Journal Title</label>
+                                    <Input
+                                        id="journal-title"
+                                        type="text"
+                                        value={journalTitle}
+                                        onChange={handleJournalTitleChange}
+                                        placeholder="Enter journal title"
+                                    />
+                                </div>
+                            </div>
+                            {hasJournalDetailsChanges && (
+                                <div className="buttons">
+                                    <button onClick={handleJournalCancelDetails} className="cancel" disabled={journalSaving}>
+                                        Cancel
+                                    </button>
+                                    <button onClick={handleJournalSaveDetails} disabled={journalSaving}>
+                                        {journalSaving ? (
+                                            <>
+                                                <Icon name="progress_activity" spin={true} />
+                                                Saving...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Icon name="save" />
+                                                Save
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         {/* Images Tab */}
@@ -282,7 +432,7 @@ export default function SettingsModal({
                                                     } else if (selectedModule.image) {
                                                         imageSrc = apiBasePath() + `/image/journal-entries/${entry.id}/${selectedModule.image}`;
                                                     }
-                                                    
+
                                                     if (imageSrc) {
                                                         return (
                                                             <img
@@ -305,17 +455,53 @@ export default function SettingsModal({
                                 </div>
                             </div>
                         </div>
+
+                        {/* CSS Tab */}
+                        <div className="settings-modal-content">
+                            <div className="form-row-block">
+                                <div className="form-group">
+                                    <label htmlFor="page-css">Page CSS</label>
+                                    <div className="css-editor-container">
+                                        <Editor
+                                            height="50vh"
+                                            defaultLanguage="css"
+                                            language="css"
+                                            theme={theme}
+                                            value={cssCode}
+                                            onChange={handleEditorChange}
+                                            options={{
+                                                minimap: { enabled: false },
+                                                lineNumbers: 'on',
+                                                scrollBeyondLastLine: false,
+                                                automaticLayout: true,
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                            {hasCSSChanges && (
+                                <div className="buttons">
+                                    <button onClick={handleCancelCSS} className="cancel" disabled={cssSaving}>
+                                        Cancel
+                                    </button>
+                                    <button onClick={handleSaveCSS} disabled={cssSaving}>
+                                        {cssSaving ? (
+                                            <>
+                                                <Icon name="progress_activity" spin={true} />
+                                                Saving...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Icon name="save" />
+                                                Save
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </Tabs>
 
-                    <div className="buttons">
-                        {entry.status !== 0 && (
-                            <button className="btn" style={{ backgroundColor: '#c62828', color: 'white' }} onClick={handleArchiveEntry}>Archive Entry</button>
-                        )}
-                        {settingsChanged && (
-                            <button className="btn primary" onClick={handleSaveSettings}>Save Changes</button>
-                        )}
-                        <button className="btn cancel" onClick={onClose}>Cancel</button>
-                    </div>
                 </>
             ) : (
                 <>
