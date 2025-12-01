@@ -142,6 +142,7 @@ export default function ModuleList({
     const handleUpdatedModule = (module) => {
         if (!updatedModule) return;
         const { manuallyAdded, ...cleanModule } = module;
+        console.log('updated module', cleanModule);
         updatedModule(cleanModule);
     };
     //#endregion
@@ -280,124 +281,6 @@ export default function ModuleList({
         };
     }, [isEditing, containerId, entryJson]);
 
-    //#endregion
-
-    //#region Pin Module
-
-    const fetchPinnedModules = async () => {
-        try {
-            const api = Journals(session);
-            const response = await api.getModulesByJournal(journalId);
-            if (response.data.success) {
-                setPinnedModules(response.data.data || []);
-            }
-        } catch (err) {
-            console.error('Error fetching pinned modules:', err);
-        }
-    };
-
-    const isModulePinned = (moduleId) => {
-        if (pinnedModules && pinnedModules.length > 0) {
-            return pinnedModules.some(pm => pm.moduleId == moduleId);
-        }
-        const module = entryJson.modules.find(m => m.id == moduleId);
-        return module?.pinned === true;
-    };
-
-    const pinModule = async (module) => {
-        try {
-            let moduleId = module.id != null ? String(module.id) : '';
-
-            if (moduleId == '') {
-                moduleId = generateRandomId();
-                const updatedModuleData = { ...module, id: moduleId };
-                handleUpdatedModule(updatedModuleData);
-            }
-
-            const api = Journals(session);
-            const moduleData = {
-                journalId: journalId,
-                journalEntryId: entryId,
-                moduleId: moduleId,
-                sort: 0,
-                width: 1,
-                height: 1
-            };
-
-            const response = await api.addModule(moduleData);
-            if (response.data.success) {
-                if (onPinModule) {
-                    onPinModule(moduleId);
-                }
-                await fetchPinnedModules();
-                setTimeout(() => {
-                    const moduleElement = document.querySelector(`.module-id-${moduleId}`);
-                    if (moduleElement) {
-                        const tabContainer = moduleElement.querySelector('.module-tab-container');
-                        if (tabContainer) {
-                            const tooltip = document.createElement('div');
-                            tooltip.className = 'pin-tooltip';
-                            tooltip.textContent = 'Module added to journal';
-                            tabContainer.insertBefore(tooltip, tabContainer.firstChild);
-                            setTimeout(() => {
-                                tooltip.style.opacity = '1';
-                            }, 10);
-                            setTimeout(() => {
-                                tooltip.style.opacity = '0';
-                                setTimeout(() => {
-                                    tooltip.remove();
-                                }, 300);
-                            }, 3000);
-                        }
-                    }
-                }, 100);
-            } else {
-                console.error('Failed to pin module:', response.data.message);
-            }
-        } catch (err) {
-            console.error('Error pinning module:', err);
-        }
-    };
-
-    const unpinModule = async (module) => {
-        try {
-            const moduleId = String(module.id);
-            const api = Journals(session);
-
-            const response = await api.deleteModule(journalId, entryId ?? module.entryId, moduleId);
-            if (response.data.success) {
-                if (onUnPinModule) {
-                    onUnPinModule(moduleId);
-                }
-                if (entryId) await fetchPinnedModules();
-                setTimeout(() => {
-                    const moduleElement = document.querySelector(`.module-id-${moduleId}`);
-                    if (moduleElement) {
-                        const tabContainer = moduleElement.querySelector('.module-tab-container');
-                        if (tabContainer) {
-                            const tooltip = document.createElement('div');
-                            tooltip.className = 'pin-tooltip';
-                            tooltip.textContent = 'Module removed from journal';
-                            tabContainer.insertBefore(tooltip, tabContainer.firstChild);
-                            setTimeout(() => {
-                                tooltip.style.opacity = '1';
-                            }, 10);
-                            setTimeout(() => {
-                                tooltip.style.opacity = '0';
-                                setTimeout(() => {
-                                    tooltip.remove();
-                                }, 300);
-                            }, 3000);
-                        }
-                    }
-                }, 100);
-            } else {
-                console.error('Failed to unpin module:', response.data.message);
-            }
-        } catch (err) {
-            console.error('Error unpinning module:', err);
-        }
-    };
     //#endregion
 
     //#region Resize Width
@@ -1447,16 +1330,6 @@ export default function ModuleList({
                                                         </div>
                                                     )}
                                                 </>)}
-                                            {!isJournalEntry && canUnpin && module.showPinned !== false && (isModulePinned(module.id) && ( //unpin button
-                                                <button className="icon" onClick={() => unpinModule(module)} title="Unpin from journal">
-                                                    <Icon name="keep_off" />
-                                                </button>
-                                            ))}
-                                            {!isJournalEntry && canPin && module.showPinned !== false && (!isModulePinned(module.id) && ( //pin button
-                                                <button className="icon" onClick={() => pinModule(module)} title="Pin to journal">
-                                                    <Icon name="push_pin" />
-                                                </button>
-                                            ))}
                                             {filteredButtons && ( //module-defined buttons
                                                 filteredButtons.buttons.map((button, index) => {
                                                     const hasLabel = button.hasLabel === true;

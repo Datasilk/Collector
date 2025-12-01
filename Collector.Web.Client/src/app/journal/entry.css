@@ -1154,6 +1154,10 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
 
 
 /* Entries List Settings Modal */
+.module-entires-list-modal{
+    overflow-y:visible;
+}
+
 .module-entires-list-modal .row {
     margin-bottom: 1em;
 }

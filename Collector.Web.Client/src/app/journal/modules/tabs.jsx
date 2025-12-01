@@ -258,7 +258,6 @@ export default function TabsModule({ module, entryId, journalId, onUpdate, isEdi
 
     const handleTabTitleBlur = () => {
         setEditingTabId(null);
-        // Update the parent module
         const updatedModule = { ...moduleRef.current, tabs };
         onUpdate(updatedModule);
     };
@@ -267,7 +266,6 @@ export default function TabsModule({ module, entryId, journalId, onUpdate, isEdi
         if (e.key === 'Enter') {
             e.preventDefault();
             setEditingTabId(null);
-            // Update the parent module
             const updatedModule = { ...moduleRef.current, tabs };
             onUpdate(updatedModule);
         } else if (e.key === 'Escape') {

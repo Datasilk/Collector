@@ -43,29 +43,10 @@ const Journals = (args) => Api({...args, useToken:true}).endpoints(({api}) => {
         setEntryPublished: (id, isSet) => api.post(`${apiPath}/entries/set-published`, { Id: id, IsSet: isSet }),
         setEntryChapter: (id, chapterId) => api.post(`${apiPath}/entries/set-chapter`, { Id: id, ChapterId: chapterId }),
         updateEntryThumbnail: (id, thumbnail) => api.post(`${apiPath}/entries/update-thumbnail`, { Id: id, Thumbnail: thumbnail }),
-        
-        // Modules
-        addModule: (module) => api.post(`${apiPath}/modules/add`, module),
-        getModulesByJournal: (journalId) => api.get(`${apiPath}/modules/journal/${journalId}`),
-        getModulesByEntry: (entryId) => api.get(`${apiPath}/modules/entry/${entryId}`),
-        updateModule: (module) => api.post(`${apiPath}/modules/update`, module),
-        deleteModule: (journalId, entryId, moduleId) => api.post(`${apiPath}/modules/delete`, { JournalId: journalId, EntryId: entryId, ModuleId: moduleId }),
-        resortModules: (journalId, modules) => api.post(`${apiPath}/modules/resort`, { JournalId: journalId, Modules: modules }),
-        
+       
         // Journal Settings
         getJournalSettings: (journalId) => api.get(`${apiPath}/settings/${journalId}`),
-        updateJournalSettings: (journalId, settings) => api.post(`${apiPath}/settings/update`, { 
-            JournalId: journalId, 
-            Css: settings.css
-        }),
-        updateEntryListSettings: (journalId, entryListSettings) => api.post(`${apiPath}/settings/entry-list/update`, {
-            JournalId: journalId,
-            EntryList: entryListSettings
-        }),
-        updateJournalLayout: (journalId, layout) => api.post(`${apiPath}/layout/update`, {
-            JournalId: journalId,
-            Layout: layout
-        }),
+        updateJournalSettings: (journalId, settings) => api.post(`${apiPath}/settings/update`, { JournalId: journalId, Css: settings.css }),
         
         // Journal Chapters
         addChapter: (journalId, chapter) => api.post(`${apiPath}/${journalId}/chapters/add`, chapter),

@@ -9,17 +9,16 @@ import EntriesListFilter from './entries-list/entries-list-filter';
 import EntriesListPaging from './entries-list/entries-list-paging';
 import NewEntry from '../components/new-entry';
 
-export default function EntriesListModule({ module, journalId, entryId, hasUpdated, isEditable = false, tabButtons, onUpdate }) {
+export default function EntriesListModule({ module, journalId, entryId, hasUpdated, chapters, isEditable = false, tabButtons, onUpdate }) {
     const navigate = useNavigate();
     const session = useSession();
 
     // state
     const [entries, setEntries] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [filterWhileLoading, setFilterWhileLoading] = useState(false);
     const [sort, setSort] = useState(() => {
         // Load sort from localStorage
-        const savedSort = localStorage.getItem(`collector:journal:${journalId}:sort`);
+        const savedSort = localStorage.getItem(`collector:journal:${journalId}:${entryId}:sort`);
         return savedSort || 'Title_asc';
     });
     const [viewType, setViewType] = useState(null);
@@ -29,7 +28,6 @@ export default function EntriesListModule({ module, journalId, entryId, hasUpdat
         status: true,
         chapter: true
     });
-    const [chapters, setChapters] = useState([]);
     const [filterOptions, setFilterOptions] = useState({
         search: '',
         sort: null,
@@ -57,9 +55,32 @@ export default function EntriesListModule({ module, journalId, entryId, hasUpdat
             return updated;
         });
 
-        fetchChapters();
-        loadSettings();
-    }, [journalId]);
+        // initialize view type, columns, and page size from module settings
+        const moduleViewType = (module?.viewType || 'details').toLowerCase();
+        const moduleColumns = module?.columns || {
+            created: true,
+            modified: true,
+            status: true,
+            chapter: true
+        };
+        const pageSize = module?.paging?.total || filterOptionsRef.current.length;
+
+        viewTypeRef.current = moduleViewType;
+        columnsRef.current = moduleColumns;
+        setViewType(moduleViewType);
+        setColumns(moduleColumns);
+
+        const nextFilter = {
+            ...filterOptionsRef.current,
+            length: pageSize
+        };
+
+        setFilterOptions(nextFilter);
+        filterOptionsRef.current = nextFilter;
+
+        // After settings are applied, fetch entries using the resolved filter
+        filterEntries(nextFilter, updateTabButtons);
+    }, [journalId, module]);
 
     useEffect(() => {
         updateTabButtons();
@@ -82,7 +103,7 @@ export default function EntriesListModule({ module, journalId, entryId, hasUpdat
         };
 
         try {
-            const filterTagIds = (module?.tags || []);
+            const filterTagIds = (customFilter?.tags || module?.tags || []);
 
             const response = await api.filterEntries(journalId, {
                 Search: requestFilter.search || '',
@@ -100,9 +121,6 @@ export default function EntriesListModule({ module, journalId, entryId, hasUpdat
                 setEntries(resultEntries);
                 setTotalItems(total);
                 setTotalPages(total > 0 ? Math.ceil(total / requestFilter.length) : 1);
-                if (total > 0 && filterWhileLoading == false) {
-                    setFilterWhileLoading(true);
-                }
             }
 
             if (callback) callback();
@@ -113,18 +131,6 @@ export default function EntriesListModule({ module, journalId, entryId, hasUpdat
         }
     };
 
-    const fetchChapters = async () => {
-        try {
-            const api = Journals(session);
-            const response = await api.getChapters(journalId);
-            if (response.data?.success && response.data.data) {
-                setChapters(response.data.data);
-            }
-        } catch (err) {
-            console.error('Error fetching chapters:', err);
-        }
-    };
-
     const handleViewEntry = (entryId) => {
         navigate(`/journal/${journalId}/entry/${entryId}`);
     };
@@ -132,41 +138,6 @@ export default function EntriesListModule({ module, journalId, entryId, hasUpdat
     //#endregion
 
     //#region "Settings"
-    const loadSettings = async () => {
-        try {
-            const api = Journals(session);
-            const response = await api.getJournalSettings(journalId);
-            let nextFilter = null;
-
-            if (response.data.success && response.data.data.entryList) {
-                const settings = response.data.data.entryList;
-                viewTypeRef.current = settings.viewType.toLowerCase();
-                columnsRef.current = settings.columns || {
-                    created: true,
-                    modified: true,
-                    status: true,
-                    chapter: true
-                };
-                setViewType(viewTypeRef.current);
-                setColumns(columnsRef.current);
-                const totalEntries = settings.entriesPerPage;
-                nextFilter = { ...filterOptionsRef.current, length: totalEntries };
-                setFilterOptions(nextFilter);
-                filterOptionsRef.current = nextFilter;
-            } else {
-                // No settings file yet, just use current filterOptions with start reset
-                nextFilter = { ...filterOptionsRef.current, start: 0 };
-                setFilterOptions(nextFilter);
-                filterOptionsRef.current = nextFilter;
-            }
-
-            // After settings (if any) are applied, fetch entries using the resolved filter
-            filterEntries(nextFilter || filterOptions, updateTabButtons);
-        } catch (err) {
-            console.error('Error loading entry list settings:', err);
-        }
-    };
-
     const updateTabButtons = () => {
         if (tabButtons) tabButtons([
             {
@@ -208,12 +179,15 @@ export default function EntriesListModule({ module, journalId, entryId, hasUpdat
         filterOptionsRef.current = newFilter;
 
         // Re-filter entries using the updated page size
+        console.log('filterEntries', newFilter);
         filterEntries(newFilter);
 
         // Persist tags and page size on the module
         if (typeof onUpdate === 'function') {
             const updatedModule = {
                 ...module,
+                viewType: newViewType,
+                columns: newColumns,
                 ...(Array.isArray(tagIds) ? { tags: tagIds } : {}),
                 ...(entriesPerPage && entriesPerPage > 0
                     ? {
@@ -224,6 +198,7 @@ export default function EntriesListModule({ module, journalId, entryId, hasUpdat
                     }
                     : {})
             };
+            console.log('saved settings to module', updatedModule);
             onUpdate(updatedModule);
         }
     }
@@ -234,7 +209,7 @@ export default function EntriesListModule({ module, journalId, entryId, hasUpdat
         const [currentField, currentDirection] = currentSort.split('_');
         const direction = currentField === field && currentDirection === 'asc' ? 'desc' : 'asc';
         const newSort = `${field}_${direction}`;
-        localStorage.setItem(`collector:journal:${journalId}:sort`, newSort);
+        localStorage.setItem(`collector:journal:${journalId}:${entryId}:sort`, newSort);
         setSort(newSort);
 
         const newFilter = {

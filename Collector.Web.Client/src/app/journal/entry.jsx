@@ -194,18 +194,15 @@ export default function JournalEntryPage() {
                 //create new entry for journal
                 return loadNewJournal(journalData);
             }
-
-            if (isNewEntry) {
-                // Create a new entry template
-                const newEntry = {
-                    id: 0,
-                    journalId: parseInt(journalId),
-                    title: '',
-                    description: '',
-                    encrypted: false,
-                    created: new Date().toISOString(),
-                    status: 1
-                };
+            const newEntry = {
+                id: 0,
+                journalId: parseInt(journalId),
+                title: '',
+                description: '',
+                encrypted: false,
+                created: new Date().toISOString(),
+                status: 1
+            };
                 const newEntryJson = {
                     modules: [
                         {
@@ -217,6 +214,8 @@ export default function JournalEntryPage() {
                     ]
                 };
 
+            if (isNewEntry) {
+                // Create a new entry template
                 setupEntry(newEntry, newEntryJson, [], true);
 
             } else if (snapshotId) {
@@ -271,6 +270,8 @@ export default function JournalEntryPage() {
                         } catch (parseErr) {
                             console.error('Error parsing entry content JSON:', parseErr);
                         }
+                    }else{
+                        setupEntry(entryData, newEntryJson, [], true, false);
                     }
                 } catch (contentErr) {
                     console.error('Error fetching entry content:', contentErr);
@@ -287,19 +288,19 @@ export default function JournalEntryPage() {
         }
     };
 
-    const setupEntry = (newEntry, newEntryJson, newTags, editing) => {
+    const setupEntry = (newEntry, newEntryJson, newTags, editing, editingTitle = true) => {
         entryRef.current = newEntry;
         entryJsonRef.current = newEntryJson;
         setEntry(newEntry);
         setEntryTags(newTags);
         setEditedTitle(newEntry?.title ?? '');
         setEditedDescription(newEntry?.description ?? '');
-        setIsTitleEditing(editing);
+        setIsTitleEditing(editing && editingTitle === true);
         setIsEditing(editing);
         setEntryJson(newEntryJson);
         applyEntryCss(newEntryJson?.css);
         setSaveStatus(null);
-        setError(null);
+        setError(null); 
         setShowSettingsModal(false);
         setShowCreateSnapshotModal(false);
         setShowSnapshotCreatedModal(false);
@@ -388,8 +389,12 @@ export default function JournalEntryPage() {
     };
 
     const saveEntryContent = async (json) => {
+        console.log('save entry content', json);
         setEntryJson(json);
-        if (JSON.stringify(json) == JSON.stringify(entryJsonRef.current)) return;
+        if (JSON.stringify(json) == JSON.stringify(entryJsonRef.current)) {
+            console.warn('No changes detected, skipping save', entryJsonRef.current);
+            return;
+        }
         entryJsonRef.current = json;
         if (!entry || !entry.id || entry.id === 0 || json.modules == null || json.modules.length === 0) return;
 
@@ -642,11 +647,11 @@ export default function JournalEntryPage() {
     };
 
     const handleUpdatedModule = (updatedModule) => {
-        const modules = entryJsonRef.current.modules;
-        const index = modules.findIndex(a => a.id == updatedModule.id);
+        const updatedModules = [...entryJsonRef.current.modules];
+        const index = updatedModules.findIndex(a => a.id == updatedModule.id);
         if (index > -1) {
-            modules[index] = updatedModule;
-            saveEntryContent({ ...entryJsonRef.current, modules });
+            updatedModules[index] = updatedModule;
+            saveEntryContent({ ...entryJsonRef.current, modules: updatedModules });
         }
     };
 

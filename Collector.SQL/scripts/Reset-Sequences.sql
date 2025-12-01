@@ -7,10 +7,21 @@
 
 DECLARE @SequenceName NVARCHAR(128)
 DECLARE @TableName NVARCHAR(128)
-DECLARE @MaxId BIGINT
+DECLARE @MaxId INT
+DECLARE @IdColumnName NVARCHAR(128)
 DECLARE @SQL NVARCHAR(MAX)
 
 -- Create a temporary table to hold sequence-to-table mappings
+BEGIN TRY
+    IF OBJECT_ID('tempdb..#SequenceMappings') IS NOT NULL
+    BEGIN
+        DROP TABLE #SequenceMappings
+    END
+END TRY
+BEGIN CATCH
+    PRINT 'Error: ' + ERROR_MESSAGE()
+END CATCH
+
 CREATE TABLE #SequenceMappings (
     SequenceName NVARCHAR(128),
     TableName NVARCHAR(128),
@@ -49,32 +60,37 @@ SELECT SequenceName, TableName, IdColumnName FROM #SequenceMappings
 
 OPEN sequence_cursor
 
-FETCH NEXT FROM sequence_cursor INTO @SequenceName, @TableName, @SQL
+FETCH NEXT FROM sequence_cursor INTO @SequenceName, @TableName, @IdColumnName
 
 WHILE @@FETCH_STATUS = 0
 BEGIN
-    -- Build dynamic SQL to get MAX(Id) from the table
-    SET @SQL = N'SELECT @MaxIdOut = ISNULL(MAX(' + @SQL + '), 0) FROM [dbo].[' + @TableName + ']'
+    BEGIN TRY
+        -- Build dynamic SQL to get MAX(Id) from the table
+        SET @SQL = N'SELECT @MaxIdOut = ISNULL(MAX(' + @IdColumnName + '), 0) FROM [dbo].[' + @TableName + ']'
+        
+        -- Execute dynamic SQL to get the max ID
+        EXEC sp_executesql @SQL, N'@MaxIdOut INT OUTPUT', @MaxIdOut = @MaxId OUTPUT
+        
+        -- Reset the sequence to MAX(Id) + 1
+        IF @MaxId > 0
+        BEGIN
+            SET @SQL = N'ALTER SEQUENCE [dbo].[' + @SequenceName + '] RESTART WITH ' + CAST(@MaxId + 1 AS NVARCHAR(20))
+            EXEC sp_executesql @SQL
+            PRINT 'Reset ' + @SequenceName + ' to ' + CAST(@MaxId + 1 AS NVARCHAR(20))
+        END
+        ELSE
+        BEGIN
+            -- If table is empty, reset to 1
+            SET @SQL = N'ALTER SEQUENCE [dbo].[' + @SequenceName + '] RESTART WITH 1'
+            EXEC sp_executesql @SQL
+            PRINT 'Reset ' + @SequenceName + ' to 1 (table is empty)'
+        END
+    END TRY
+    BEGIN CATCH
+        PRINT 'Error resetting ' + @SequenceName + ': ' + ERROR_MESSAGE()
+    END CATCH
     
-    -- Execute dynamic SQL to get the max ID
-    EXEC sp_executesql @SQL, N'@MaxIdOut BIGINT OUTPUT', @MaxIdOut = @MaxId OUTPUT
-    
-    -- Reset the sequence to MAX(Id) + 1
-    IF @MaxId > 0
-    BEGIN
-        SET @SQL = N'ALTER SEQUENCE [dbo].[' + @SequenceName + '] RESTART WITH ' + CAST(@MaxId + 1 AS NVARCHAR(20))
-        EXEC sp_executesql @SQL
-        PRINT 'Reset ' + @SequenceName + ' to ' + CAST(@MaxId + 1 AS NVARCHAR(20))
-    END
-    ELSE
-    BEGIN
-        -- If table is empty, reset to 1
-        SET @SQL = N'ALTER SEQUENCE [dbo].[' + @SequenceName + '] RESTART WITH 1'
-        EXEC sp_executesql @SQL
-        PRINT 'Reset ' + @SequenceName + ' to 1 (table is empty)'
-    END
-    
-    FETCH NEXT FROM sequence_cursor INTO @SequenceName, @TableName, @SQL
+    FETCH NEXT FROM sequence_cursor INTO @SequenceName, @TableName, @IdColumnName
 END
 
 CLOSE sequence_cursor

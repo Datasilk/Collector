@@ -85,15 +85,7 @@ export default function EntriesListSettingsModal({
 
         setIsSaving(true);
         try {
-            const api = Journals(session);
             const parsedEntriesPerPage = entriesPerPage ? parseInt(entriesPerPage, 10) : null;
-            const entryListSettings = {
-                viewType: viewType,
-                columns: columns,
-                entriesPerPage: parsedEntriesPerPage
-            };
-            await api.updateEntryListSettings(journalId, entryListSettings);
-
             const tagIds = Array.isArray(moduleTags)
                 ? moduleTags
                     .filter(t => t && t.tagId != null)

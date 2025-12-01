@@ -12,12 +12,16 @@
 
   <ItemGroup>
     <Compile Remove="Controllers\**" />
+    <Compile Remove="NewFolder\**" />
     <Compile Remove="wwwroot\**" />
     <Content Remove="Controllers\**" />
+    <Content Remove="NewFolder\**" />
     <Content Remove="wwwroot\**" />
     <EmbeddedResource Remove="Controllers\**" />
+    <EmbeddedResource Remove="NewFolder\**" />
     <EmbeddedResource Remove="wwwroot\**" />
     <None Remove="Controllers\**" />
+    <None Remove="NewFolder\**" />
     <None Remove="wwwroot\**" />
   </ItemGroup>
 
