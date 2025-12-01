@@ -467,6 +467,7 @@ export default function JournalEntryPage() {
                     journalId: parseInt(journalId),
                     title: editedTitle.trim(),
                     description: editedDescription,
+                    parentEntryId: location?.state?.parentEntryId ?? null,
                     json: entryJson
                 };
 

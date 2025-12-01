@@ -13,7 +13,7 @@ import { JournalTags } from '@/api/user/journal-tags';
  * <summary>Web Content Modal</summary>
  * <description>Modal for creating a new entry from web content by providing a URL to scrape.</description>
  */
-export default function WebContentModal({ onClose, journalId = null, defaultTagIds = null }) {
+export default function WebContentModal({ onClose, journalId = null, entryId = null, defaultTagIds = null }) {
     const navigate = useNavigate();
     const session = useSession();
     const { addTagToEntry } = JournalTags(session);
@@ -49,7 +49,7 @@ export default function WebContentModal({ onClose, journalId = null, defaultTagI
             });
 
             await webContentHub.start();
-            const result = await webContentHub.invoke('ScrapeUrl', urlToScrape, journalId);
+            const result = await webContentHub.invoke('ScrapeUrl', urlToScrape, journalId, entryId);
 
             if (result && result.success && result.entryId) {
                 if (Array.isArray(defaultTagIds) && defaultTagIds.length > 0) {

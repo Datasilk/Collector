@@ -3,7 +3,7 @@ import Icon from '@/components/ui/icon';
 import { useSession } from '@/context/session';
 import entryTypes from '../entry-types';
 
-export default function NewEntry({ journalId = null, defaultTagIds = null }) {
+export default function NewEntry({ journalId = null, entryId = null, defaultTagIds = null }) {
     const session = useSession();
 
     const [showEntryTypeDropdown, setShowEntryTypeDropdown] = useState(false);
@@ -20,6 +20,7 @@ export default function NewEntry({ journalId = null, defaultTagIds = null }) {
             <entryType.modal
                 onClose={() => session.hideModal()}
                 journalId={journalId}
+                entryId={entryId}
                 defaultTagIds={defaultTagIds}
             />
         ));

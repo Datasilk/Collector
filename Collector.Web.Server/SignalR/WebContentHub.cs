@@ -33,7 +33,7 @@ namespace Collector.Web.Server.SignalR
             _logger.LogInformation("WebContentHub instance created");
         }
 
-        public async Task<object> ScrapeUrl(string url, int journalId)
+        public async Task<object> ScrapeUrl(string url, int journalId, Guid? parentEntryId = null)
         {
             try
             {
@@ -157,6 +157,7 @@ namespace Collector.Web.Server.SignalR
                 var entry = new JournalEntry
                 {
                     JournalId = journalId,
+                    ParentEntryId = parentEntryId,
                     Title = title,
                     Description = string.Empty,
                     Url = url

@@ -314,7 +314,7 @@ export default function EntriesListModule({ module, journalId, entryId, hasUpdat
                         onFilter={handleFilterChange}
                     />
                     <div className="right-side">
-                        <NewEntry journalId={journalId} defaultTagIds={module?.tags || []} />
+                        <NewEntry journalId={journalId} entryId={entryId} defaultTagIds={module?.tags || []} />
                     </div>
                 </div>
             </div>
@@ -344,7 +344,7 @@ export default function EntriesListModule({ module, journalId, entryId, hasUpdat
                             onFilter={handleFilterChange}
                         />
                         <div className="right-side">
-                            <NewEntry journalId={journalId} defaultTagIds={module?.tags || []} />
+                            <NewEntry journalId={journalId} entryId={entryId} defaultTagIds={module?.tags || []} />
                         </div>
                         <div className="right-side">
                             <EntriesListPaging
@@ -364,7 +364,7 @@ export default function EntriesListModule({ module, journalId, entryId, hasUpdat
                     </p>
                     {!hasSearch && (
                         <div className="centered">
-                            <NewEntry journalId={journalId} defaultTagIds={module?.tags || []} />
+                            <NewEntry journalId={journalId} entryId={entryId} defaultTagIds={module?.tags || []} />
                         </div>
                     )}
                 </div>
@@ -402,7 +402,7 @@ export default function EntriesListModule({ module, journalId, entryId, hasUpdat
                         onFilter={handleFilterChange}
                     />
                     <div className="right-side">
-                        <NewEntry journalId={journalId} defaultTagIds={module?.tags || []} />
+                        <NewEntry journalId={journalId} entryId={entryId} defaultTagIds={module?.tags || []} />
                     </div>
                     <div className="right-side">
                         <EntriesListPaging
@@ -498,7 +498,7 @@ export default function EntriesListModule({ module, journalId, entryId, hasUpdat
                         onFilter={handleFilterChange}
                     />
                     <div className="right-side">
-                        <NewEntry journalId={journalId} defaultTagIds={module?.tags || []} />
+                        <NewEntry journalId={journalId} entryId={entryId} defaultTagIds={module?.tags || []} />
                     </div>
                     <div className="right-side">
                         <EntriesListPaging

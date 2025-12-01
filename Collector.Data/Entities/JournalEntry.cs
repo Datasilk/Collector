@@ -8,6 +8,7 @@ namespace Collector.Data.Entities
     {
         public Guid Id { get; set; }
         public int JournalId { get; set; }
+        public Guid? ParentEntryId { get; set; }
         public string Title { get; set; }
         public string Description { get; set; }
         public string Url { get; set; }
@@ -20,5 +21,8 @@ namespace Collector.Data.Entities
 
         [NotMapped]
         public List<JournalEntryTag> Tags { get; set; } = new List<JournalEntryTag>();
+
+        [NotMapped]
+        public string ParentEntryName { get; set; }
     }
 }

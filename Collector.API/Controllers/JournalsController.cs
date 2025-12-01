@@ -1023,11 +1023,6 @@ namespace Collector.API.Controllers
 
         #endregion
 
-
-
-
-        #endregion
-
         #region Journal Chapters
 
         [HttpPost("{journalId}/chapters/add")]

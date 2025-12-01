@@ -21,11 +21,12 @@ namespace Collector.Data.Repositories
         {
             journalEntry.Id = Guid.NewGuid();
             _dbConnection.Execute(@"INSERT INTO [dbo].[JournalEntries] 
-                ([Id], [JournalId], [Title], [Description], [Url]) 
-                VALUES (@id, @journalId, @title, @description, @url)", 
+                ([Id], [JournalId], [ParentEntryId], [Title], [Description], [Url]) 
+                VALUES (@id, @journalId, @parentEntryId, @title, @description, @url)", 
                 new { 
                     id = journalEntry.Id,
                     journalId = journalEntry.JournalId, 
+                    parentEntryId = journalEntry.ParentEntryId,
                     title = journalEntry.Title, 
                     description = journalEntry.Description,
                     url = journalEntry.Url
@@ -83,10 +84,12 @@ namespace Collector.Data.Repositories
 
         public List<JournalEntry> GetAllByJournalId(int journalId)
         {
-            return _dbConnection.Query<JournalEntry>(@"SELECT * FROM [dbo].[JournalEntries] 
-                WHERE [JournalId] = @journalId
-                AND [Status] > 0
-                ORDER BY [Created] DESC", 
+            return _dbConnection.Query<JournalEntry>(@"SELECT je.*, parent.[Title] AS ParentEntryName
+                FROM [dbo].[JournalEntries] je
+                LEFT JOIN [dbo].[JournalEntries] parent ON je.[ParentEntryId] = parent.[Id]
+                WHERE je.[JournalId] = @journalId
+                AND je.[Status] > 0
+                ORDER BY je.[Created] DESC", 
                 new { journalId }).ToList();
         }
 
@@ -162,12 +165,13 @@ namespace Collector.Data.Repositories
                 countSql = $"SELECT COUNT(*) FROM ({tagFilteredSubquery}) AS matches";
 
                 dataSql = $@"
-                    SELECT je.*
+                    SELECT je.*, parent.[Title] AS ParentEntryName
                     FROM [dbo].[JournalEntryTags] jet
                     INNER JOIN [dbo].[JournalEntries] je ON je.[Id] = jet.[JournalEntryId]
+                    LEFT JOIN [dbo].[JournalEntries] parent ON je.[ParentEntryId] = parent.[Id]
                     WHERE {baseWhere}
                       AND jet.[TagId] IN @tagIds
-                    GROUP BY je.[Id], je.[JournalId], je.[Title], je.[Description], je.[Created], je.[Modified], je.[Status], je.[ChapterId], je.[Encrypted], je.[Thumbnail], je.[Url]
+                    GROUP BY je.[Id], je.[JournalId], je.[ParentEntryId], je.[Title], je.[Description], je.[Created], je.[Modified], je.[Status], je.[ChapterId], je.[Encrypted], je.[Thumbnail], je.[Url], parent.[Title]
                     HAVING COUNT(DISTINCT jet.[TagId]) = @tagCount
                     ORDER BY {orderBy}
                     OFFSET @start ROWS FETCH NEXT @length ROWS ONLY";
@@ -178,8 +182,9 @@ namespace Collector.Data.Repositories
                 countSql = $"SELECT COUNT(*) FROM [dbo].[JournalEntries] je WHERE {baseWhere}";
 
                 dataSql = $@"
-                    SELECT *
+                    SELECT je.*, parent.[Title] AS ParentEntryName
                     FROM [dbo].[JournalEntries] je
+                    LEFT JOIN [dbo].[JournalEntries] parent ON je.[ParentEntryId] = parent.[Id]
                     WHERE {baseWhere}
                     ORDER BY {orderBy}
                     OFFSET @start ROWS FETCH NEXT @length ROWS ONLY";
@@ -207,8 +212,10 @@ namespace Collector.Data.Repositories
 
         public JournalEntry GetById(Guid journalEntryId)
         {
-            return _dbConnection.QuerySingleOrDefault<JournalEntry>(@"SELECT * FROM [dbo].[JournalEntries] 
-                WHERE [Id] = @journalEntryId", 
+            return _dbConnection.QuerySingleOrDefault<JournalEntry>(@"SELECT je.*, parent.[Title] AS ParentEntryName
+                FROM [dbo].[JournalEntries] je
+                LEFT JOIN [dbo].[JournalEntries] parent ON je.[ParentEntryId] = parent.[Id]
+                WHERE je.[Id] = @journalEntryId", 
                 new { journalEntryId });
         }
 

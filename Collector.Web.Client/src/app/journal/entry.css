@@ -19,7 +19,7 @@ body.scrolled .entry-header {
 
 .entry-header  .add-module-container{
     float:right;
-    margin-top:-1.5em
+    margin:-3.25em 0 -0.5em 0;
 }
 
 body.scrolled .entry-header  .add-module-container{
@@ -215,10 +215,14 @@ body.scrolled .entry-header  .add-module-container{
     top:0;
     min-height:3.6em;
     transition: all 0.3s ease;
+    width:100%;
+}
+
+.editing .entry-title-section{
+    width:calc(100% - 12em);
 }
 
 body.scrolled .entry-title-section {
-    top:-0.5em;
     margin: -0.5em 0 0 0;
     min-height: 2.5em;
 }
@@ -324,6 +328,8 @@ body.scrolled .entry-title-display h1 {
 body.scrolled .entry-metadata {
     margin: 0 0 2em 0.5em;
     font-size:0.7em;
+    opacity:0;
+    cursor: default;
 }
 
 body.scrolled .entry-metadata .created-date .material-symbols-rounded,
@@ -411,6 +417,11 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
 
 .add-module-container {
     position: relative;
+    margin:-2em 0 0 0;
+}
+
+body.scrolled .entry-header .add-module-container{
+    margin:-1.5em 0 -0.5em 0;
 }
 
 .add-module-button {

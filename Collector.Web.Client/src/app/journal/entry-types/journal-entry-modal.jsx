@@ -7,7 +7,7 @@ import SelectJournal from '@/components/forms/select-journal';
  * <summary>Journal Entry Modal</summary>
  * <description>Modal for creating a new journal entry by selecting category and journal.</description>
  */
-export default function JournalEntryModal({ onClose, journalId = null, defaultTagIds = null }) {
+export default function JournalEntryModal({ onClose, journalId = null, entryId = null, defaultTagIds = null }) {
     const navigate = useNavigate();
 
     const [selectedJournalId, setSelectedJournalId] = useState(journalId);
@@ -20,8 +20,17 @@ export default function JournalEntryModal({ onClose, journalId = null, defaultTa
         const journalIdToUse = id ?? selectedJournalId;
         if (journalIdToUse) {
             const navOptions = {};
+            const state = {};
+
             if (Array.isArray(defaultTagIds) && defaultTagIds.length > 0) {
-                navOptions.state = { defaultTagIds };
+                state.defaultTagIds = defaultTagIds;
+            }
+            if (entryId) {
+                state.parentEntryId = entryId;
+            }
+
+            if (Object.keys(state).length > 0) {
+                navOptions.state = state;
             }
             navigate(`/journal/${journalIdToUse}/entry/new`, navOptions);
             onClose();
