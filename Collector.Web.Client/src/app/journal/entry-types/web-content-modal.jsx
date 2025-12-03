@@ -62,7 +62,18 @@ export default function WebContentModal({ onClose, journalId = null, entryId = n
                     }
                 }
 
-                navigate(`/journal/${journalId}/entry/${result.entryId}?edit`, { replace: true });
+                const navOptions = { replace: true };
+                const state = {};
+
+                if (entryId) {
+                    state.parentEntryId = entryId;
+                }
+
+                if (Object.keys(state).length > 0) {
+                    navOptions.state = state;
+                }
+
+                navigate(`/journal/${journalId}/entry/${result.entryId}?edit`, navOptions);
                 onClose();
             }
         } catch (err) {

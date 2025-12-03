@@ -275,5 +275,13 @@ namespace Collector.Data.Repositories
                 WHERE [Id] = @journalEntryId",
                 new { journalEntryId, thumbnail });
         }
+
+        public void SetParent(Guid journalEntryId, Guid? parentEntryId)
+        {
+            _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries]
+                SET [ParentEntryId] = @parentEntryId
+                WHERE [Id] = @journalEntryId",
+                new { journalEntryId, parentEntryId });
+        }
     }
 }

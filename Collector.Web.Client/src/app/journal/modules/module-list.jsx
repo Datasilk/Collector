@@ -5,7 +5,7 @@ import ModuleList from '../module-list';
 //modules
 import modules from '../modules';
 
-export default function ModuleListModule({ module, entryId, journalId, onUpdate, isEditable = true, manuallyAdded = false }) {
+export default function ModuleListModule({ module, entryId, entry, journalId, onUpdate, isEditable = true, manuallyAdded = false }) {
     //state
     const [childModules, setChildModules] = useState(module.modules || []);
     const [showAddModuleDropdown, setShowAddModuleDropdown] = useState(false);
@@ -155,6 +155,7 @@ export default function ModuleListModule({ module, entryId, journalId, onUpdate,
             <ModuleList
                 entryJson={{ modules: childModules }}
                 entryId={entryId}
+                entry={entry}
                 journalId={journalId}
                 isEditing={isEditable}
                 canDragDrop={isEditable}

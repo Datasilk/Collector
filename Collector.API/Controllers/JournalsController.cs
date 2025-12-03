@@ -641,6 +641,32 @@ namespace Collector.API.Controllers
             }
         }
 
+        [HttpPost("entries/set-parent")]
+        public IActionResult SetEntryParent([FromBody] JournalEntryParentModel request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var entry = _entriesRepository.GetById(request.Id);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
+
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized to update this entry" });
+
+                _entriesRepository.SetParent(request.Id, request.ParentEntryId);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
         [HttpGet("entries/archive/{id}")]
         public IActionResult ArchiveEntry(Guid id)
         {

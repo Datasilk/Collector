@@ -9,7 +9,7 @@ import modules from '../modules';
 //context
 import { useSession } from '@/context/session';
 
-export default function TabsModule({ module, entryId, journalId, onUpdate, isEditable = true, manuallyAdded = false, tabButtons }) {
+export default function TabsModule({ module, entryId, entry, journalId, journal, chapters, onUpdate, isEditable = true, manuallyAdded = false, tabButtons }) {
     //state
     const [tabs, setTabs] = useState(module.tabs || []);
     const [activeTabId, setActiveTabId] = useState(null);
@@ -484,7 +484,10 @@ export default function TabsModule({ module, entryId, journalId, onUpdate, isEdi
                     <ModuleList
                         entryJson={{ modules: activeTab.modules || [] }}
                         entryId={entryId}
+                        entry={entry}
                         journalId={journalId}
+                        journal={journal}
+                        chapters={chapters}
                         isEditing={isEditable}
                         canDragDrop={isEditable}
                         updatedModule={handleUpdatedModule}

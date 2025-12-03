@@ -9,7 +9,7 @@ import EntriesListFilter from './entries-list/entries-list-filter';
 import EntriesListPaging from './entries-list/entries-list-paging';
 import NewEntry from '../components/new-entry';
 
-export default function EntriesListModule({ module, journalId, entryId, hasUpdated, chapters, isEditable = false, tabButtons, onUpdate }) {
+export default function EntriesListModule({ module, journalId, entryId, entry, hasUpdated, chapters, isEditable = false, tabButtons, onUpdate }) {
     const navigate = useNavigate();
     const session = useSession();
 
@@ -131,8 +131,20 @@ export default function EntriesListModule({ module, journalId, entryId, hasUpdat
         }
     };
 
-    const handleViewEntry = (entryId) => {
-        navigate(`/journal/${journalId}/entry/${entryId}`);
+    const handleViewEntry = (newEntry) => {
+        const navOptions = {};
+        const state = {};
+
+        if (entryId) {
+            state.parentEntryId = entryId;
+            state.parentEntryName = entry.title;
+        }
+
+        if (Object.keys(state).length > 0) {
+            navOptions.state = state;
+        }
+
+        navigate(`/journal/${journalId}/entry/${newEntry.id}`, navOptions);
     };
 
     //#endregion
@@ -244,18 +256,18 @@ export default function EntriesListModule({ module, journalId, entryId, hasUpdat
         });
     };
 
-    const getChapterText = (entry) => {
-        if (!entry.chapterId) return '';
-        const chapter = chapters.find(ch => ch.chapterId === entry.chapterId);
+    const getChapterText = (newEntry) => {
+        if (!newEntry.chapterId) return '';
+        const chapter = chapters.find(ch => ch.chapterId === newEntry.chapterId);
         if (!chapter) return '';
         return `${chapter.sort}: ${chapter.title}`;
     };
 
-    const getStatusText = (entry) => {
-        if (entry.status > 0 && entry.encrypted) {
+    const getStatusText = (newEntry) => {
+        if (newEntry.status > 0 && newEntry.encrypted) {
             return 'Private';
         }
-        switch (entry.status) {
+        switch (newEntry.status) {
             case 0: return 'Deleted';
             case 1: return 'Active';
             case 2: return 'Published';
@@ -263,11 +275,11 @@ export default function EntriesListModule({ module, journalId, entryId, hasUpdat
         }
     };
 
-    const getStatusClass = (entry) => {
-        if (entry.status > 0 && entry.encrypted) {
+    const getStatusClass = (newEntry) => {
+        if (newEntry.status > 0 && newEntry.encrypted) {
             return 'status-private';
         }
-        switch (entry.status) {
+        switch (newEntry.status) {
             case 0: return 'status-deleted';
             case 1: return 'status-active';
             case 2: return 'status-published';
@@ -275,19 +287,19 @@ export default function EntriesListModule({ module, journalId, entryId, hasUpdat
         }
     };
 
-    const getThumbnailPath = (entry) => {
-        if (!entry.thumbnail) return '';
+    const getThumbnailPath = (newEntry) => {
+        if (!newEntry.thumbnail) return '';
 
         // Get the file extension
-        const lastDotIndex = entry.thumbnail.lastIndexOf('.');
-        if (lastDotIndex === -1) return entry.thumbnail; // No extension found
+        const lastDotIndex = newEntry.thumbnail.lastIndexOf('.');
+        if (lastDotIndex === -1) return newEntry.thumbnail; // No extension found
 
         // Insert "_thumb" before the extension
-        const filenameWithoutExt = entry.thumbnail.substring(0, lastDotIndex);
-        const extension = entry.thumbnail.substring(lastDotIndex);
+        const filenameWithoutExt = newEntry.thumbnail.substring(0, lastDotIndex);
+        const extension = newEntry.thumbnail.substring(lastDotIndex);
         const thumbnailFilename = `${filenameWithoutExt}_thumb${extension}`;
 
-        return apiBasePath() + `/image/journal-entries/${entry.id}/${thumbnailFilename}`;
+        return apiBasePath() + `/image/journal-entries/${newEntry.id}/${thumbnailFilename}`;
     };
 
     const handlePagingFilter = (newStart) => {
@@ -443,19 +455,19 @@ export default function EntriesListModule({ module, journalId, entryId, hasUpdat
                             </tr>
                         </thead>
                         <tbody>
-                            {entries.map(entry => (
+                            {entries.map(newEntry => (
                                 <tr
-                                    key={'tr_' + entry.id}
-                                    onClick={() => handleViewEntry(entry.id)}
+                                    key={'tr_' + newEntry.id}
+                                    onClick={() => handleViewEntry(newEntry)}
                                 >
-                                    <td className="entry-title">{entry.title}</td>
-                                    {columns.chapter && <td className="entry-chapter">{getChapterText(entry)}</td>}
-                                    {columns.created && <td className="entry-created">{formatDate(entry.created)}</td>}
-                                    {columns.modified && <td className="entry-modified">{formatDate(entry.modified)}</td>}
+                                    <td className="entry-title">{newEntry.title}</td>
+                                    {columns.chapter && <td className="entry-chapter">{getChapterText(newEntry)}</td>}
+                                    {columns.created && <td className="entry-created">{formatDate(newEntry.created)}</td>}
+                                    {columns.modified && <td className="entry-modified">{formatDate(newEntry.modified)}</td>}
                                     {columns.status && (
                                         <td className="entry-status-column">
-                                            <span className={`entry-status status-indicator ${getStatusClass(entry)}`}>
-                                                {getStatusText(entry)}
+                                            <span className={`entry-status status-indicator ${getStatusClass(newEntry)}`}>
+                                                {getStatusText(newEntry)}
                                             </span>
                                         </td>
                                     )}
@@ -464,7 +476,7 @@ export default function EntriesListModule({ module, journalId, entryId, hasUpdat
                                             className="icon"
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                handleViewEntry(entry.id);
+                                                handleViewEntry(newEntry);
                                             }}
                                             title="View entry"
                                         >
@@ -510,29 +522,29 @@ export default function EntriesListModule({ module, journalId, entryId, hasUpdat
                     </div>
                 </div>
                 <div className="entry-cards">
-                    {entries.map(entry => (
+                    {entries.map(newEntry => (
                         <div
-                            key={'entry-card_' + entry.id}
-                            className={"entry-card" + (entry.thumbnail ? " has-thumbnail" : "")}
-                            onClick={() => handleViewEntry(entry.id)}
+                            key={'entry-card_' + newEntry.id}
+                            className={"entry-card" + (newEntry.thumbnail ? " has-thumbnail" : "")}
+                            onClick={() => handleViewEntry(newEntry)}
                         >
                             <div className="entry-card-info">
-                                <h3>{entry.title}</h3>
-                                {getChapterText(entry) && (
+                                <h3>{newEntry.title}</h3>
+                                {getChapterText(newEntry) && (
                                     <span className="entry-chapter">
                                         <div className="chapter-label">
-                                            <Icon name="book" />{getChapterText(entry)}
+                                            <Icon name="book" />{getChapterText(newEntry)}
                                         </div>
                                     </span>)}
-                                <span className="entry-created">{formatDate(entry.created)}</span>
+                                <span className="entry-created">{formatDate(newEntry.created)}</span>
                                 <span className="entry-status">
-                                    <span className={`entry-status ${getStatusClass(entry)}`}>
-                                        {getStatusText(entry)}
+                                    <span className={`entry-status ${getStatusClass(newEntry)}`}>
+                                        {getStatusText(newEntry)}
                                     </span>
                                 </span>
                             </div>
-                            {entry.thumbnail && (
-                                <div className="entry-card-thumbnail" style={{ backgroundImage: `url(${getThumbnailPath(entry)})` }}>
+                            {newEntry.thumbnail && (
+                                <div className="entry-card-thumbnail" style={{ backgroundImage: `url(${getThumbnailPath(newEntry)})` }}>
                                 </div>
                             )}
                         </div>

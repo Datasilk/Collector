@@ -23,5 +23,6 @@ namespace Collector.Data.Interfaces
         void SetPublished(Guid journalEntryId, bool isPublished);
         void SetChapter(Guid journalEntryId, int? chapterId);
         void UpdateThumbnail(Guid journalEntryId, string thumbnail);
+        void SetParent(Guid journalEntryId, Guid? parentEntryId);
     }
 }

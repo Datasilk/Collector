@@ -17,6 +17,7 @@ import modules from './modules';
 export default function ModuleList({
     entryJson,
     entryId,
+    entry,
     journalId,
     journal = null,
     chapters = [],
@@ -25,8 +26,6 @@ export default function ModuleList({
     showHoverOutline = true,
     showLabel = false,
     canAddAbove = true,
-    canPin = true,
-    canUnpin = true,
     canDelete = true,
     canResize = true,
     canDragDrop = false,
@@ -34,8 +33,6 @@ export default function ModuleList({
     addedModule,
     removedModule,
     droppedModule,
-    onPinModule,
-    onUnPinModule,
     modulesRegistry = null,
     containerId = 'main',
     fromSnapshotId = null
@@ -1237,6 +1234,7 @@ export default function ModuleList({
     //#endregion
 
     //#region Render
+    if(!entryJson) return null;
     return (
         <div
             className={`entry-modules container-${containerId}`}
@@ -1361,6 +1359,7 @@ export default function ModuleList({
                         <ModuleComponent
                             module={module}
                             entryId={entryId}
+                            entry={entry}
                             journalId={journalId}
                             journal={journal}
                             chapters={chapters}

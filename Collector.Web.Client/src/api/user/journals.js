@@ -34,6 +34,7 @@ const Journals = (args) => Api({...args, useToken:true}).endpoints(({api}) => {
         updateEntryDescription: (id, description) => api.post(`${apiPath}/entries/update-description`, { Id: id, Description: description }),
         updateEntryContent: (id, content) => api.post(`${apiPath}/entries/update-entry`, { Id: id, Content: content }),
         updateEntryCreated: (id, created) => api.post(`${apiPath}/entries/update-created`, { Id: id, Created: created }),
+        setEntryParent: (id, parentEntryId) => api.post(`${apiPath}/entries/set-parent`, { Id: id, ParentEntryId: parentEntryId }),
         archiveEntry: (id) => api.get(`${apiPath}/entries/archive/${id}`),
         unarchiveEntry: (id) => api.get(`${apiPath}/entries/unarchive/${id}`),
         publishEntry: (id) => api.get(`${apiPath}/entries/publish/${id}`),
