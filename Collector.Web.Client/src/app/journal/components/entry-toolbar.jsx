@@ -27,6 +27,7 @@ export default function EntryToolbar({
     onUpdateTitle,
     onGetEntryId,
     onAddModule,
+    onUpdateEntryJson,
     title,
     setTitle,
     hasModules,
@@ -116,9 +117,8 @@ export default function EntryToolbar({
     };
 
     const handleSettingsEntryUpdateInternal = async (newEntryJson) => {
-        // SettingsModal will call back with updated entryJson; parent is responsible
-        // for persisting via saveEntryContent through a higher-level mechanism.
-        // For now, just forward via setEntryJson if needed externally.
+        if (!newEntryJson || !onUpdateEntryJson) return;
+        await onUpdateEntryJson(newEntryJson);
     };
 
     const handleToggleHistoryDropdown = async () => {

@@ -7,6 +7,8 @@ import './styles/App.css';
 import { BrowserRouter as Router } from 'react-router-dom';
 import Routing from './routes/routing';
 import { SessionProvider } from './context/session';
+import { WorkerHubProvider } from './context/workerhub';
+import { VideoPiPProvider } from './context/videopip';
 import { addSvg } from './helpers/svg';
 
 function App() {
@@ -48,7 +50,11 @@ function App() {
   return (
     <Router>
       <SessionProvider>
-        <Routing />
+        <WorkerHubProvider>
+          <VideoPiPProvider>
+            <Routing />
+          </VideoPiPProvider>
+        </WorkerHubProvider>
       </SessionProvider>
     </Router>
   );

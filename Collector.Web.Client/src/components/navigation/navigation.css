@@ -188,3 +188,171 @@ body.scrolled .nav-container .account-icon svg {
         padding:1em 1em 1em 0;
     }
 }
+
+/* Notifications Icon */
+.notifications-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: transparent;
+  position: relative;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+body.scrolled .nav-container .notifications-icon {
+  width: 34px;
+  height: 34px;
+}
+
+.notifications-icon .material-icons,
+.notifications-icon svg {
+  font-size: 1.6rem;
+  color: #757575;
+  transition: all 0.3s ease;
+}
+
+body.scrolled .nav-container .notifications-icon .material-icons,
+body.scrolled .nav-container .notifications-icon svg {
+  font-size: 1.4rem;
+}
+
+.notifications-icon:hover {
+  background: #f5f5f5;
+}
+
+.notifications-icon:hover .material-icons,
+.notifications-icon:hover svg {
+  color: #555;
+}
+
+/* Notification Dot */
+.notification-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 10px;
+  height: 10px;
+  background: #e53935;
+  border-radius: 50%;
+  border: 2px solid #fff;
+}
+
+body.scrolled .nav-container .notification-dot {
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+}
+
+/* Notifications Popup */
+.main-header .notifications-popup {
+  position: absolute;
+  top: 4em;
+  right: 3em;
+  padding: 0;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  min-width: 320px;
+  max-width: 400px;
+  z-index: 1001;
+  overflow: hidden;
+}
+
+.notifications-popup .no-notifications {
+  padding: 2em;
+  text-align: center;
+  color: #888;
+  font-size: 0.9em;
+}
+
+.notifications-popup .notifications-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* Worker Item Styles */
+.worker-item {
+  display: flex;
+  align-items: center;
+  padding: 1em;
+  border-bottom: 1px solid rgba(0,0,0,0.07);
+  gap: 0.75em;
+}
+
+.worker-item:last-child {
+  border-bottom: none;
+}
+
+.worker-item .worker-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: #f0f0f0;
+  flex-shrink: 0;
+}
+
+.worker-item .worker-icon .material-icons,
+.worker-item .worker-icon svg {
+  font-size: 1.2rem;
+  color: #666;
+}
+
+.worker-item.video-worker .worker-icon {
+  background: #e3f2fd;
+}
+
+.worker-item.video-worker .worker-icon .material-icons,
+.worker-item.video-worker .worker-icon svg {
+  color: #1976d2;
+}
+
+.worker-item .worker-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.worker-item .worker-title {
+  font-weight: 500;
+  font-size: 0.9em;
+  color: #333;
+  margin-bottom: 0.25em;
+}
+
+.worker-item .worker-status {
+  font-size: 0.75em;
+  color: #888;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 0.5em;
+}
+
+.worker-item .worker-progress-bar {
+  height: 4px;
+  background: #e0e0e0;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.worker-item .worker-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #7c4dff, #536dfe);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.worker-item .worker-percent {
+  font-size: 0.85em;
+  font-weight: 600;
+  color: #666;
+  min-width: 40px;
+  text-align: right;
+}

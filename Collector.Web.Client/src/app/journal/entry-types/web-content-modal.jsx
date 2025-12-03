@@ -100,31 +100,36 @@ export default function WebContentModal({ onClose, journalId = null, entryId = n
             <div className="modal-form">
                 {!isScraping && (
                     <>
-                        <SelectJournal
-                            journalId={journalId}
-                            onChange={({ categoryId, journalId: selectedId, loading }) => {
-                                setSelectedJournalId(selectedId || '');
-                                setSelectionLoading(loading);
-                            }}
-                        />
-                        <Input
-                            label="URL"
-                            name="url"
-                            value={url}
-                            onInput={(e) => setUrl(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            placeholder="https://..."
-                            autoFocus
-                        />
-
-                        <div className="buttons">
-                            <button className="cancel" onClick={onClose}>Cancel</button>
-                            <button
-                                onClick={handleScrape}
-                                disabled={!url.trim() || !selectedJournalId || selectionLoading || isScraping}
-                            >
-                                Scrape
-                            </button>
+                        <div className="row">
+                            <SelectJournal
+                                journalId={journalId}
+                                onChange={({ categoryId, journalId: selectedId, loading }) => {
+                                    setSelectedJournalId(selectedId || '');
+                                    setSelectionLoading(loading);
+                                }}
+                            />
+                        </div>
+                        <div className="row">
+                            <Input
+                                label="URL"
+                                name="url"
+                                value={url}
+                                onInput={(e) => setUrl(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                placeholder="https://..."
+                                autoFocus
+                            />
+                        </div>
+                        <div className="row">
+                            <div className="buttons">
+                                <button className="cancel" onClick={onClose}>Cancel</button>
+                                <button
+                                    onClick={handleScrape}
+                                    disabled={!url.trim() || !selectedJournalId || selectionLoading || isScraping}
+                                >
+                                    Scrape
+                                </button>
+                            </div>
                         </div>
                     </>
                 )}

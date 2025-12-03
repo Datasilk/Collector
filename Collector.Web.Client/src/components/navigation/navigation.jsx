@@ -3,23 +3,64 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import './navigation.css';
 //components
 import Icon from '@/components/ui/icon';
+import workers from './workers';
 //context
 import { useSession } from '@/context/session';
+import { useWorkerHub } from '@/context/workerhub';
 
 const Navigation = () => {
   //context
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useSession();
+  const { getWorkers, progressAll, subscribe } = useWorkerHub();
 
   //state
   const [section, setSection] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [activeWorkers, setActiveWorkers] = useState([]);
+  const [workerProgress, setWorkerProgress] = useState({});
 
   //effect
   useEffect(() => {
     setSection(location.pathname.split('/')[1]);
   }, [location]);
+
+  // Fetch active workers and subscribe to progress updates
+  useEffect(() => {
+    if (!user?.token) return;
+
+    const fetchWorkers = async () => {
+      try {
+        const workerList = await getWorkers();
+        setActiveWorkers(workerList || []);
+
+        // Subscribe to each worker for progress updates
+        for (const worker of workerList || []) {
+          subscribe(worker.workerId, ({ eventName, payload }) => {
+              setWorkerProgress(prev => ({
+                ...prev,
+                [worker.workerId]: {...prev[worker.workerId], ...payload}
+              }));
+          });
+        }
+
+        // Request progress for all workers
+        if (workerList?.length > 0) {
+          await progressAll();
+        }
+      } catch (err) {
+        console.error('Error fetching workers:', err);
+      }
+    };
+
+    fetchWorkers();
+
+    // Poll for new workers every 10 seconds
+    const interval = setInterval(fetchWorkers, 10000);
+    return () => clearInterval(interval);
+  }, [user?.token]);
 
   // Dropdown logic
   const handleMouseDownUserMenu = (e) => {
@@ -49,6 +90,42 @@ const Navigation = () => {
     navigate('/login');
   }
 
+  // Notifications dropdown logic
+  const handleMouseDownNotifications = (e) => {
+    let target = e.target;
+    while (target) {
+      if (target.classList?.contains('notifications-popup') || target.classList?.contains('notifications-icon')) return;
+      target = target.parentNode;
+    }
+    setShowNotifications(false);
+    document.removeEventListener('mousedown', handleMouseDownNotifications);
+  };
+
+  const handleNotificationsClick = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setShowNotifications(!showNotifications);
+    if (!showNotifications) {
+      document.addEventListener('mousedown', handleMouseDownNotifications);
+    }
+  };
+
+  const renderWorkerComponent = (worker) => {
+    const workerConfig = workers[worker.route];
+    if (!workerConfig) return null;
+
+    const WorkerComponent = workerConfig.component;
+    const progress = workerProgress[worker.workerId];
+
+    return (
+      <WorkerComponent 
+        key={worker.workerId} 
+        worker={worker} 
+        progress={progress} 
+      />
+    );
+  };
+
   return (
     <nav className="nav-container">
       <div className="nav-left">
@@ -67,6 +144,19 @@ const Navigation = () => {
               <Link to="/admin" className={'nav-link' + (section == 'admin' ? ' selected' : '')}>Administration</Link>
             </>}
             <Link to="/journal" className={'nav-link' + (section == 'journal' ? ' selected' : '')}>Journal</Link>
+            <a href="#" title="Notifications" className="notifications-icon" onClick={handleNotificationsClick}>
+              <Icon name="notifications" />
+              {activeWorkers.length > 0 && <span className="notification-dot" />}
+            </a>
+            <div className="notifications-popup" style={{ display: showNotifications ? 'block' : 'none' }}>
+              {activeWorkers.length === 0 ? (
+                <div className="no-notifications">No active tasks</div>
+              ) : (
+                <div className="notifications-list">
+                  {activeWorkers.map(worker => renderWorkerComponent(worker))}
+                </div>
+              )}
+            </div>
             <Link to="/account" title="My Account" className={'account-icon' + (section == 'account' ? ' selected' : '')} onClick={handleUserMenuClick}>
               <Icon name="person" />
             </Link>

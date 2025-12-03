@@ -191,7 +191,6 @@ export default function EntriesListModule({ module, journalId, entryId, entry, h
         filterOptionsRef.current = newFilter;
 
         // Re-filter entries using the updated page size
-        console.log('filterEntries', newFilter);
         filterEntries(newFilter);
 
         // Persist tags and page size on the module
@@ -210,7 +209,6 @@ export default function EntriesListModule({ module, journalId, entryId, entry, h
                     }
                     : {})
             };
-            console.log('saved settings to module', updatedModule);
             onUpdate(updatedModule);
         }
     }

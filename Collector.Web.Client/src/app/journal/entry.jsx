@@ -293,7 +293,6 @@ export default function JournalEntryPage() {
     };
 
     const saveEntryContent = async (json) => {
-        console.log('save entry content', json);
         setEntryJson(json);
         if (JSON.stringify(json) == JSON.stringify(entryJsonRef.current)) {
             console.warn('No changes detected, skipping save', entryJsonRef.current);
@@ -547,6 +546,7 @@ export default function JournalEntryPage() {
                 onUpdateTitle={updateEntryTitle}
                 onGetEntryId={getEntryId}
                 onAddModule={addModule}
+                onUpdateEntryJson={saveEntryContent}
                 title={editedTitle}
                 setTitle={setEditedTitle}
                 hasModules={entryJson.modules.length > 0}

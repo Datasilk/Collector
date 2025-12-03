@@ -4,6 +4,8 @@ using Serilog.Events;
 using Collector.Common;
 using Collector.Auth.Services;
 using Collector.API.Services;
+using Collector.Web.Server.Workers;
+
 using Microsoft.AspNetCore.Http.Features;
 using Collector.Web.Server.SignalR;
 using Microsoft.AspNetCore.StaticFiles;
@@ -63,6 +65,9 @@ builder.Services.Configure<RouteOptions>(options => options.LowercaseUrls = true
 //Initilaize Collector Services
 builder.AddApiStartupService();
 builder.AddAuthService();
+
+// Register workers
+builder.Services.AddTransient<VideoWorker>();
 
 // Configure request limits for large file uploads (5GB for video files)
 builder.Services.Configure<IISServerOptions>(options =>
@@ -185,6 +190,10 @@ app.UseAuthorization();
 app.MapHub<TextEditorHub>("/text-editor");
 app.MapHub<VideoHub>("/video-download");
 app.MapHub<WebContentHub>("/web-content");
+app.MapHub<WorkerHub>("/worker");
+
+// Register worker routes
+WorkerRoutes.Register<VideoWorker>("video-worker");
 
 // Configure static files with SVG support
 var provider = new FileExtensionContentTypeProvider();

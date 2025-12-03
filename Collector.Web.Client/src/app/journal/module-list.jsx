@@ -139,7 +139,6 @@ export default function ModuleList({
     const handleUpdatedModule = (module) => {
         if (!updatedModule) return;
         const { manuallyAdded, ...cleanModule } = module;
-        console.log('updated module', cleanModule);
         updatedModule(cleanModule);
     };
     //#endregion

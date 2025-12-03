@@ -1,11 +1,12 @@
-import { useState, useRef, useEffect } from 'react';
-import * as signalR from '@microsoft/signalr';
+import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 //components
 import Icon from '@/components/ui/icon';
 import Input from '@/components/forms/input';
 import Modal from '@/components/ui/modal';
 //context
 import { useSession } from '@/context/session';
+import { useWorkerHub } from '@/context/workerhub';
+import { useVideoPiP } from '@/context/videopip';
 //api
 import { Videos } from '@/api/user/videos';
 //helpers
@@ -52,10 +53,141 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
     const downloadingRef = useRef(new Set()); // Track in-progress downloads
     const pendingLoadRef = useRef(null); // Track pending thumbnail load promise
     const controlsTimeoutRef = useRef(null); // Track controls hide timeout
+    const pipDataRef = useRef(null); // Track data for PiP registration on unmount
+    const isPlayingRef = useRef(false); // Track playing state for unmount cleanup
+    const registerPipVideoRef = useRef(null); // Track registerPipVideo for unmount
+    const clearPipVideoRef = useRef(null); // Track clearPipVideo for restoration
+    const currentTimeRef = useRef(0); // Track current playback time for PiP
 
     //context
     const session = useSession();
     const { uploadVideo, deleteVideo } = Videos(session);
+    const { call: callWorker, getWorkers, subscribe, requestProgress } = useWorkerHub();
+    const { pipVideo, registerPipVideo, clearPipVideo, pausePipVideo, getPipVideoState } = useVideoPiP();
+    
+    // Keep refs updated
+    registerPipVideoRef.current = registerPipVideo;
+    clearPipVideoRef.current = clearPipVideo;
+
+    // Check if this video should restore from PiP state on mount
+    const pendingPipRestoreRef = useRef(null);
+    
+    useEffect(() => {
+        // Check for navigation from PiP navigate button
+        const pipState = window.__pipVideoState;
+        if (pipState && pipState.moduleId === module.id && pipState.entryId == entryId) {
+            window.__pipVideoState = null;
+            
+            // If video is already loaded, restore immediately
+            if (videoRef.current && videoRef.current.readyState >= 1) {
+                // Scroll to the module container (multiple attempts for lazy loading)
+                if (pipState.scrollToVideo) {
+                    const scrollToModule = () => {
+                        const moduleElement = containerRef.current?.closest('.module');
+                        if (moduleElement) {
+                            moduleElement.scrollIntoView({ behavior: 'auto', block: 'center' });
+                        }
+                    };
+                    scrollToModule();
+                    setTimeout(scrollToModule, 300);
+                    setTimeout(scrollToModule, 700);
+                    setTimeout(scrollToModule, 1500);
+                }
+                
+                // Restore playback
+                videoRef.current.currentTime = pipState.currentTime || 0;
+                videoRef.current.volume = pipState.volume || 1;
+                videoRef.current.muted = pipState.isMuted || false;
+                setVolume(pipState.volume || 1);
+                setIsMuted(pipState.isMuted || false);
+                videoRef.current.play().catch(() => {});
+                clearPipVideoRef.current?.();
+            } else {
+                // Store for restoration when video loads
+                pendingPipRestoreRef.current = pipState;
+                setHasLoadedOnce(true);
+            }
+            return;
+        }
+        
+        // Also handle live PiP restoration (when navigating back without using the button)
+        if (pipVideo && pipVideo.moduleId === module.id && pipVideo.entryId == entryId) {
+            const livePipState = getPipVideoState();
+            if (livePipState) {
+                pendingPipRestoreRef.current = livePipState;
+                setHasLoadedOnce(true);
+            }
+        }
+    }, [pipVideo, module.id, entryId]);
+
+    // Expose method to get current video state for PiP mode
+    const getVideoState = () => {
+        if (!videoRef.current || !module.videoPath) return null;
+        return {
+            moduleId: module.id,
+            entryId: entryId,
+            journalId: journalId,
+            videoId: module.videoId,
+            videoPath: module.videoPath,
+            thumbnailPath: module.thumbnailPath,
+            url: module.url,
+            currentTime: videoRef.current.currentTime,
+            duration: videoRef.current.duration,
+            volume: videoRef.current.volume,
+            isMuted: videoRef.current.muted,
+            isPlaying: !videoRef.current.paused
+        };
+    };
+
+    // Store getVideoState on window for access from entry.jsx
+    useEffect(() => {
+        if (!window.__videoPlayers) {
+            window.__videoPlayers = {};
+        }
+        window.__videoPlayers[module.id] = {
+            getVideoState,
+            isPlaying: () => isPlaying
+        };
+        return () => {
+            if (window.__videoPlayers) {
+                delete window.__videoPlayers[module.id];
+            }
+        };
+    }, [module.id, isPlaying]);
+
+    // Keep pipDataRef up to date for PiP registration on unmount
+    useEffect(() => {
+        pipDataRef.current = {
+            moduleId: module.id,
+            entryId,
+            journalId,
+            videoId: module.videoId,
+            videoPath: module.videoPath,
+            thumbnailPath: module.thumbnailPath,
+            url: module.url
+        };
+    }, [module.id, entryId, journalId, module.videoId, module.videoPath, module.thumbnailPath, module.url]);
+
+    // Register with global PiP when unmounting while playing
+    useEffect(() => {
+        return () => {
+            // Check if video was playing when unmounting
+            // Also check that this video isn't already the one in global PiP (it was paused there)
+            const isAlreadyInPiP = window.__currentPipModuleId === pipDataRef.current?.moduleId;
+            if (isPlayingRef.current && pipDataRef.current?.videoPath && !isAlreadyInPiP) {
+                const videoState = {
+                    ...pipDataRef.current,
+                    currentTime: currentTimeRef.current, // Use ref instead of videoRef
+                    duration: videoRef.current?.duration || 0,
+                    volume: videoRef.current?.volume || 1,
+                    isMuted: videoRef.current?.muted || false,
+                    isPlaying: true
+                };
+                window.__currentPipModuleId = videoState.moduleId;
+                registerPipVideoRef.current(videoState);
+            }
+        };
+    }, []);
 
     useEffect(() => {
         moduleRef.current = module;
@@ -76,11 +208,19 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
 
     // Pause other videos when this one starts playing
     useEffect(() => {
+        // Keep isPlayingRef in sync for unmount cleanup
+        isPlayingRef.current = isPlaying;
+        
         if (isPlaying && videoRef.current) {
+            // Pause the global PiP player if it's playing
+            if (pipVideo) {
+                pausePipVideo();
+            }
+            
             // Dispatch custom event to pause other videos
             const event = new CustomEvent('videoPlaying', { 
                 detail: { videoElement: videoRef.current } 
-            });
+            }, module.id);
             window.dispatchEvent(event);
         }
     }, [isPlaying]);
@@ -138,6 +278,11 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                 entries.forEach((entry) => {
                     // Enable PiP only if video is playing and not in view
                     if (!entry.isIntersecting && isPlaying) {
+                        // Clear global PiP player only if it's a DIFFERENT video
+                        if (window.__currentPipModuleId && window.__currentPipModuleId !== module.id) {
+                            clearPipVideo();
+                        }
+                        
                         // Dispatch event to revert any existing PiP players
                         const event = new CustomEvent('requestPiPMode', { 
                             detail: { videoElement: videoRef.current } 
@@ -151,7 +296,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                             
                             // Find all parent module elements and set z-index
                             let currentElement = containerRef.current.closest('.module');
-                            let zIndex = 9999;
+                            let zIndex = 99;
                             
                             while (currentElement) {
                                 currentElement.style.zIndex = zIndex.toString();
@@ -442,6 +587,82 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         }
     };
 
+    // On mount, if this module has a pending download, attempt to reattach to an existing worker by moduleId
+    useEffect(() => {
+        const tryAttachToExistingWorker = async () => {
+            try {
+                if (!module.url || module.downloaded || isDownloading) return;
+
+                const workers = await getWorkers();
+                const worker = workers.find(w => w.customId === module.id);
+                if (!worker) return;
+
+                setIsDownloading(true);
+                setDownloadError(null);
+
+                await subscribe(worker.workerId, ({ eventName, payload }) => {
+                    switch (eventName) {
+                        case 'VideoRecordCreated': {
+                            const data = payload;
+                            moduleRef.current = {
+                                ...moduleRef.current,
+                                videoId: data.id,
+                                videoPath: data.videoPath,
+                                url: module.url,
+                                title: data.title,
+                                downloaded: false
+                            };
+                            onUpdate(moduleRef.current);
+                            break;
+                        }
+                        case 'DownloadProgress': {
+                            const { progress, status } = payload || {};
+                            if (typeof progress === 'number') setDownloadProgress(progress);
+                            if (status) setDownloadStatus(status);
+                            if (progress === 100) {
+                                setIsDownloading(false);
+                                setVideoUrl('');
+                            }
+                            break;
+                        }
+                        case 'DownloadComplete': {
+                            const data = payload || {};
+                            moduleRef.current = {
+                                ...moduleRef.current,
+                                thumbnailPath: data.thumbnailPath,
+                                downloaded: true,
+                                entryId: data.entryId
+                            };
+                            onUpdate(moduleRef.current);
+                            setIsDownloading(false);
+                            setDownloadStatus('');
+                            setDownloadProgress(100);
+                            setVideoUrl('');
+                            break;
+                        }
+                        case 'DownloadError': {
+                            const { message } = payload || {};
+                            setDownloadError(message || 'Error downloading video');
+                            setIsDownloading(false);
+                            setDownloadProgress(0);
+                            setDownloadStatus('');
+                            break;
+                        }
+                        default:
+                            break;
+                    }
+                });
+
+                // Request current progress from the worker
+                await requestProgress(worker.workerId);
+            } catch (err) {
+                console.error('Error attaching to existing video worker:', err);
+            }
+        };
+
+        tryAttachToExistingWorker();
+    }, [module.id]);
+
     const handleFileChange = async (e) => {
         if (!isEditable) return;
 
@@ -451,95 +672,83 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         uploadVideoFile(file);
     };
 
-    const handleDownloadVideo = (url) => {
+    const handleDownloadVideo = async (url) => {
         if (!url.trim()) return;
 
         setIsDownloading(true);
         setDownloadError(null);
         setDownloadProgress(0);
-        setDownloadStatus('Connecting...');
+        setDownloadStatus('Starting download...');
 
-        // Create and setup SignalR connection
-        const conn = new signalR.HubConnectionBuilder()
-            .withUrl(apiBasePath() + '/video-download', {
-                withCredentials: true,
-                skipNegotiation: true,
-                transport: signalR.HttpTransportType.WebSockets
-            })
-            .withAutomaticReconnect([0, 1000, 5000, 10000])
-            .configureLogging(signalR.LogLevel.Information)
-            .build();
-
-        conn.start().then(() => {
-            // Listen for video record creation (before download starts)
-            conn.on('VideoRecordCreated', (data) => {
-                // Update module with video ID and path immediately so entry can be saved
-                moduleRef.current = {
-                    ...moduleRef.current,
-                    videoId: data.id,
-                    videoPath: data.videoPath,
-                    url: url.trim(),
-                    title: data.title,
-                    downloaded: false
-                };
-                onUpdate(moduleRef.current);
-            });
-
-            // Listen for download progress
-            conn.on('DownloadProgress', (progress, status) => {
-                setDownloadProgress(progress);
-                setDownloadStatus(status);
-                if(progress == 100) {
-                    setIsDownloading(false);
-                    setDownloadProgress(0);
-                    setDownloadStatus('');
-                    setVideoUrl('');
-                    // Close connection after download completes
-                    conn.stop();
-                }
-            });
-
-            // Listen for download completion
-            conn.on('DownloadComplete', (data) => {
-                moduleRef.current = {
-                    ...moduleRef.current,
-                    thumbnailPath: data.thumbnailPath,
-                    downloaded: true,
-                    entryId: data.entryId
-                };
-                onUpdate(moduleRef.current);
-            });
-
-            // Listen for download errors
-            conn.on('DownloadError', (error) => {
-                console.error('Error downloading video:', error);
-                setDownloadError(error);
-                setIsDownloading(false);
-                setDownloadProgress(0);
-                setDownloadStatus('');
-
-                // Close connection on error
-                conn.stop();
-            });
-
-            // Invoke download
-
-            conn.invoke('DownloadVideo', url.trim(), parseInt(journalId), entryId, module.id)
-                .then(() => { })
-                .catch(err => {
-                    // Only show error if it's not a connection closed error after successful completion
-                    if (err.message && !err.message.includes('connection being closed')) {
-                        console.error('Error invoking DownloadVideo:', err);
-                        setDownloadError('Error sending request to download service. Please try again.');
-                        setIsDownloading(false);
+        try {
+            await callWorker('video-worker', 'DownloadVideo', {
+                url: url.trim(),
+                journalId: parseInt(journalId),
+                entryId,
+                moduleId: module.id
+            }, ({ eventName, payload }) => {
+                switch (eventName) {
+                    case 'VideoRecordCreated': {
+                        const data = payload;
+                        moduleRef.current = {
+                            ...moduleRef.current,
+                            videoId: data.id,
+                            videoPath: data.videoPath,
+                            url: url.trim(),
+                            title: data.title,
+                            downloaded: false
+                        };
+                        onUpdate(moduleRef.current);
+                        break;
                     }
-                    // Don't try to stop connection here as it may already be stopped
-                });
-        }).catch(err => {
-            console.error('Error starting SignalR connection:', err);
+                    case 'DownloadProgress': {
+                        const { progress, status } = payload || {};
+                        if (typeof progress === 'number') {
+                            setDownloadProgress(progress);
+                        }
+                        if (status) {
+                            setDownloadStatus(status);
+                        }
+                        if (progress === 100) {
+                            setIsDownloading(false);
+                            setVideoUrl('');
+                        }
+                        break;
+                    }
+                    case 'DownloadComplete': {
+                        const data = payload || {};
+                        moduleRef.current = {
+                            ...moduleRef.current,
+                            thumbnailPath: data.thumbnailPath,
+                            downloaded: true,
+                            entryId: data.entryId
+                        };
+                        onUpdate(moduleRef.current);
+                        setIsDownloading(false);
+                        setDownloadStatus('');
+                        setDownloadProgress(100);
+                        setVideoUrl('');
+                        break;
+                    }
+                    case 'DownloadError': {
+                        const { message } = payload || {};
+                        setDownloadError(message || 'Error downloading video');
+                        setIsDownloading(false);
+                        setDownloadProgress(0);
+                        setDownloadStatus('');
+                        break;
+                    }
+                    default:
+                        break;
+                }
+            }, module.id, window.location.href);
+        } catch (err) {
+            console.error('Error calling video worker:', err);
             setDownloadError('Error connecting to download service. Please try again.');
             setIsDownloading(false);
-        });
+            setDownloadProgress(0);
+            setDownloadStatus('');
+        }
     };
 
     const handleUrlKeyDown = (e) => {
@@ -601,7 +810,9 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
 
     const handleTimeUpdate = () => {
         if (!videoRef.current) return;
-        setCurrentTime(videoRef.current.currentTime);
+        const time = videoRef.current.currentTime;
+        currentTimeRef.current = time; // Keep ref in sync for PiP
+        setCurrentTime(time);
         updateBufferedProgress();
     };
 
@@ -609,6 +820,37 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         if (!videoRef.current) return;
         const videoDuration = videoRef.current.duration;
         setDuration(videoDuration);
+                
+        // Check for pending PiP restoration
+        if (pendingPipRestoreRef.current) {
+            const pipState = pendingPipRestoreRef.current;
+            pendingPipRestoreRef.current = null;
+                        
+            // Scroll to the module container (multiple attempts for lazy loading)
+            if (pipState.scrollToVideo) {
+                const scrollToModule = () => {
+                    const moduleElement = containerRef.current?.closest('.module');
+                    if (moduleElement) {
+                        moduleElement.scrollIntoView({ behavior: 'auto', block: 'center' });
+                    }
+                };
+                scrollToModule();
+                setTimeout(scrollToModule, 300);
+            }
+            
+            // Restore playback position and state
+            videoRef.current.currentTime = pipState.currentTime || 0;
+            videoRef.current.volume = pipState.volume || 1;
+            videoRef.current.muted = pipState.isMuted || false;
+            setVolume(pipState.volume || 1);
+            setIsMuted(pipState.isMuted || false);
+            
+            // Play the video
+            videoRef.current.play().catch((e) => console.error('[VideoPlayer] Play failed:', e));
+            
+            // Clear the global PiP video
+            clearPipVideoRef.current?.();
+        }
         
         // Start preloading all thumbnails in the background
         preloadAllThumbnails(videoDuration);
