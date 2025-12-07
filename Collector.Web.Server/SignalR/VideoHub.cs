@@ -416,10 +416,17 @@ namespace Collector.Web.Server.SignalR
             }
         }
 
-        private async Task<bool> GenerateThumbnail(string videoRelativePath, string thumbnailRelativePath, string videoUrl = null, int width = 0, int height = 0, bool crop = false, int seekSeconds = 1)
+        private async Task<bool> GenerateThumbnail(string videoRelativePath, string thumbnailRelativePath, string videoUrl = null, int width = 0, int height = 0, bool crop = false, int seekSeconds = -1)
         {
             var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoRelativePath);
             var thumbnailFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), thumbnailRelativePath);
+
+            // If seekSeconds is -1, calculate 10% of video duration
+            if (seekSeconds == -1)
+            {
+                var (_, _, duration) = await GetVideoMetadata(videoRelativePath);
+                seekSeconds = duration > 0 ? (int)(duration * 0.1) : 5;
+            }
 
             var success = await Videos.GenerateThumbnail(videoFullPath, thumbnailFullPath, videoUrl, width, height, crop, seekSeconds, timeoutSeconds: 30);
             

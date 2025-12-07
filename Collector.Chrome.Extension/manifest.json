@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Collector Cookie Bridge",
+  "version": "1.0.0",
+  "description": "Provides browser cookies to Collector for authenticated downloads",
+  "permissions": [
+    "cookies",
+    "storage",
+    "activeTab",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["login.html", "login.js"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "externally_connectable": {
+    "matches": [
+      "http://localhost:*/*",
+      "https://localhost:*/*",
+      "https://*.collector.ai/*"
+    ]
+  }
+}

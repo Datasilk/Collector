@@ -36,10 +36,16 @@ export default function EntriesListModule({ module, journalId, entryId, entry, h
     });
     const [totalItems, setTotalItems] = useState(0);
     const [totalPages, setTotalPages] = useState(1);
+    const [gridColumns, setGridColumns] = useState(0);
+    const [aspectRatio, setAspectRatio] = useState('5/6');
+    const [roundedCorners, setRoundedCorners] = useState(true);
 
     //refs
     const viewTypeRef = useRef(null);
     const columnsRef = useRef(null);
+    const gridColumnsRef = useRef(0);
+    const aspectRatioRef = useRef('5/6');
+    const roundedCornersRef = useRef(true);
     const filterOptionsRef = useRef(filterOptions);
 
     // effect
@@ -55,7 +61,7 @@ export default function EntriesListModule({ module, journalId, entryId, entry, h
             return updated;
         });
 
-        // initialize view type, columns, and page size from module settings
+        // initialize view type, columns, grid columns, and page size from module settings
         const moduleViewType = (module?.viewType || 'details').toLowerCase();
         const moduleColumns = module?.columns || {
             created: true,
@@ -63,12 +69,21 @@ export default function EntriesListModule({ module, journalId, entryId, entry, h
             status: true,
             chapter: true
         };
+        const moduleGridColumns = module?.gridColumns || 0;
+        const moduleAspectRatio = module?.aspectRatio || '5/6';
+        const moduleRoundedCorners = module?.roundedCorners !== false;
         const pageSize = module?.paging?.total || filterOptionsRef.current.length;
 
         viewTypeRef.current = moduleViewType;
         columnsRef.current = moduleColumns;
+        gridColumnsRef.current = moduleGridColumns;
+        aspectRatioRef.current = moduleAspectRatio;
+        roundedCornersRef.current = moduleRoundedCorners;
         setViewType(moduleViewType);
         setColumns(moduleColumns);
+        setGridColumns(moduleGridColumns);
+        setAspectRatio(moduleAspectRatio);
+        setRoundedCorners(moduleRoundedCorners);
 
         const nextFilter = {
             ...filterOptionsRef.current,
@@ -168,17 +183,26 @@ export default function EntriesListModule({ module, journalId, entryId, entry, h
                 module={module}
                 defaultViewType={viewTypeRef.current}
                 defaultColumns={columnsRef.current}
+                defaultGridColumns={gridColumnsRef.current}
+                defaultAspectRatio={aspectRatioRef.current}
+                defaultRoundedCorners={roundedCornersRef.current}
                 defaultTotal={filterOptionsRef.current.length}
                 onSaved={handleOnSavedSettings}
             />
         ));
     };
 
-    const handleOnSavedSettings = (newViewType, newColumns, entriesPerPage, tagIds) => {
+    const handleOnSavedSettings = (newViewType, newColumns, entriesPerPage, tagIds, newGridColumns, newAspectRatio, newRoundedCorners) => {
         setViewType(newViewType);
         setColumns(newColumns);
+        setGridColumns(newGridColumns);
+        setAspectRatio(newAspectRatio);
+        setRoundedCorners(newRoundedCorners);
         viewTypeRef.current = newViewType;
         columnsRef.current = newColumns;
+        gridColumnsRef.current = newGridColumns;
+        aspectRatioRef.current = newAspectRatio;
+        roundedCornersRef.current = newRoundedCorners;
 
         // Build updated filter, optionally applying a new page size
         const newFilter = {
@@ -199,6 +223,9 @@ export default function EntriesListModule({ module, journalId, entryId, entry, h
                 ...module,
                 viewType: newViewType,
                 columns: newColumns,
+                gridColumns: newGridColumns,
+                aspectRatio: newAspectRatio,
+                roundedCorners: newRoundedCorners,
                 ...(Array.isArray(tagIds) ? { tags: tagIds } : {}),
                 ...(entriesPerPage && entriesPerPage > 0
                     ? {
@@ -288,7 +315,13 @@ export default function EntriesListModule({ module, journalId, entryId, entry, h
     const getThumbnailPath = (newEntry) => {
         if (!newEntry.thumbnail) return '';
 
-        // Get the file extension
+        // Check if this is a video thumbnail (contains path separator or video extension)
+        if (newEntry.thumbnail.includes('/') || newEntry.thumbnail.includes('\\')) {
+            // Video thumbnail path - use video thumb endpoint
+            return apiBasePath() + `/video/thumb/${newEntry.thumbnail}`;
+        }
+
+        // Image thumbnail - get the file extension
         const lastDotIndex = newEntry.thumbnail.lastIndexOf('.');
         if (lastDotIndex === -1) return newEntry.thumbnail; // No extension found
 
@@ -519,11 +552,11 @@ export default function EntriesListModule({ module, journalId, entryId, entry, h
                         />
                     </div>
                 </div>
-                <div className="entry-cards">
+                <div className="entry-cards" style={gridColumns > 0 ? { gridTemplateColumns: `repeat(${gridColumns}, 1fr)` } : undefined}>
                     {entries.map(newEntry => (
                         <div
                             key={'entry-card_' + newEntry.id}
-                            className={"entry-card" + (newEntry.thumbnail ? " has-thumbnail" : "")}
+                            className={"entry-card" + (newEntry.thumbnail ? " has-thumbnail" : "") + (roundedCorners ? "" : " no-rounded")}
                             onClick={() => handleViewEntry(newEntry)}
                         >
                             <div className="entry-card-info">
@@ -545,6 +578,75 @@ export default function EntriesListModule({ module, journalId, entryId, entry, h
                                 <div className="entry-card-thumbnail" style={{ backgroundImage: `url(${getThumbnailPath(newEntry)})` }}>
                                 </div>
                             )}
+                        </div>
+                    ))}
+                </div>
+                <EntriesListPaging
+                    start={filterOptions.start}
+                    length={filterOptions.length}
+                    totalItems={totalItems}
+                    onFilter={handlePagingFilter}
+                />
+            </div>
+        );
+    }
+    //#endregion
+
+    //#region "Poster View"
+    if (viewType == 'poster') {
+        return (
+            <div className="entries-list-module">
+                <div className="entries-filter-bar tool-bar">
+                    <EntriesListFilter
+                        search={filterOptions.search}
+                        sort={sort}
+                        onFilter={handleFilterChange}
+                    />
+                    <div className="right-side">
+                        <NewEntry journalId={journalId} entryId={entryId} defaultTagIds={module?.tags || []} />
+                    </div>
+                    <div className="right-side">
+                        <EntriesListPaging
+                            start={filterOptions.start}
+                            length={filterOptions.length}
+                            totalItems={totalItems}
+                            onFilter={handlePagingFilter}
+                        />
+                    </div>
+                </div>
+                <div className="entry-posters" style={gridColumns > 0 ? { gridTemplateColumns: `repeat(${gridColumns}, 1fr)` } : undefined}>
+                    {entries.map(newEntry => (
+                        <div
+                            key={'entry-poster_' + newEntry.id}
+                            className={"entry-poster" + (roundedCorners ? "" : " no-rounded")}
+                            onClick={() => handleViewEntry(newEntry)}
+                        >
+                            <div 
+                                className="entry-poster-thumbnail" 
+                                style={{ 
+                                    backgroundImage: newEntry.thumbnail ? `url(${getThumbnailPath(newEntry)})` : 'none',
+                                    aspectRatio: aspectRatio
+                                }}
+                            >
+                                {!newEntry.thumbnail && (
+                                    <Icon name="image" />
+                                )}
+                            </div>
+                            <div className="entry-poster-info">
+                                <h3>{newEntry.title}</h3>
+                                {getChapterText(newEntry) && (
+                                    <span className="entry-chapter">
+                                        <div className="chapter-label">
+                                            <Icon name="book" />{getChapterText(newEntry)}
+                                        </div>
+                                    </span>)}
+                                <span className="entry-created">{formatDate(newEntry.created)}</span>
+                                <span className="entry-status">
+                                    <span className={`entry-status ${getStatusClass(newEntry)}`}>
+                                        {getStatusText(newEntry)}
+                                    </span>
+                                </span>
+                            </div>
                         </div>
                     ))}
                 </div>

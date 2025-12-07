@@ -36,6 +36,17 @@ namespace Collector.Web.Server.SignalR
 
             try
             {
+                // Check if a worker with the same customId already exists
+                if (!string.IsNullOrWhiteSpace(customId))
+                {
+                    var existingWorker = Workers.GetWorkerByCustomId(appUserId, customId);
+                    if (existingWorker != null)
+                    {
+                        _logger.LogInformation("Worker with customId {CustomId} already exists for user {AppUserId}, returning existing workerId {WorkerId}", customId, appUserId, existingWorker.WorkerId);
+                        return existingWorker.WorkerId;
+                    }
+                }
+
                 // Create a scope that will NOT be disposed until the worker completes
                 var scope = _serviceProvider.CreateScope();
                 var workerType = WorkerRoutes.GetWorkerType(route);
@@ -151,6 +162,58 @@ namespace Collector.Web.Server.SignalR
                 _logger.LogError(ex, "Error requesting progress for worker {WorkerId} for user {AppUserId}", workerId, appUserId);
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Called by client to respond to a cookie request from a worker.
+        /// The client gets cookies from the Chrome extension and sends them back here.
+        /// </summary>
+        /// <param name="requestId">The request ID from the RequestCookies message</param>
+        /// <param name="cookieData">Cookie data in Netscape format</param>
+        public Task CookieResponse(string requestId, string cookieData)
+        {
+            if (string.IsNullOrWhiteSpace(requestId))
+            {
+                _logger.LogWarning("CookieResponse called with empty requestId");
+                return Task.CompletedTask;
+            }
+
+            Workers.HandleCookieResponse(requestId, cookieData);
+            _logger.LogInformation("Cookie response received for request {RequestId}", requestId);
+            return Task.CompletedTask;
+        }
+        
+        /// <summary>
+        /// Register the current connection for a user to receive worker messages
+        /// </summary>
+        public Task RegisterUser(string appUserId)
+        {
+            if (string.IsNullOrWhiteSpace(appUserId))
+            {
+                _logger.LogWarning("RegisterUser called with empty appUserId");
+                return Task.CompletedTask;
+            }
+            
+            Workers.RegisterConnection(appUserId, Context.ConnectionId);
+            _connectionUsers[Context.ConnectionId] = appUserId;
+            _logger.LogInformation("Registered connection {ConnectionId} for user {AppUserId}", Context.ConnectionId, appUserId);
+            return Task.CompletedTask;
+        }
+        
+        // Store appUserId in connection context for cleanup on disconnect
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _connectionUsers = new();
+        
+        /// <summary>
+        /// Called when a client disconnects
+        /// </summary>
+        public override Task OnDisconnectedAsync(Exception? exception)
+        {
+            if (_connectionUsers.TryRemove(Context.ConnectionId, out var appUserId))
+            {
+                Workers.UnregisterConnection(appUserId, Context.ConnectionId);
+                _logger.LogInformation("Unregistered connection {ConnectionId} for user {AppUserId}", Context.ConnectionId, appUserId);
+            }
+            return base.OnDisconnectedAsync(exception);
         }
     }
 }

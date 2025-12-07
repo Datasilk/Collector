@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Modal from '@/components/ui/modal';
 import Tabs from '@/components/ui/tabs';
 import Icon from '@/components/ui/icon';
@@ -42,13 +42,41 @@ export default function SettingsModal({
     const [originalCss, setOriginalCss] = useState('');
     const [journalSaving, setJournalSaving] = useState(false);
     const [cssSaving, setCssSaving] = useState(false);
+    const [thumbnailSaving, setThumbnailSaving] = useState(false);
+    const [originalThumbnail] = useState(entry.thumbnail || null);
     const [theme] = useState('vs-dark');
 
     // Get all image modules and video modules with thumbnails from entryJson
-    const imageModules = entryJson?.modules?.filter(module => module.type === 'image') || [];
-    const videoModules = entryJson?.modules?.filter(module => module.type === 'video-player' && module.thumbnailPath) || [];
-    const thumbnailModules = [...imageModules, ...videoModules];
+    const thumbnailOptions = useMemo(() => {
+        const modules = entryJson?.modules || [];
+        const options = [];
+        let videoIndex = 0;
+        let imageIndex = 0;
 
+        modules.forEach(module => {
+            if (module.type === 'video-player' && (module.thumbnailPath || module.videoPath)) {
+                videoIndex++;
+                options.push({
+                    moduleId: module.id,
+                    path: module.thumbnailPath || module.videoPath,
+                    label: module.title || `Video ${videoIndex}`,
+                    type: 'video',
+                    thumbnailPath: module.thumbnailPath,
+                    videoId: module.videoId
+                });
+            } else if (module.type === 'image' && module.image) {
+                imageIndex++;
+                options.push({
+                    moduleId: module.id,
+                    path: module.image,
+                    label: module.caption || module.alt || `Image ${imageIndex}`,
+                    type: 'image'
+                });
+            }
+        });
+
+        return options;
+    }, [entryJson?.modules]);
     useEffect(() => {
         if (!journalId) return;
 
@@ -151,13 +179,11 @@ export default function SettingsModal({
                 promises.push(setEntryChapter(entry.id, settings.chapterId));
             }
 
+            let thumbnailModuleId = entry.thumbnailModuleId;
             if (settings.thumbnail !== originalThumbnail) {
-                const selectedModule = imageModules.find(m => m.id === settings.thumbnail);
-                if (!selectedModule) {
-                    promises.push(updateEntryThumbnail(entry.id, ''));
-                } else {
-                    promises.push(updateEntryThumbnail(entry.id, selectedModule.image));
-                }
+                const selectedOption = thumbnailOptions.find(opt => opt.path === settings.thumbnail);
+                thumbnailModuleId = selectedOption?.moduleId || null;
+                promises.push(updateEntryThumbnail(entry.id, settings.thumbnail || '', thumbnailModuleId));
             }
 
             await Promise.all(promises);
@@ -173,7 +199,8 @@ export default function SettingsModal({
                     return utcDate.toISOString();
                 })() : entry.created,
                 chapterId: settings.chapterId,
-                thumbnail: settings.thumbnail
+                thumbnail: settings.thumbnail,
+                thumbnailModuleId: thumbnailModuleId
             };
 
             setSaveStatus('saved');
@@ -282,8 +309,36 @@ export default function SettingsModal({
         }
     };
 
+    const handleCancelThumbnail = () => {
+        setSettings(prev => ({ ...prev, thumbnail: originalThumbnail }));
+    };
+
+    const handleSaveThumbnail = async () => {
+        if (settings.thumbnail === originalThumbnail) return;
+
+        setThumbnailSaving(true);
+        try {
+            // Find the moduleId for the selected thumbnail
+            const selectedOption = thumbnailOptions.find(opt => opt.path === settings.thumbnail);
+            const moduleId = selectedOption?.moduleId || null;
+
+            // settings.thumbnail is now the path directly
+            await updateEntryThumbnail(entry.id, settings.thumbnail || '', moduleId);
+
+            // Update entry with new thumbnail and moduleId
+            if (onSaved) {
+                onSaved({ ...entry, thumbnail: settings.thumbnail, thumbnailModuleId: moduleId });
+            }
+        } catch (err) {
+            console.error('Error saving thumbnail:', err);
+        } finally {
+            setThumbnailSaving(false);
+        }
+    };
+
     const hasJournalDetailsChanges = journalTitle !== originalJournalTitle;
     const hasCSSChanges = cssCode !== originalCss;
+    const hasThumbnailChanges = settings.thumbnail !== originalThumbnail;
 
     return (
         <Modal title="Entry Settings" onClose={onClose} width="600px" className={'entry-settings-modal selected-tab-' + selectedTab}>
@@ -401,52 +456,56 @@ export default function SettingsModal({
                                         onChange={handleThumbnailChange}
                                         options={[
                                             { value: '', label: 'No Thumbnail' },
-                                            ...thumbnailModules.map((module, index) => {
-                                                let label;
-                                                if (module.type === 'video-player') {
-                                                    label = module.title || `Video ${index + 1}`;
-                                                } else {
-                                                    label = module.caption || module.alt || `Image ${index + 1}`;
-                                                }
-                                                return {
-                                                    value: module.id,
-                                                    label: label
-                                                };
-                                            })
+                                            ...thumbnailOptions.map(opt => ({
+                                                value: opt.path,
+                                                label: opt.label
+                                            }))
                                         ]}
                                     />
-                                    {thumbnailModules.length === 0 && (
+                                    {thumbnailOptions.length === 0 && (
                                         <p style={{ marginTop: '10px', color: '#666', fontSize: '14px' }}>
                                             No images or videos found in this entry. Add an image or video module to select a thumbnail.
                                         </p>
                                     )}
-                                    {settings.thumbnail && thumbnailModules.length > 0 && (
+                                    {settings.thumbnail && (
                                         <div style={{ marginTop: '15px' }}>
                                             <label style={{ display: 'block', marginBottom: '8px' }}>Preview:</label>
                                             {(() => {
-                                                const selectedModule = thumbnailModules.find(m => m.id === settings.thumbnail);
-                                                if (selectedModule) {
-                                                    let imageSrc;
-                                                    if (selectedModule.type === 'video-player' && selectedModule.thumbnailPath) {
-                                                        imageSrc = apiBasePath() + `/video/thumb/${selectedModule.thumbnailPath}`;
-                                                    } else if (selectedModule.image) {
-                                                        imageSrc = apiBasePath() + `/image/journal-entries/${entry.id}/${selectedModule.image}`;
+                                                const selected = thumbnailOptions.find(opt => opt.path === settings.thumbnail);
+                                                let imageSrc;
+                                                
+                                                if (selected) {
+                                                    if (selected.type === 'video') {
+                                                        if (selected.thumbnailPath) {
+                                                            imageSrc = apiBasePath() + `/video/thumb/${selected.thumbnailPath}`;
+                                                        } else if (selected.videoId) {
+                                                            imageSrc = apiBasePath() + `/video/thumbnail/${selected.videoId}`;
+                                                        }
+                                                    } else {
+                                                        imageSrc = apiBasePath() + `/image/journal-entries/${entry.id}/${selected.path}`;
                                                     }
+                                                } else if (settings.thumbnail) {
+                                                    // Fallback for existing thumbnails not in current modules
+                                                    if (settings.thumbnail.includes('/') || settings.thumbnail.endsWith('.mp4')) {
+                                                        imageSrc = apiBasePath() + `/video/thumb/${settings.thumbnail}`;
+                                                    } else {
+                                                        imageSrc = apiBasePath() + `/image/journal-entries/${entry.id}/${settings.thumbnail}`;
+                                                    }
+                                                }
 
-                                                    if (imageSrc) {
-                                                        return (
-                                                            <img
-                                                                src={imageSrc}
-                                                                alt="Thumbnail preview"
-                                                                style={{
-                                                                    maxWidth: '100%',
-                                                                    maxHeight: '200px',
-                                                                    borderRadius: '4px',
-                                                                    border: '1px solid #ddd'
-                                                                }}
-                                                            />
-                                                        );
-                                                    }
+                                                if (imageSrc) {
+                                                    return (
+                                                        <img
+                                                            src={imageSrc}
+                                                            alt="Thumbnail preview"
+                                                            style={{
+                                                                maxWidth: '100%',
+                                                                maxHeight: '200px',
+                                                                borderRadius: '4px',
+                                                                border: '1px solid #ddd'
+                                                            }}
+                                                        />
+                                                    );
                                                 }
                                                 return null;
                                             })()}
@@ -454,6 +513,26 @@ export default function SettingsModal({
                                     )}
                                 </div>
                             </div>
+                            {hasThumbnailChanges && (
+                                <div className="buttons">
+                                    <button onClick={handleCancelThumbnail} className="cancel" disabled={thumbnailSaving}>
+                                        Cancel
+                                    </button>
+                                    <button onClick={handleSaveThumbnail} disabled={thumbnailSaving}>
+                                        {thumbnailSaving ? (
+                                            <>
+                                                <Icon name="progress_activity" spin={true} />
+                                                Saving...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Icon name="save" />
+                                                Save
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         {/* CSS Tab */}

@@ -4,6 +4,9 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Text;
+using System.Data.SQLite;
+using System.Security.Cryptography;
+using System.Runtime.Versioning;
 
 namespace Collector.Common
 {
@@ -14,12 +17,6 @@ namespace Collector.Common
         /// </summary>
         public static async Task<bool> GenerateThumbnail(string videoFullPath, string thumbnailFullPath, string videoUrl = null, int width = 0, int height = 0, bool crop = false, int seekSeconds = 1, int timeoutSeconds = 30)
         {
-            // Check if thumbnail already exists
-            if (File.Exists(thumbnailFullPath))
-            {
-                return true;
-            }
-
             // Try ffmpeg first
             var ffmpegSuccess = await GenerateThumbnailWithFfmpeg(videoFullPath, thumbnailFullPath, width, height, crop, seekSeconds, timeoutSeconds);
             
@@ -52,6 +49,12 @@ namespace Collector.Common
                 if (!Directory.Exists(directory))
                 {
                     Directory.CreateDirectory(directory);
+                }
+
+                // Delete existing thumbnail if it exists
+                if (File.Exists(thumbnailFullPath))
+                {
+                    File.Delete(thumbnailFullPath);
                 }
 
                 // Build ffmpeg arguments with optional scaling and cropping
@@ -326,5 +329,230 @@ namespace Collector.Common
 
             return (0, 0, 0);
         }
+
+        #region YouTube Cookie Extraction
+
+        private static string? _cookiesFilePath;
+        private static readonly object _cookieLock = new object();
+
+        /// <summary>
+        /// Gets the path to the YouTube cookies file, extracting from Chrome if needed.
+        /// </summary>
+        [SupportedOSPlatform("windows")]
+        public static string? GetYouTubeCookiesFilePath()
+        {
+            lock (_cookieLock)
+            {
+                if (!string.IsNullOrEmpty(_cookiesFilePath) && File.Exists(_cookiesFilePath))
+                {
+                    // Check if cookies file is less than 1 hour old
+                    var fileInfo = new FileInfo(_cookiesFilePath);
+                    if (fileInfo.LastWriteTime > DateTime.Now.AddHours(-1))
+                    {
+                        return _cookiesFilePath;
+                    }
+                }
+
+                // Extract cookies from Chrome
+                var cookiesPath = Path.Combine(Path.GetTempPath(), "youtube_cookies.txt");
+                if (ExtractYouTubeCookiesFromChrome(cookiesPath))
+                {
+                    _cookiesFilePath = cookiesPath;
+                    return _cookiesFilePath;
+                }
+
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Extracts YouTube cookies from Chrome and saves them in Netscape format.
+        /// </summary>
+        [SupportedOSPlatform("windows")]
+        public static bool ExtractYouTubeCookiesFromChrome(string outputPath)
+        {
+            try
+            {
+                var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                var chromeCookiesPath = Path.Combine(localAppData, "Google", "Chrome", "User Data", "Default", "Network", "Cookies");
+                
+                if (!File.Exists(chromeCookiesPath))
+                {
+                    // Try alternative path
+                    chromeCookiesPath = Path.Combine(localAppData, "Google", "Chrome", "User Data", "Default", "Cookies");
+                }
+
+                if (!File.Exists(chromeCookiesPath))
+                {
+                    Console.WriteLine("Chrome cookies database not found");
+                    return false;
+                }
+
+                // Get the encryption key from Chrome's Local State
+                var localStatePath = Path.Combine(localAppData, "Google", "Chrome", "User Data", "Local State");
+                byte[] encryptionKey = null;
+                
+                if (File.Exists(localStatePath))
+                {
+                    encryptionKey = GetChromeEncryptionKey(localStatePath);
+                }
+
+                // Copy the cookies database to a temp file (Chrome locks it)
+                var tempDbPath = Path.Combine(Path.GetTempPath(), $"chrome_cookies_{Guid.NewGuid()}.db");
+                File.Copy(chromeCookiesPath, tempDbPath, overwrite: true);
+
+                try
+                {
+                    var cookies = new StringBuilder();
+                    cookies.AppendLine("# Netscape HTTP Cookie File");
+                    cookies.AppendLine("# https://curl.haxx.se/rfc/cookie_spec.html");
+                    cookies.AppendLine("# This is a generated file! Do not edit.");
+                    cookies.AppendLine();
+
+                    using (var connection = new SQLiteConnection($"Data Source={tempDbPath};Version=3;Read Only=True;"))
+                    {
+                        connection.Open();
+
+                        using (var command = new SQLiteCommand(
+                            "SELECT host_key, path, is_secure, expires_utc, name, encrypted_value FROM cookies WHERE host_key LIKE '%youtube%' OR host_key LIKE '%google%'",
+                            connection))
+                        {
+                            using (var reader = command.ExecuteReader())
+                            {
+                                while (reader.Read())
+                                {
+                                    var hostKey = reader.GetString(0);
+                                    var path = reader.GetString(1);
+                                    var isSecure = reader.GetInt64(2) == 1;
+                                    var expiresUtc = reader.GetInt64(3);
+                                    var name = reader.GetString(4);
+                                    var encryptedValue = (byte[])reader["encrypted_value"];
+
+                                    var value = DecryptCookieValue(encryptedValue, encryptionKey);
+                                    
+                                    if (!string.IsNullOrEmpty(value))
+                                    {
+                                        // Convert Chrome timestamp to Unix timestamp
+                                        // Chrome uses microseconds since Jan 1, 1601
+                                        var unixExpires = (expiresUtc / 1000000) - 11644473600;
+                                        if (unixExpires < 0) unixExpires = 0;
+
+                                        // Netscape format: domain, tailmatch, path, secure, expires, name, value
+                                        var tailMatch = hostKey.StartsWith(".") ? "TRUE" : "FALSE";
+                                        var secure = isSecure ? "TRUE" : "FALSE";
+                                        
+                                        cookies.AppendLine($"{hostKey}\t{tailMatch}\t{path}\t{secure}\t{unixExpires}\t{name}\t{value}");
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    File.WriteAllText(outputPath, cookies.ToString());
+                    Console.WriteLine($"Extracted YouTube cookies to {outputPath}");
+                    return true;
+                }
+                finally
+                {
+                    // Clean up temp database
+                    try { File.Delete(tempDbPath); } catch { }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error extracting Chrome cookies: {ex.Message}");
+                return false;
+            }
+        }
+
+        [SupportedOSPlatform("windows")]
+        private static byte[]? GetChromeEncryptionKey(string localStatePath)
+        {
+            try
+            {
+                var localStateJson = File.ReadAllText(localStatePath);
+                
+                // Find the encrypted_key in the JSON
+                var keyStart = localStateJson.IndexOf("\"encrypted_key\":\"");
+                if (keyStart == -1) return null;
+                
+                keyStart += "\"encrypted_key\":\"".Length;
+                var keyEnd = localStateJson.IndexOf("\"", keyStart);
+                if (keyEnd == -1) return null;
+
+                var encryptedKeyBase64 = localStateJson.Substring(keyStart, keyEnd - keyStart);
+                var encryptedKey = Convert.FromBase64String(encryptedKeyBase64);
+
+                // Remove "DPAPI" prefix (5 bytes)
+                if (encryptedKey.Length > 5 && Encoding.ASCII.GetString(encryptedKey, 0, 5) == "DPAPI")
+                {
+                    var keyWithoutPrefix = new byte[encryptedKey.Length - 5];
+                    Array.Copy(encryptedKey, 5, keyWithoutPrefix, 0, keyWithoutPrefix.Length);
+                    
+                    // Decrypt using DPAPI
+                    return ProtectedData.Unprotect(keyWithoutPrefix, null, DataProtectionScope.CurrentUser);
+                }
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting Chrome encryption key: {ex.Message}");
+                return null;
+            }
+        }
+
+        [SupportedOSPlatform("windows")]
+        private static string DecryptCookieValue(byte[]? encryptedValue, byte[]? key)
+        {
+            try
+            {
+                if (encryptedValue == null || encryptedValue.Length == 0)
+                    return string.Empty;
+
+                // Check if it's v10/v11 encrypted (starts with "v10" or "v11")
+                if (encryptedValue.Length > 3 && encryptedValue[0] == 'v' && encryptedValue[1] == '1')
+                {
+                    if (key == null)
+                    {
+                        Console.WriteLine("No encryption key available for v10/v11 cookie");
+                        return string.Empty;
+                    }
+
+                    // v10/v11 uses AES-256-GCM
+                    // Format: "v10" or "v11" (3 bytes) + nonce (12 bytes) + ciphertext + tag (16 bytes)
+                    var nonce = new byte[12];
+                    Array.Copy(encryptedValue, 3, nonce, 0, 12);
+
+                    var ciphertextWithTag = new byte[encryptedValue.Length - 15];
+                    Array.Copy(encryptedValue, 15, ciphertextWithTag, 0, ciphertextWithTag.Length);
+
+                    var ciphertext = new byte[ciphertextWithTag.Length - 16];
+                    var tag = new byte[16];
+                    Array.Copy(ciphertextWithTag, 0, ciphertext, 0, ciphertext.Length);
+                    Array.Copy(ciphertextWithTag, ciphertext.Length, tag, 0, 16);
+
+                    var plaintext = new byte[ciphertext.Length];
+                    using (var aes = new AesGcm(key, AesGcm.TagByteSizes.MaxSize))
+                    {
+                        aes.Decrypt(nonce, ciphertext, tag, plaintext);
+                    }
+                    return Encoding.UTF8.GetString(plaintext);
+                }
+                else
+                {
+                    // Old DPAPI encryption
+                    var decrypted = ProtectedData.Unprotect(encryptedValue, null, DataProtectionScope.CurrentUser);
+                    return Encoding.UTF8.GetString(decrypted);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error decrypting cookie: {ex.Message}");
+                return string.Empty;
+            }
+        }
+
+        #endregion
     }
 }

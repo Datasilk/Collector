@@ -18,6 +18,9 @@ export default function EntriesListSettingsModal({
     module,
     defaultViewType,
     defaultColumns,
+    defaultGridColumns,
+    defaultAspectRatio,
+    defaultRoundedCorners,
     onSaved,
     defaultTotal
 }) {
@@ -28,6 +31,9 @@ export default function EntriesListSettingsModal({
         status: true,
         chapter: true
     });
+    const [gridColumns, setGridColumns] = useState(defaultGridColumns || 0);
+    const [aspectRatio, setAspectRatio] = useState(defaultAspectRatio || '5/6');
+    const [roundedCorners, setRoundedCorners] = useState(defaultRoundedCorners !== false);
     const [entriesPerPage, setEntriesPerPage] = useState(defaultTotal ? defaultTotal : 20);
     const [isSaving, setIsSaving] = useState(false);
     const [moduleTags, setModuleTags] = useState([]);
@@ -93,7 +99,7 @@ export default function EntriesListSettingsModal({
                 : [];
 
             if (onSaved) {
-                onSaved(viewType, columns, parsedEntriesPerPage, tagIds);
+                onSaved(viewType, columns, parsedEntriesPerPage, tagIds, parseInt(gridColumns, 10) || 0, aspectRatio, roundedCorners);
             }
 
             session.hideModal();
@@ -139,7 +145,8 @@ export default function EntriesListSettingsModal({
                         onChange={(e) => setViewType(e.target.value)}
                         options={[
                             { label: 'Details', value: 'details' },
-                            { label: 'Cards', value: 'cards' }
+                            { label: 'Cards', value: 'cards' },
+                            { label: 'Poster', value: 'poster' }
                         ]}
                     />
                 </div>
@@ -157,6 +164,57 @@ export default function EntriesListSettingsModal({
                         }}
                     />
                 </div>
+                {(viewType === 'cards' || viewType === 'poster') && (
+                    <div className="col-2">
+                        <Select
+                            label="Columns"
+                            name="grid-columns"
+                            value={gridColumns}
+                            onChange={(e) => setGridColumns(e.target.value)}
+                            options={[
+                                { label: 'Auto', value: 0 },
+                                { label: '1', value: 1 },
+                                { label: '2', value: 2 },
+                                { label: '3', value: 3 },
+                                { label: '4', value: 4 },
+                                { label: '5', value: 5 },
+                                { label: '6', value: 6 }
+                            ]}
+                        />
+                    </div>
+                )}
+                {(viewType === 'cards' || viewType === 'poster') && (
+                    <div className="col-2">
+                        <Select
+                            label="Aspect Ratio"
+                            name="aspect-ratio"
+                            value={aspectRatio}
+                            onChange={(e) => setAspectRatio(e.target.value)}
+                            options={[
+                                { label: '1:1 (Square)', value: '1/1' },
+                                { label: '3:2', value: '3/2' },
+                                { label: '2:3', value: '2/3' },
+                                { label: '4:3', value: '4/3' },
+                                { label: '3:4', value: '3/4' },
+                                { label: '5:6', value: '5/6' },
+                                { label: '6:5', value: '6/5' },
+                                { label: '16:9 (Widescreen)', value: '16/9' },
+                                { label: '9:16 (Portrait)', value: '9/16' },
+                                { label: '21:9 (Ultrawide)', value: '21/9' }
+                            ]}
+                        />
+                    </div>
+                )}
+                {(viewType === 'cards' || viewType === 'poster') && (
+                    <div className="col-2">
+                        <Checkbox
+                            label="Rounded Corners"
+                            name="rounded-corners"
+                            checked={roundedCorners}
+                            onChange={(checked) => setRoundedCorners(checked)}
+                        />
+                    </div>
+                )}
             </div>
             <div className="row">
                 <div className="col-2">

@@ -5,6 +5,7 @@ using Collector.Common;
 using Collector.Auth.Services;
 using Collector.API.Services;
 using Collector.Web.Server.Workers;
+using Microsoft.AspNetCore.SignalR;
 
 using Microsoft.AspNetCore.Http.Features;
 using Collector.Web.Server.SignalR;
@@ -33,14 +34,12 @@ builder.Services.AddCors(options =>
     options.AddDefaultPolicy(
         policy =>
         {
-            // For SignalR, we need to allow credentials and specify allowed origins
-            // instead of AllowAnyOrigin (which doesn't work with AllowCredentials)
-            policy.WithOrigins(
-                "http://localhost:3000",
-                "http://localhost:5173",
-                "https://localhost:7126",
-                "https://localhost:7783"
-                )
+            // Allow localhost origins and chrome-extension:// origins
+            // Using SetIsOriginAllowed to support dynamic chrome extension IDs
+            policy.SetIsOriginAllowed(origin => 
+                origin.StartsWith("chrome-extension://") || 
+                origin.StartsWith("http://localhost") ||
+                origin.StartsWith("https://localhost"))
                 .AllowAnyHeader()
                 .AllowAnyMethod()
                 .AllowCredentials();
@@ -140,12 +139,7 @@ if (File.Exists(downloadToolsScript))
 
 var app = builder.Build();
 
-//Response Headers
-app.Use(async (context, next) =>
-{
-    context.Response.Headers.Add("Access-Control-Allow-Origin", "*");
-    await next();
-});
+// Note: CORS is handled by app.UseCors() middleware below
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -191,9 +185,13 @@ app.MapHub<TextEditorHub>("/text-editor");
 app.MapHub<VideoHub>("/video-download");
 app.MapHub<WebContentHub>("/web-content");
 app.MapHub<WorkerHub>("/worker");
+app.MapHub<ChromeExtensionHub>("/chrome-extension");
 
 // Register worker routes
 WorkerRoutes.Register<VideoWorker>("video-worker");
+
+// Set WorkerHub context for worker-to-client communication
+Workers.SetHubContext(app.Services.GetRequiredService<IHubContext<WorkerHub>>());
 
 // Configure static files with SVG support
 var provider = new FileExtensionContentTypeProvider();

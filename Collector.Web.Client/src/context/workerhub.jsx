@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useRef, useState, useCallback } from 'rea
 import * as signalR from '@microsoft/signalr';
 import { apiBasePath } from '@/helpers/endpoints';
 import { useSession } from '@/context/session';
+import { getCookiesForDomain, cookiesToNetscapeFormat } from '@/helpers/cookies';
 
 const WorkerHubContext = React.createContext({
     call: async () => { throw new Error('WorkerHubProvider not mounted'); }
@@ -72,16 +73,32 @@ const WorkerHubProvider = ({ children }) => {
                 }
             });
 
+            // Handle cookie requests from workers
+            conn.on('RequestCookies', async (request) => {
+                const { requestId, workerId, domain } = request;
+                
+                try {
+                    const cookies = await getCookiesForDomain(domain);
+                    const cookieData = cookiesToNetscapeFormat(cookies);
+                    await conn.invoke('CookieResponse', requestId, cookieData);
+                } catch (error) {
+                    console.error('WorkerHub: Failed to get cookies:', error);
+                    await conn.invoke('CookieResponse', requestId, '');
+                }
+            });
+
             await conn.start();
             connectionRef.current = conn;
 
-            // After connecting, request progress updates for all existing workers
+            // After connecting, register user and request progress updates
             const currentAppUserId = session?.user?.appUserId || session?.user?.AppUser || session?.user?.id || session?.user?.userId;
             if (currentAppUserId) {
                 try {
+                    // Register this connection for the user (required for receiving cookie requests)
+                    await conn.invoke('RegisterUser', currentAppUserId);
                     await conn.invoke('ProgressAll', currentAppUserId);
                 } catch (err) {
-                    console.error('Error invoking ProgressAll on WorkerHub:', err);
+                    console.error('Error registering user on WorkerHub:', err);
                 }
             }
 

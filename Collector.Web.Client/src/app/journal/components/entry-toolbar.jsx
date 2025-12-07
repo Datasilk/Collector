@@ -16,6 +16,7 @@ import { JournalSnapshots } from '@/api/user/journal-snapshots';
 
 export default function EntryToolbar({
     entry,
+    entryJson,
     journal,
     chapters,
     isEditing,
@@ -305,7 +306,7 @@ export default function EntryToolbar({
             {showSettingsModal && (
                 <SettingsModal
                     entry={entry}
-                    entryJson={null}
+                    entryJson={entryJson}
                     journalId={journalId}
                     chapters={chapters}
                     onClose={handleCloseSettings}

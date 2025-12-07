@@ -69,6 +69,31 @@ namespace Collector.Auth.Services
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["Auth:JWT:Secret"])),
                     ClockSkew = TimeSpan.Zero
                 };
+                
+                // Handle SignalR token from cookie for web app hubs
+                // Note: ChromeExtensionHub uses its own Authenticate method instead
+                options.Events = new JwtBearerEvents
+                {
+                    OnMessageReceived = context =>
+                    {
+                        var path = context.HttpContext.Request.Path;
+                        
+                        // Check if this is a SignalR hub request (excluding chrome-extension which handles auth differently)
+                        if (path.StartsWithSegments("/text-editor") ||
+                            path.StartsWithSegments("/video-download") ||
+                            path.StartsWithSegments("/web-content") ||
+                            path.StartsWithSegments("/worker"))
+                        {
+                            // Get token from cookie
+                            if (context.Request.Cookies.TryGetValue("collector_token", out var cookieToken) && 
+                                !string.IsNullOrEmpty(cookieToken))
+                            {
+                                context.Token = cookieToken;
+                            }
+                        }
+                        return Task.CompletedTask;
+                    }
+                };
             })
             .AddPolicyScheme("JWT_OR_COOKIE", "JWT_OR_COOKIE", options =>
             {

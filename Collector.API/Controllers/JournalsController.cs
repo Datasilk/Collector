@@ -950,7 +950,7 @@ namespace Collector.API.Controllers
                 if (journal == null || journal.AppUserId != userId)
                     return Json(new ApiResponse { success = false, message = "Not authorized to update this entry" });
 
-                _entriesRepository.UpdateThumbnail(request.Id, request.Thumbnail);
+                _entriesRepository.UpdateThumbnail(request.Id, request.Thumbnail, request.ThumbnailModuleId);
                 return Json(new ApiResponse { success = true });
             }
             catch (Exception ex)

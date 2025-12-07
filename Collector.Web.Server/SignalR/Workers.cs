@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -6,6 +7,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Collector.Common;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Collector.Web.Server.SignalR
@@ -22,10 +24,88 @@ namespace Collector.Web.Server.SignalR
         public IServiceScope? Scope { get; set; }
     }
 
+    /// <summary>
+    /// Pending request from worker to client
+    /// </summary>
+    public class PendingClientRequest
+    {
+        public string RequestId { get; set; } = string.Empty;
+        public TaskCompletionSource<string> TaskCompletionSource { get; set; } = default!;
+        public CancellationTokenRegistration CancellationRegistration { get; set; }
+    }
+
     public static class Workers
     {
         private static readonly object _lock = new object();
         private static readonly Dictionary<string, List<WorkerTask>> _workersByUser = new Dictionary<string, List<WorkerTask>>();
+        
+        // Pending requests from workers to clients
+        private static readonly ConcurrentDictionary<string, PendingClientRequest> _pendingRequests = new();
+        
+        // Track user connections (appUserId -> connectionIds)
+        private static readonly ConcurrentDictionary<string, HashSet<string>> _userConnections = new();
+        
+        // Hub context for sending messages to clients
+        private static IHubContext<WorkerHub>? _workerHubContext;
+        
+        /// <summary>
+        /// Set the WorkerHub context (called during startup)
+        /// </summary>
+        public static void SetHubContext(IHubContext<WorkerHub> hubContext)
+        {
+            _workerHubContext = hubContext;
+        }
+        
+        /// <summary>
+        /// Register a user's connection
+        /// </summary>
+        public static void RegisterConnection(string appUserId, string connectionId)
+        {
+            if (string.IsNullOrEmpty(appUserId) || string.IsNullOrEmpty(connectionId)) return;
+            
+            _userConnections.AddOrUpdate(
+                appUserId,
+                _ => new HashSet<string> { connectionId },
+                (_, connections) =>
+                {
+                    lock (connections)
+                    {
+                        connections.Add(connectionId);
+                    }
+                    return connections;
+                });
+        }
+        
+        /// <summary>
+        /// Unregister a user's connection
+        /// </summary>
+        public static void UnregisterConnection(string appUserId, string connectionId)
+        {
+            if (string.IsNullOrEmpty(appUserId) || string.IsNullOrEmpty(connectionId)) return;
+            
+            if (_userConnections.TryGetValue(appUserId, out var connections))
+            {
+                lock (connections)
+                {
+                    connections.Remove(connectionId);
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Get connection IDs for a user
+        /// </summary>
+        public static IReadOnlyList<string> GetConnectionIds(string appUserId)
+        {
+            if (_userConnections.TryGetValue(appUserId, out var connections))
+            {
+                lock (connections)
+                {
+                    return connections.ToList();
+                }
+            }
+            return Array.Empty<string>();
+        }
 
         public static WorkerTask StartWorker(string appUserId, IWorker worker, string method, object?[]? args, IServiceScope? scope = null)
         {
@@ -245,6 +325,21 @@ namespace Collector.Web.Server.SignalR
             return Enumerable.Empty<(Guid WorkerId, string CustomId, string Route, string Url)>();
         }
 
+        public static WorkerTask? GetWorkerByCustomId(string appUserId, string customId)
+        {
+            if (string.IsNullOrWhiteSpace(appUserId) || string.IsNullOrWhiteSpace(customId)) return null;
+
+            lock (_lock)
+            {
+                if (_workersByUser.TryGetValue(appUserId, out var list))
+                {
+                    return list.FirstOrDefault(w => w.CustomId == customId);
+                }
+            }
+
+            return null;
+        }
+
         public static void SetRoute(string appUserId, Guid workerId, string route)
         {
             if (string.IsNullOrWhiteSpace(appUserId)) throw new ArgumentNullException(nameof(appUserId));
@@ -295,6 +390,119 @@ namespace Collector.Web.Server.SignalR
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Request cookies from the client's Chrome extension for a specific domain.
+        /// The client will communicate with the extension and return the cookies.
+        /// </summary>
+        /// <param name="appUserId">The user ID to request cookies from</param>
+        /// <param name="workerId">The worker ID making the request</param>
+        /// <param name="domain">The domain to get cookies for (e.g., "youtube.com")</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <param name="timeoutMs">Timeout in milliseconds (default 30 seconds)</param>
+        /// <returns>Cookie string in Netscape format, or empty string if failed</returns>
+        public static async Task<string> RequestCookiesFromClientAsync(
+            string appUserId,
+            Guid workerId,
+            string domain,
+            CancellationToken cancellationToken = default,
+            int timeoutMs = 30000)
+        {
+            if (_workerHubContext == null)
+            {
+                return string.Empty;
+            }
+
+            var requestId = Guid.NewGuid().ToString();
+            var tcs = new TaskCompletionSource<string>();
+
+            // Setup timeout
+            using var timeoutCts = new CancellationTokenSource(timeoutMs);
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
+            var pending = new PendingClientRequest
+            {
+                RequestId = requestId,
+                TaskCompletionSource = tcs
+            };
+
+            // Register cancellation
+            pending.CancellationRegistration = linkedCts.Token.Register(() =>
+            {
+                if (_pendingRequests.TryRemove(requestId, out _))
+                {
+                    tcs.TrySetResult(string.Empty);
+                }
+            });
+
+            _pendingRequests[requestId] = pending;
+
+            try
+            {
+                // Get user's connection IDs - only send to one connection
+                var connectionIds = GetConnectionIds(appUserId);
+                if (connectionIds.Count == 0)
+                {
+                    _pendingRequests.TryRemove(requestId, out _);
+                    return string.Empty;
+                }
+                
+                // Send request to first connection only (avoid duplicate responses)
+                await _workerHubContext.Clients.Client(connectionIds[0]).SendAsync(
+                    "RequestCookies",
+                    new { requestId, workerId, domain },
+                    linkedCts.Token);
+
+                return await tcs.Task;
+            }
+            catch (OperationCanceledException)
+            {
+                _pendingRequests.TryRemove(requestId, out _);
+                return string.Empty;
+            }
+        }
+
+        /// <summary>
+        /// Called by WorkerHub when client responds with cookies
+        /// </summary>
+        public static void HandleCookieResponse(string requestId, string cookieData)
+        {
+            if (_pendingRequests.TryRemove(requestId, out var pending))
+            {
+                pending.CancellationRegistration.Dispose();
+                pending.TaskCompletionSource.TrySetResult(cookieData ?? string.Empty);
+            }
+        }
+
+        /// <summary>
+        /// Convert cookies to Netscape format string for use with yt-dlp --cookies
+        /// </summary>
+        public static string CookiesToNetscapeFormat(List<CookieData> cookies)
+        {
+            if (cookies == null || cookies.Count == 0)
+                return string.Empty;
+
+            var lines = new List<string>
+            {
+                "# Netscape HTTP Cookie File",
+                "# https://curl.se/docs/http-cookies.html",
+                "# This file was generated by Collector Chrome Extension",
+                ""
+            };
+
+            foreach (var cookie in cookies)
+            {
+                // Netscape format: domain, flag, path, secure, expiration, name, value
+                var domain = cookie.Domain.StartsWith(".") ? cookie.Domain : "." + cookie.Domain;
+                var flag = cookie.Domain.StartsWith(".") ? "TRUE" : "FALSE";
+                var secure = cookie.Secure ? "TRUE" : "FALSE";
+                var expiration = cookie.ExpirationDate > 0 ? ((long)cookie.ExpirationDate).ToString() : "0";
+                
+                lines.Add($"{domain}\t{flag}\t{cookie.Path}\t{secure}\t{expiration}\t{cookie.Name}\t{cookie.Value}");
+            }
+
+            return string.Join("\n", lines);
         }
     }
 }

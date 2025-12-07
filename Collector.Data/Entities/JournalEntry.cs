@@ -18,6 +18,7 @@ namespace Collector.Data.Entities
         public int? ChapterId { get; set; }
         public bool Encrypted { get; set; }
         public string Thumbnail { get; set; }
+        public string ThumbnailModuleId { get; set; }
 
         [NotMapped]
         public List<JournalEntryTag> Tags { get; set; } = new List<JournalEntryTag>();

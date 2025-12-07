@@ -49,7 +49,8 @@ export default function WebContentModal({ onClose, journalId = null, entryId = n
             });
 
             await webContentHub.start();
-            const result = await webContentHub.invoke('ScrapeUrl', urlToScrape, journalId, entryId);
+            const appUserId = session?.user?.appUserId || session?.user?.AppUser || session?.user?.id || session?.user?.userId;
+            const result = await webContentHub.invoke('ScrapeUrl', urlToScrape, journalId, entryId, appUserId);
 
             if (result && result.success && result.entryId) {
                 if (Array.isArray(defaultTagIds) && defaultTagIds.length > 0) {

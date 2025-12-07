@@ -353,12 +353,24 @@ namespace Collector.API.Controllers
             }
         }
 
-        private async Task<bool> GenerateThumbnail(string videoRelativePath, string thumbnailRelativePath)
+        private async Task<bool> GenerateThumbnail(string videoRelativePath, string thumbnailRelativePath, int? seekPosition = null)
         {
             try
             {
                 var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoRelativePath);
                 var thumbnailFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), thumbnailRelativePath);
+                
+                // Use provided seek position, or calculate random position between 1-21% of video duration
+                int seekSeconds;
+                if (seekPosition.HasValue)
+                {
+                    seekSeconds = seekPosition.Value;
+                }
+                else
+                {
+                    var (_, _, duration) = await GetVideoMetadata(videoRelativePath);
+                    seekSeconds = duration > 0 ? (int)(duration * (0.01 + (new Random().NextDouble() * 0.2))) : 5;
+                }
                 
                 // Use the unified thumbnail generation method (no yt-dlp fallback for uploaded videos)
                 return await Common.Videos.GenerateThumbnail(
@@ -368,7 +380,7 @@ namespace Collector.API.Controllers
                     width: 0,
                     height: 0,
                     crop: false,
-                    seekSeconds: 1,
+                    seekSeconds: seekSeconds,
                     timeoutSeconds: 30
                 );
             }
@@ -420,6 +432,40 @@ namespace Collector.API.Controllers
             }
 
             return (0, 0, 0);
+        }
+
+        [Authorize]
+        [HttpGet("/video/generate-thumbnail/{id}")]
+        public async Task<IActionResult> GenerateThumbnailForVideo(int id, [FromQuery] int? seekPosition = null)
+        {
+            try
+            {
+                var video = await _videoRepo.GetById(id);
+                if (video == null)
+                {
+                    return Json(new ApiResponse { success = false, message = "Video not found" });
+                }
+
+                var videoPath = Path.Combine(video.JournalEntryId.ToString(), video.Filename);
+                var thumbnailFileName = $"{Path.GetFileNameWithoutExtension(video.Filename)}_thumb.jpg";
+                var thumbnailRelativePath = Path.Combine(video.JournalEntryId.ToString(), thumbnailFileName);
+
+                var success = await GenerateThumbnail(videoPath, thumbnailRelativePath, seekPosition);
+                if (!success)
+                {
+                    return Json(new ApiResponse { success = false, message = "Failed to generate thumbnail" });
+                }
+
+                return Json(new ApiResponse
+                {
+                    success = true,
+                    data = new { thumbnailPath = thumbnailRelativePath.Replace("\\", "/") }
+                });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
         }
 
         [Authorize]

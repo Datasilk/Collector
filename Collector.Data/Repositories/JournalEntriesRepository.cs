@@ -268,12 +268,12 @@ namespace Collector.Data.Repositories
                 new { journalEntryId, chapterId });
         }
 
-        public void UpdateThumbnail(Guid journalEntryId, string thumbnail)
+        public void UpdateThumbnail(Guid journalEntryId, string thumbnail, string thumbnailModuleId = null)
         {
             _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
-                SET [Thumbnail] = @thumbnail
+                SET [Thumbnail] = @thumbnail, [ThumbnailModuleId] = @thumbnailModuleId
                 WHERE [Id] = @journalEntryId",
-                new { journalEntryId, thumbnail });
+                new { journalEntryId, thumbnail, thumbnailModuleId });
         }
 
         public void SetParent(Guid journalEntryId, Guid? parentEntryId)

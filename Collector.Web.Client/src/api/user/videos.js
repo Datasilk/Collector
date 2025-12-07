@@ -24,6 +24,10 @@ const Videos = (args) => Api({...args, useToken:true}).endpoints(({api}) => {
         },
         deleteVideo: (entryId, moduleId, deleteFiles = false) => {
             return api.post('/video-delete', { EntryId: entryId, ModuleId: moduleId, DeleteFiles: deleteFiles });
+        },
+        generateThumbnail: (videoId, seekPosition = null) => {
+            const params = seekPosition !== null ? `?seekPosition=${Math.floor(seekPosition)}` : '';
+            return api.get(`/video/generate-thumbnail/${videoId}${params}`);
         }
     };
 });

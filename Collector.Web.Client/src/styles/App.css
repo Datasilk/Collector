@@ -479,3 +479,21 @@ hr{
 .global-pip-container .fullscreen-button:hover {
     color: #b9adff;
 }
+
+/* Global PiP Fullscreen */
+.global-pip-container.fullscreen {
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.global-pip-container.fullscreen video {
+    width: auto;
+    height: auto;
+    max-width: 100vw;
+    max-height: 100vh;
+    object-fit: contain;
+}

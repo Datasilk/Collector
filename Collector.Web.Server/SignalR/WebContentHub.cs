@@ -33,11 +33,11 @@ namespace Collector.Web.Server.SignalR
             _logger.LogInformation("WebContentHub instance created");
         }
 
-        public async Task<object> ScrapeUrl(string url, int journalId, Guid? parentEntryId = null)
+        public async Task<object> ScrapeUrl(string url, int journalId, Guid? parentEntryId = null, string appUserId = null)
         {
             try
             {
-                _logger.LogInformation($"ScrapeUrl called: url={url}, journalId={journalId}");
+                _logger.LogInformation($"ScrapeUrl called: url={url}, journalId={journalId}, appUserId={appUserId}");
 
                 // Notify client that scraping has started
                 await Clients.Caller.SendAsync("ScrapeStatus", $"Scraping URL {url}");
@@ -63,7 +63,7 @@ namespace Collector.Web.Server.SignalR
                     await Clients.Caller.SendAsync("ScrapeStatus", "Getting metadata from YouTube...");
 
                     // Get YouTube video title & description using yt-dlp
-                    var metadata = await GetYouTubeMetadata(videoUrl);
+                    var metadata = await GetYouTubeMetadata(videoUrl, appUserId);
                     title = metadata.Title;
                     description = metadata.Description;
 
@@ -266,7 +266,64 @@ namespace Collector.Web.Server.SignalR
             }
         }
 
-        private async Task<(string Title, string Description)> GetYouTubeMetadata(string url)
+        private static readonly string CookiesFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content", "cookies");
+
+        private string GetCookiesArgument(string appUserId)
+        {
+            if (string.IsNullOrEmpty(appUserId))
+                return string.Empty;
+
+            // Check if user has saved cookies
+            if (Guid.TryParse(appUserId, out var userId))
+            {
+                var cookiePath = Path.Combine(CookiesFolder, $"cookies-youtube-{userId}.txt");
+                if (File.Exists(cookiePath))
+                {
+                    return $"--cookies \"{cookiePath}\" ";
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private async Task<(string Title, string Description)> GetYouTubeMetadata(string url, string appUserId)
+        {
+            // First attempt with existing cookies
+            var result = await TryGetYouTubeMetadata(url, appUserId);
+            if (!string.IsNullOrEmpty(result.Title))
+            {
+                return result;
+            }
+
+            // If failed, try to get fresh cookies from extension and retry
+            _logger.LogInformation("First metadata attempt failed, requesting fresh cookies from extension for user {AppUserId}", appUserId);
+            await Clients.Caller.SendAsync("ScrapeStatus", "Refreshing YouTube cookie...");
+
+            var freshCookies = await Workers.RequestCookiesFromClientAsync(appUserId, Guid.Empty, "youtube.com", CancellationToken.None);
+            if (!string.IsNullOrEmpty(freshCookies))
+            {
+                // Save fresh cookies to main cookie file
+                if (Guid.TryParse(appUserId, out var parsedUserId))
+                {
+                    var cookiePath = Path.Combine(CookiesFolder, $"cookies-youtube-{parsedUserId}.txt");
+                    Directory.CreateDirectory(CookiesFolder);
+                    await File.WriteAllTextAsync(cookiePath, freshCookies);
+                    _logger.LogInformation("Received fresh cookies from extension, saved to {Path}", cookiePath);
+                }
+
+                // Retry with fresh cookies
+                await Clients.Caller.SendAsync("ScrapeStatus", "Retrying metadata fetch with fresh cookie...");
+                result = await TryGetYouTubeMetadata(url, appUserId);
+            }
+            else
+            {
+                _logger.LogWarning("Failed to get fresh cookies from extension for user {AppUserId}", appUserId);
+            }
+
+            return result;
+        }
+
+        private async Task<(string Title, string Description)> TryGetYouTubeMetadata(string url, string appUserId)
         {
             try
             {
@@ -274,11 +331,14 @@ namespace Collector.Web.Server.SignalR
                 // We'll create a random temp base path and let yt-dlp append .info.json.
                 var tempBaseName = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
                 var expectedJsonPath = tempBaseName + ".info.json";
+                var cookiesArg = GetCookiesArgument(appUserId);
+                var arguments = $"{cookiesArg}--skip-download --write-info-json -o \"{tempBaseName}\" \"{url}\"";
+                _logger.LogInformation("TryGetYouTubeMetadata yt-dlp arguments: {Arguments}", arguments);
 
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = "yt-dlp",
-                    Arguments = $"--skip-download --write-info-json -o \"{tempBaseName}\" \"{url}\"",
+                    Arguments = arguments,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,

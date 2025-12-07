@@ -3,16 +3,18 @@ import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 're
 import Icon from '@/components/ui/icon';
 import Input from '@/components/forms/input';
 import Modal from '@/components/ui/modal';
+import CookiesUploadModal from '@/app/journal/components/cookies-upload-modal';
 //context
 import { useSession } from '@/context/session';
 import { useWorkerHub } from '@/context/workerhub';
 import { useVideoPiP } from '@/context/videopip';
 //api
 import { Videos } from '@/api/user/videos';
+import { Cookies } from '@/api/user/cookies';
 //helpers
 import { apiBasePath } from '@/helpers/endpoints.js';
 
-export default function VideoPlayerModule({ module, entryId, journalId, onUpdate, isEditable = true, manuallyAdded = false, setDeleteListener }) {
+export default function VideoPlayerModule({ module, entryId, journalId, onUpdate, isEditable = true, manuallyAdded = false, setDeleteListener, tabButtons }) {
     //state
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
@@ -29,7 +31,10 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
-    const [volume, setVolume] = useState(1);
+    const [volume, setVolume] = useState(() => {
+        const saved = localStorage.getItem('collector:video-player:volume');
+        return saved !== null ? parseFloat(saved) : 1;
+    });
     const [isMuted, setIsMuted] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
     const [previewTime, setPreviewTime] = useState(0);
@@ -41,6 +46,8 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
     const [isFocused, setIsFocused] = useState(false);
     const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
     const [isPiPMode, setIsPiPMode] = useState(false);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [pendingDownloadUrl, setPendingDownloadUrl] = useState(null);
 
     //refs
     const fileInputRef = useRef(null);
@@ -61,23 +68,24 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
 
     //context
     const session = useSession();
-    const { uploadVideo, deleteVideo } = Videos(session);
+    const { uploadVideo, deleteVideo, generateThumbnail } = Videos(session);
+    const { checkYouTubeCookies } = Cookies(session);
     const { call: callWorker, getWorkers, subscribe, requestProgress } = useWorkerHub();
     const { pipVideo, registerPipVideo, clearPipVideo, pausePipVideo, getPipVideoState } = useVideoPiP();
-    
+
     // Keep refs updated
     registerPipVideoRef.current = registerPipVideo;
     clearPipVideoRef.current = clearPipVideo;
 
     // Check if this video should restore from PiP state on mount
     const pendingPipRestoreRef = useRef(null);
-    
+
     useEffect(() => {
         // Check for navigation from PiP navigate button
         const pipState = window.__pipVideoState;
         if (pipState && pipState.moduleId === module.id && pipState.entryId == entryId) {
             window.__pipVideoState = null;
-            
+
             // If video is already loaded, restore immediately
             if (videoRef.current && videoRef.current.readyState >= 1) {
                 // Scroll to the module container (multiple attempts for lazy loading)
@@ -93,14 +101,14 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                     setTimeout(scrollToModule, 700);
                     setTimeout(scrollToModule, 1500);
                 }
-                
+
                 // Restore playback
                 videoRef.current.currentTime = pipState.currentTime || 0;
                 videoRef.current.volume = pipState.volume || 1;
                 videoRef.current.muted = pipState.isMuted || false;
                 setVolume(pipState.volume || 1);
                 setIsMuted(pipState.isMuted || false);
-                videoRef.current.play().catch(() => {});
+                videoRef.current.play().catch(() => { });
                 clearPipVideoRef.current?.();
             } else {
                 // Store for restoration when video loads
@@ -109,7 +117,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
             }
             return;
         }
-        
+
         // Also handle live PiP restoration (when navigating back without using the button)
         if (pipVideo && pipVideo.moduleId === module.id && pipVideo.entryId == entryId) {
             const livePipState = getPipVideoState();
@@ -210,16 +218,16 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
     useEffect(() => {
         // Keep isPlayingRef in sync for unmount cleanup
         isPlayingRef.current = isPlaying;
-        
+
         if (isPlaying && videoRef.current) {
             // Pause the global PiP player if it's playing
             if (pipVideo) {
                 pausePipVideo();
             }
-            
+
             // Dispatch custom event to pause other videos
-            const event = new CustomEvent('videoPlaying', { 
-                detail: { videoElement: videoRef.current } 
+            const event = new CustomEvent('videoPlaying', {
+                detail: { videoElement: videoRef.current }
             }, module.id);
             window.dispatchEvent(event);
         }
@@ -282,38 +290,38 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                         if (window.__currentPipModuleId && window.__currentPipModuleId !== module.id) {
                             clearPipVideo();
                         }
-                        
+
                         // Dispatch event to revert any existing PiP players
-                        const event = new CustomEvent('requestPiPMode', { 
-                            detail: { videoElement: videoRef.current } 
+                        const event = new CustomEvent('requestPiPMode', {
+                            detail: { videoElement: videoRef.current }
                         });
                         window.dispatchEvent(event);
-                        
+
                         // Save current height before going into PiP mode
                         if (containerRef.current && videoPlayerRef.current) {
                             const height = videoPlayerRef.current.offsetHeight;
                             containerRef.current.style.height = `${height}px`;
-                            
+
                             // Find all parent module elements and set z-index
                             let currentElement = containerRef.current.closest('.module');
                             let zIndex = 99;
-                            
+
                             while (currentElement) {
                                 currentElement.style.zIndex = zIndex.toString();
                                 currentElement.setAttribute('data-pip-zindex', 'true');
                                 zIndex--;
-                                
+
                                 // Find next parent module
                                 currentElement = currentElement.parentElement?.closest('.module');
                             }
-                            
+
                             // Add placeholder div at bottom of entry content
                             const entryContent = document.querySelector('.entry-content');
                             if (entryContent) {
                                 // Calculate PiP player height (400px width * 9/16 aspect ratio = 225px)
                                 const pipWidth = 400;
                                 const pipHeight = pipWidth * (9 / 16);
-                                
+
                                 const placeholder = document.createElement('div');
                                 placeholder.className = 'pip-placeholder';
                                 placeholder.style.width = '100%';
@@ -327,20 +335,20 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                         // Remove fixed height when back in view
                         if (containerRef.current) {
                             containerRef.current.style.height = '';
-                            
+
                             // Remove z-index from all parent module elements
                             let currentElement = containerRef.current.closest('.module');
-                            
+
                             while (currentElement) {
                                 if (currentElement.hasAttribute('data-pip-zindex')) {
                                     currentElement.style.zIndex = '';
                                     currentElement.removeAttribute('data-pip-zindex');
                                 }
-                                
+
                                 // Find next parent module
                                 currentElement = currentElement.parentElement?.closest('.module');
                             }
-                            
+
                             // Remove placeholder div from module-list
                             const placeholder = document.querySelector(`[data-pip-placeholder="${module.id}"]`);
                             if (placeholder) {
@@ -375,27 +383,27 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                 // Remove fixed height
                 if (containerRef.current) {
                     containerRef.current.style.height = '';
-                    
+
                     // Remove z-index from all parent module elements
                     let currentElement = containerRef.current.closest('.module');
-                    
+
                     while (currentElement) {
                         if (currentElement.hasAttribute('data-pip-zindex')) {
                             currentElement.style.zIndex = '';
                             currentElement.removeAttribute('data-pip-zindex');
                         }
-                        
+
                         // Find next parent module
                         currentElement = currentElement.parentElement?.closest('.module');
                     }
-                    
+
                     // Remove placeholder div from module-list
                     const placeholder = document.querySelector(`[data-pip-placeholder="${module.id}"]`);
                     if (placeholder) {
                         placeholder.remove();
                     }
                 }
-                
+
                 setIsPiPMode(false);
             }
         };
@@ -411,10 +419,10 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         if (isDragging) {
             const handleMouseMove = (e) => handleDrag(e);
             const handleMouseUp = () => handleDragEnd();
-            
+
             document.addEventListener('mousemove', handleMouseMove);
             document.addEventListener('mouseup', handleMouseUp);
-            
+
             return () => {
                 document.removeEventListener('mousemove', handleMouseMove);
                 document.removeEventListener('mouseup', handleMouseUp);
@@ -448,10 +456,78 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
             const timeout = setTimeout(() => {
                 setShowControls(false);
             }, 3000);
-            
+
             return () => clearTimeout(timeout);
         }
     }, [module.videoPath, module.videoId]);
+
+    // Generate thumbnail if missing when video is ready to display
+    useEffect(() => {
+        const ensureThumbnail = async () => {
+            if (!module.videoId || module.thumbnailPath || !module.downloaded) return;
+
+            try {
+                const response = await generateThumbnail(module.videoId);
+                if (response.data?.success && response.data?.data?.thumbnailPath) {
+                    moduleRef.current = {
+                        ...moduleRef.current,
+                        thumbnailPath: response.data.data.thumbnailPath
+                    };
+                    onUpdate(moduleRef.current);
+                }
+            } catch (err) {
+                console.error('Error generating thumbnail:', err);
+            }
+        };
+
+        ensureThumbnail();
+    }, [module.videoId, module.thumbnailPath, module.downloaded]);
+
+    const handleSaveThumbnailAtPosition = async () => {
+        if (!module.videoId || !videoRef.current) return;
+
+        const currentTime = videoRef.current.currentTime;
+
+        // Show loading modal
+        session.showModal(() => (
+            <Modal title="Generating Thumbnail" hideButtons={true}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '20px' }}>
+                    <Icon name="progress_activity" className="spin" />
+                    <span>Generating thumbnail...</span>
+                </div>
+            </Modal>
+        ));
+
+        try {
+            const response = await generateThumbnail(module.videoId, currentTime);
+            if (response.data?.success && response.data?.data?.thumbnailPath) {
+                moduleRef.current = {
+                    ...moduleRef.current,
+                    thumbnailPath: response.data.data.thumbnailPath
+                };
+                onUpdate(moduleRef.current);
+            }
+        } catch (err) {
+            console.error('Error generating thumbnail at position:', err);
+        } finally {
+            session.hideModal();
+        }
+    };
+
+    // Update tab buttons when video player is displayed
+    const isVideoPlayerVisible = module.videoPath && (module.downloaded !== false || downloadProgress >= 95);
+
+    useEffect(() => {
+        if (!tabButtons || !isVideoPlayerVisible) return;
+
+        tabButtons([
+            {
+                icon: 'photo_camera',
+                title: 'Save thumbnail at video position',
+                callback: handleSaveThumbnailAtPosition
+            }
+        ]);
+    }, [isVideoPlayerVisible, tabButtons]);
 
     // Keyboard shortcuts handler (YouTube-style)
     useEffect(() => {
@@ -460,12 +536,12 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         const handleKeyDown = (e) => {
             // Don't trigger shortcuts if user is typing in an input
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-                return; 
+                return;
             }
 
             if (!videoRef.current) return;
             e.preventDefault();
-            switch(e.key.toLowerCase()) {
+            switch (e.key.toLowerCase()) {
                 case ' ':
                 case 'k':
                     // Space or K: Play/Pause
@@ -528,21 +604,21 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                 case ',':
                     // Comma: Previous frame (when paused)
                     if (!isPlaying) {
-                        seekRelative(-1/30); // Assuming 30fps
+                        seekRelative(-1 / 30); // Assuming 30fps
                     }
                     break;
                 case '.':
                     // Period: Next frame (when paused)
                     if (!isPlaying) {
-                        seekRelative(1/30); // Assuming 30fps
+                        seekRelative(1 / 30); // Assuming 30fps
                     }
                     break;
             }
         };
 
-        if(isFocused) document.addEventListener('keydown', handleKeyDown);
+        if (isFocused) document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [isFocused, isPlaying, volume, duration]);      
+    }, [isFocused, isPlaying, volume, duration]);
 
     const uploadVideoFile = async (file) => {
         if (!file) return;
@@ -561,7 +637,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
             const response = await uploadVideo(journalId, entryId, module.id, file, (progress, e) => {
                 setUploadProgress(progress);
                 setDownloadLoaded(e.loaded);
-                if(downloadTotal == 0) setDownloadTotal(e.total);
+                if (downloadTotal == 0) setDownloadTotal(e.total);
             });
 
             if (response.data.success) {
@@ -587,6 +663,68 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         }
     };
 
+    // Consolidated handler for worker events
+    const handleWorkerEvent = (eventName, payload, url = null) => {
+        switch (eventName) {
+            case 'VideoRecordCreated': {
+                const data = payload;
+                moduleRef.current = {
+                    ...moduleRef.current,
+                    videoId: data.id,
+                    videoPath: data.videoPath,
+                    url: url || module.url,
+                    title: data.title,
+                    downloaded: false
+                };
+                onUpdate(moduleRef.current);
+                break;
+            }
+            case 'DownloadProgress': {
+                const { progress, status } = payload || {};
+                if (typeof progress === 'number') {
+                    setDownloadProgress(progress);
+                    // Show video player when generating seek preview thumbnails (95%+)
+                    if (progress >= 95) {
+                        setHasLoadedOnce(true);
+                    }
+                }
+                if (status) setDownloadStatus(status);
+                if (progress === 100) {
+                    setIsDownloading(false);
+                    setVideoUrl('');
+                }
+                break;
+            }
+            case 'DownloadComplete': {
+                const data = payload || {};
+                moduleRef.current = {
+                    ...moduleRef.current,
+                    videoPath: data.videoPath,
+                    thumbnailPath: data.thumbnailPath,
+                    downloaded: true,
+                    entryId: data.entryId
+                };
+                onUpdate(moduleRef.current);
+                setIsDownloading(false);
+                setDownloadStatus('');
+                setDownloadProgress(100);
+                setVideoUrl('');
+                setHasLoadedOnce(true);
+                break;
+            }
+            case 'DownloadError': {
+                const { message } = payload || {};
+                setDownloadError(message || 'Error downloading video');
+                setIsDownloading(false);
+                setDownloadProgress(0);
+                setDownloadStatus('');
+                break;
+            }
+            default:
+                break;
+        }
+    };
+
     // On mount, if this module has a pending download, attempt to reattach to an existing worker by moduleId
     useEffect(() => {
         const tryAttachToExistingWorker = async () => {
@@ -601,56 +739,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                 setDownloadError(null);
 
                 await subscribe(worker.workerId, ({ eventName, payload }) => {
-                    switch (eventName) {
-                        case 'VideoRecordCreated': {
-                            const data = payload;
-                            moduleRef.current = {
-                                ...moduleRef.current,
-                                videoId: data.id,
-                                videoPath: data.videoPath,
-                                url: module.url,
-                                title: data.title,
-                                downloaded: false
-                            };
-                            onUpdate(moduleRef.current);
-                            break;
-                        }
-                        case 'DownloadProgress': {
-                            const { progress, status } = payload || {};
-                            if (typeof progress === 'number') setDownloadProgress(progress);
-                            if (status) setDownloadStatus(status);
-                            if (progress === 100) {
-                                setIsDownloading(false);
-                                setVideoUrl('');
-                            }
-                            break;
-                        }
-                        case 'DownloadComplete': {
-                            const data = payload || {};
-                            moduleRef.current = {
-                                ...moduleRef.current,
-                                thumbnailPath: data.thumbnailPath,
-                                downloaded: true,
-                                entryId: data.entryId
-                            };
-                            onUpdate(moduleRef.current);
-                            setIsDownloading(false);
-                            setDownloadStatus('');
-                            setDownloadProgress(100);
-                            setVideoUrl('');
-                            break;
-                        }
-                        case 'DownloadError': {
-                            const { message } = payload || {};
-                            setDownloadError(message || 'Error downloading video');
-                            setIsDownloading(false);
-                            setDownloadProgress(0);
-                            setDownloadStatus('');
-                            break;
-                        }
-                        default:
-                            break;
-                    }
+                    handleWorkerEvent(eventName, payload);
                 });
 
                 // Request current progress from the worker
@@ -672,9 +761,54 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         uploadVideoFile(file);
     };
 
+    const isYouTubeUrl = (url) => {
+        return url.includes('youtube.com') || url.includes('youtu.be');
+    };
+
     const handleDownloadVideo = async (url) => {
         if (!url.trim()) return;
 
+        // Check if YouTube URL and if cookies exist
+        if (isYouTubeUrl(url)) {
+            let showmodal = false;
+            try {
+                const response = await checkYouTubeCookies();
+                // Show modal if cookies don't exist
+                const cookiesExist = response.data?.success && response.data?.data?.exists === true;
+                if (!cookiesExist) {
+                    // No cookies, show upload modal
+                    setPendingDownloadUrl(url);
+                    showmodal = true;
+                }
+            } catch (err) {
+                console.warn('Failed to check cookies, showing upload modal:', err);
+                // On error, show the modal to be safe
+                setPendingDownloadUrl(url);
+                showmodal = true;
+            }
+            if (showmodal) {
+                session.showModal(() => (
+                    <CookiesUploadModal
+                        onClose={() => {
+                            session.hideModal();
+                            setPendingDownloadUrl(null);
+                        }}
+                        onSuccess={() => {
+                            session.hideModal();
+                            startDownload(url);
+                            setPendingDownloadUrl(null);
+                        }}
+                    />
+                ));
+                return;
+            }
+        }
+
+        startDownload(url);
+    };
+
+    const startDownload = async (url) => {
+        const trimmedUrl = url.trim();
         setIsDownloading(true);
         setDownloadError(null);
         setDownloadProgress(0);
@@ -682,65 +816,12 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
 
         try {
             await callWorker('video-worker', 'DownloadVideo', {
-                url: url.trim(),
+                url: trimmedUrl,
                 journalId: parseInt(journalId),
                 entryId,
                 moduleId: module.id
             }, ({ eventName, payload }) => {
-                switch (eventName) {
-                    case 'VideoRecordCreated': {
-                        const data = payload;
-                        moduleRef.current = {
-                            ...moduleRef.current,
-                            videoId: data.id,
-                            videoPath: data.videoPath,
-                            url: url.trim(),
-                            title: data.title,
-                            downloaded: false
-                        };
-                        onUpdate(moduleRef.current);
-                        break;
-                    }
-                    case 'DownloadProgress': {
-                        const { progress, status } = payload || {};
-                        if (typeof progress === 'number') {
-                            setDownloadProgress(progress);
-                        }
-                        if (status) {
-                            setDownloadStatus(status);
-                        }
-                        if (progress === 100) {
-                            setIsDownloading(false);
-                            setVideoUrl('');
-                        }
-                        break;
-                    }
-                    case 'DownloadComplete': {
-                        const data = payload || {};
-                        moduleRef.current = {
-                            ...moduleRef.current,
-                            thumbnailPath: data.thumbnailPath,
-                            downloaded: true,
-                            entryId: data.entryId
-                        };
-                        onUpdate(moduleRef.current);
-                        setIsDownloading(false);
-                        setDownloadStatus('');
-                        setDownloadProgress(100);
-                        setVideoUrl('');
-                        break;
-                    }
-                    case 'DownloadError': {
-                        const { message } = payload || {};
-                        setDownloadError(message || 'Error downloading video');
-                        setIsDownloading(false);
-                        setDownloadProgress(0);
-                        setDownloadStatus('');
-                        break;
-                    }
-                    default:
-                        break;
-                }
+                handleWorkerEvent(eventName, payload, trimmedUrl);
             }, module.id, window.location.href);
         } catch (err) {
             console.error('Error calling video worker:', err);
@@ -755,6 +836,16 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         if (e.key === 'Enter') {
             e.preventDefault();
             handleDownloadVideo(videoUrl);
+        }
+    };
+
+    const handleUrlPaste = (e) => {
+        const pastedText = e.clipboardData.getData('text');
+        if (pastedText && pastedText.trim()) {
+            e.preventDefault();
+            const url = pastedText.trim();
+            setVideoUrl(url);
+            handleDownloadVideo(url);
         }
     };
 
@@ -820,12 +911,18 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         if (!videoRef.current) return;
         const videoDuration = videoRef.current.duration;
         setDuration(videoDuration);
-                
+
+        // Apply saved volume to video element
+        const savedVolume = localStorage.getItem('collector:video-player:volume');
+        if (savedVolume !== null) {
+            videoRef.current.volume = parseFloat(savedVolume);
+        }
+
         // Check for pending PiP restoration
         if (pendingPipRestoreRef.current) {
             const pipState = pendingPipRestoreRef.current;
             pendingPipRestoreRef.current = null;
-                        
+
             // Scroll to the module container (multiple attempts for lazy loading)
             if (pipState.scrollToVideo) {
                 const scrollToModule = () => {
@@ -837,43 +934,41 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                 scrollToModule();
                 setTimeout(scrollToModule, 300);
             }
-            
+
             // Restore playback position and state
             videoRef.current.currentTime = pipState.currentTime || 0;
-            videoRef.current.volume = pipState.volume || 1;
             videoRef.current.muted = pipState.isMuted || false;
-            setVolume(pipState.volume || 1);
             setIsMuted(pipState.isMuted || false);
-            
+
             // Play the video
             videoRef.current.play().catch((e) => console.error('[VideoPlayer] Play failed:', e));
-            
+
             // Clear the global PiP video
             clearPipVideoRef.current?.();
         }
-        
+
         // Start preloading all thumbnails in the background
         preloadAllThumbnails(videoDuration);
     };
 
     const updateBufferedProgress = () => {
         if (!videoRef.current || !duration) return;
-        
+
         const buffered = videoRef.current.buffered;
         const currentTimePercent = (videoRef.current.currentTime / duration) * 100;
         const ranges = [];
-        
+
         // Collect all buffered time ranges that contain or are near the current time
         for (let i = 0; i < buffered.length; i++) {
             const startPercent = (buffered.start(i) / duration) * 100;
             const endPercent = (buffered.end(i) / duration) * 100;
-            
+
             // Only show buffered ranges that include the current position or are ahead of it
             if (endPercent >= currentTimePercent - 1) {
                 ranges.push({ start: startPercent, end: endPercent });
             }
         }
-        
+
         setBufferedRanges(ranges);
     };
 
@@ -908,30 +1003,30 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
 
     const handleSeekHover = async (e) => {
         if (!seekBarRef.current || !videoRef.current) return;
-        
+
         // Wait for any pending thumbnail load to complete
         if (pendingLoadRef.current) return;
-        
+
         const rect = seekBarRef.current.getBoundingClientRect();
         const pos = (e.clientX - rect.left) / rect.width;
         const time = Math.max(0, Math.min(pos * duration, duration));
         setPreviewTime(time);
-        
+
         // Calculate preview position with bounds checking
         // Preview is 10em wide (approximately 160px), centered with translateX(-50%)
         const previewWidth = 160; // 10em in pixels (approximate)
         const halfPreviewWidth = previewWidth / 2;
         let position = e.clientX - rect.left;
-        
+
         // Constrain position to keep preview within bounds
         position = Math.max(halfPreviewWidth, Math.min(position, rect.width - halfPreviewWidth));
-        
+
         setPreviewPosition(position);
         setShowPreview(true);
 
         // Round down to nearest 10 seconds (0, 10, 20, 30, etc.)
         const roundedTime = Math.floor(time / 10) * 10;
-        
+
         // Load thumbnail blob and track the promise
         const loadPromise = loadPreviewThumbnail(roundedTime);
         pendingLoadRef.current = loadPromise;
@@ -946,7 +1041,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
 
     const buildPreviewThumbnailUrl = (time) => {
         if (!module.videoPath) return null;
-        
+
         // Extract entry ID and video filename from videoPath
         const pathParts = module.videoPath.split('/');
         if (pathParts.length < 2) return null;
@@ -954,7 +1049,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         const entryIdFromPath = pathParts[0];
         const effectiveEntryId = module.entryId || entryIdFromPath;
         const videoFileName = pathParts[pathParts.length - 1];
-        
+
         return `${apiBasePath()}/video/preview/${effectiveEntryId}/${videoFileName}/${time}`;
     };
 
@@ -996,7 +1091,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                 reader.onerror = reject;
                 reader.readAsDataURL(blob);
             });
-            
+
             // Cache the base64 data URL
             thumbnailCacheRef.current[url] = base64DataUrl;
             setPreviewBlobUrl(base64DataUrl);
@@ -1023,7 +1118,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         const batchSize = 5;
         for (let i = 0; i < times.length; i += batchSize) {
             const batch = times.slice(i, i + batchSize);
-            
+
             // Download batch in parallel
             await Promise.all(batch.map(async (time) => {
                 const url = buildPreviewThumbnailUrl(time);
@@ -1056,7 +1151,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                         reader.onerror = reject;
                         reader.readAsDataURL(blob);
                     });
-                    
+
                     thumbnailCacheRef.current[url] = base64DataUrl;
                 } catch (error) {
                     console.error(`Error preloading thumbnail at ${time}s:`, error);
@@ -1074,6 +1169,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
     const handleVolumeChange = (e) => {
         const newVolume = parseFloat(e.target.value);
         setVolume(newVolume);
+        localStorage.setItem('collector:video-player:volume', newVolume);
         if (videoRef.current) {
             videoRef.current.volume = newVolume;
         }
@@ -1095,6 +1191,15 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
             videoPlayerRef.current.requestFullscreen();
         }
     };
+
+    // Listen for fullscreen changes
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setIsFullscreen(!!document.fullscreenElement);
+        };
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    }, []);
 
     const seekRelative = (seconds) => {
         if (!videoRef.current) return;
@@ -1197,6 +1302,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                             value={videoUrl}
                             onChange={(e) => setVideoUrl(e.target.value)}
                             onKeyDown={handleUrlKeyDown}
+                            onPaste={handleUrlPaste}
                             placeholder="Paste video URL (YouTube, etc.)"
                             style={{ width: '100%' }}
                             formGroupClassName="width-100"
@@ -1219,7 +1325,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                 </div>
             )}
 
-            {isDownloading && (
+            {isDownloading && downloadProgress < 95 && (
                 <div className="upload-progress-container">
                     {downloadStatus && (
                         <div className="processing-text">
@@ -1263,7 +1369,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                 </div>
             )}
 
-            {!isDownloading && module.videoPath && module.downloaded !== false && hasLoadedOnce && (
+            {(module.videoPath && (module.downloaded !== false || downloadProgress >= 95)) && (
                 <div className={`video-preview ${isPiPMode ? 'pip-mode' : ''}`}>
                     {module.url && !isPiPMode && (
                         <div className="video-url-icon">
@@ -1279,9 +1385,9 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                             </button>
                         </div>
                     )}
-                    <div 
+                    <div
                         ref={videoPlayerRef}
-                        className="custom-video-player"
+                        className={`custom-video-player${isFullscreen ? ' fullscreen' : ''}`}
                         onMouseEnter={handleVideoMouseEnter}
                         onMouseMove={handleVideoMouseMove}
                         onMouseLeave={handleVideoMouseLeave}
@@ -1303,9 +1409,9 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                             />
                             Your browser does not support the video tag.
                         </video>
-                        
+
                         <div className={`video-controls ${!showControls ? 'hidden' : ''}`}>
-                            <div 
+                            <div
                                 className="seek-bar-container"
                                 ref={seekBarRef}
                                 onClick={handleSeek}
@@ -1313,35 +1419,35 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                                 onMouseLeave={handleSeekLeave}
                             >
                                 <div className="seek-bar">
-                                    <div 
-                                        className="seek-bar-progress" 
+                                    <div
+                                        className="seek-bar-progress"
                                         style={{ width: `${(currentTime / duration) * 100}%` }}
                                     />
                                     {bufferedRanges.map((range, index) => (
-                                        <div 
+                                        <div
                                             key={index}
-                                            className="seek-bar-buffered" 
-                                            style={{ 
+                                            className="seek-bar-buffered"
+                                            style={{
                                                 left: `${range.start}%`,
-                                                width: `${range.end - range.start}%` 
+                                                width: `${range.end - range.start}%`
                                             }}
                                         />
                                     ))}
-                                    <div 
+                                    <div
                                         className="seek-bar-handle"
                                         style={{ left: `${(currentTime / duration) * 100}%` }}
                                         onMouseDown={handleDragStart}
                                     />
                                 </div>
-                                
+
                                 {showPreview && (
-                                    <div 
+                                    <div
                                         className="seek-preview"
                                         style={{ left: `${previewPosition}px` }}
                                     >
                                         {previewBlobUrl ? (
-                                            <img 
-                                                src={previewBlobUrl} 
+                                            <img
+                                                src={previewBlobUrl}
                                                 alt="Preview"
                                                 onError={(e) => e.target.style.display = 'none'}
                                             />
@@ -1352,35 +1458,35 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                                     </div>
                                 )}
                             </div>
-                            
+
                             <div className="video-controls-row">
                                 <button className="play-button" onClick={togglePlay}>
                                     <Icon name={isPlaying ? 'pause' : 'play_arrow'} />
                                 </button>
-                                
+
                                 <div className="time-display">
                                     {formatTime(currentTime, duration >= 600)} / {formatTime(duration)}
                                 </div>
-                            
-                            <div className="volume-controls">
-                                <button className="volume-button" onClick={toggleMute}>
-                                    <Icon name={isMuted || volume === 0 ? 'volume_off' : volume < 0.5 ? 'volume_down' : 'volume_up'} />
-                                </button>
-                                
-                                <input
-                                    type="range"
-                                    className="volume-slider"
-                                    min="0"
-                                    max="1"
-                                    step="0.01"
-                                    value={isMuted ? 0 : volume}
-                                    onChange={handleVolumeChange}
-                                    style={{
-                                        background: `linear-gradient(to right, rgba(119, 99, 237, 0.7) 0%, rgba(119, 99, 237, 0.7) ${(isMuted ? 0 : volume) * 100}%, rgba(255, 255, 255, 0.3) ${(isMuted ? 0 : volume) * 100}%, rgba(255, 255, 255, 0.3) 100%)`
-                                    }}
-                                />
-                            </div>
-                            
+
+                                <div className="volume-controls">
+                                    <button className="volume-button" onClick={toggleMute}>
+                                        <Icon name={isMuted || volume === 0 ? 'volume_off' : volume < 0.5 ? 'volume_down' : 'volume_up'} />
+                                    </button>
+
+                                    <input
+                                        type="range"
+                                        className="volume-slider"
+                                        min="0"
+                                        max="1"
+                                        step="0.01"
+                                        value={isMuted ? 0 : volume}
+                                        onChange={handleVolumeChange}
+                                        style={{
+                                            background: `linear-gradient(to right, rgba(119, 99, 237, 0.7) 0%, rgba(119, 99, 237, 0.7) ${(isMuted ? 0 : volume) * 100}%, rgba(255, 255, 255, 0.3) ${(isMuted ? 0 : volume) * 100}%, rgba(255, 255, 255, 0.3) 100%)`
+                                        }}
+                                    />
+                                </div>
+
                                 <button className="fullscreen-button" onClick={toggleFullscreen}>
                                     <Icon name="fullscreen" />
                                 </button>

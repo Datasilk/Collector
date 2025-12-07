@@ -22,7 +22,7 @@ namespace Collector.Data.Interfaces
         void SetEncrypted(Guid journalEntryId, bool encrypted);
         void SetPublished(Guid journalEntryId, bool isPublished);
         void SetChapter(Guid journalEntryId, int? chapterId);
-        void UpdateThumbnail(Guid journalEntryId, string thumbnail);
+        void UpdateThumbnail(Guid journalEntryId, string thumbnail, string thumbnailModuleId = null);
         void SetParent(Guid journalEntryId, Guid? parentEntryId);
     }
 }

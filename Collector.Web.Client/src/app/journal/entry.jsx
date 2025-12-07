@@ -161,7 +161,7 @@ export default function JournalEntryPage() {
 
                 const entryData = entryResponse.data.data.entry || entryResponse.data.data;
                 const tagsData = entryResponse.data.data.tags || entryData.tags || [];
-
+                
                 if (!entryData.parentEntryId && location?.state?.parentEntryId) {
                     try {
                         await api.setEntryParent(entryData.id, location.state.parentEntryId);
@@ -188,6 +188,8 @@ export default function JournalEntryPage() {
                                 if (module.id == null) module.id = generateRandomId();
                             });
                             setupEntry(entryData, contentJson, tagsData, false);
+                            //check if we can get a thumbnail
+                            checkEntryThumbnail(entryData, contentJson?.modules);
                         } catch (parseErr) {
                             console.error('Error parsing entry content JSON:', parseErr);
                         }
@@ -221,6 +223,51 @@ export default function JournalEntryPage() {
         setSaveStatus(null);
         setError(null); 
         window.scrollTo(0, 0);
+        checkEntryThumbnail(newEntry, newEntryJson?.modules);
+    }
+
+    const checkEntryThumbnail = async (entryData, modules) => {
+        if (!entryData || !modules) return;
+
+        // If we have a thumbnailModuleId, check if that module's thumbnail has changed
+        if (entryData.thumbnailModuleId) {
+            const sourceModule = modules.find(m => m.id === entryData.thumbnailModuleId);
+            if (sourceModule) {
+                const moduleThumbnail = sourceModule.type === 'video-player' ? sourceModule.thumbnailPath : sourceModule.image;
+                if (moduleThumbnail && moduleThumbnail !== entryData.thumbnail) {
+                    // Thumbnail has changed, update it
+                    await updateThumbnail(entryData, moduleThumbnail, entryData.thumbnailModuleId);
+                }
+            }
+            return;
+        }
+
+        // No existing thumbnail or thumbnailModuleId - find first available
+        if (entryData.thumbnail) return;
+
+        // Find first video module with thumbnailPath
+        const videoModule = modules.find(m => m.type === 'video-player' && m.thumbnailPath);
+        if (videoModule) {
+            await updateThumbnail(entryData, videoModule.thumbnailPath, videoModule.id);
+            return;
+        }
+
+        // Find first image module with image
+        const imageModule = modules.find(m => m.type === 'image' && m.image);
+        if (imageModule) {
+            await updateThumbnail(entryData, imageModule.image, imageModule.id);
+        }
+    };
+
+    const updateThumbnail = async (entryData, thumbnail, moduleId = null) => {
+        try {
+            const api = Journals(session);
+            await api.updateEntryThumbnail(entryData.id, thumbnail, moduleId);
+            setEntry({ ...entryData, thumbnail, thumbnailModuleId: moduleId });
+            entryRef.current = { ...entryData, thumbnail, thumbnailModuleId: moduleId };
+        } catch (err) {
+            console.error('Error updating entry thumbnail:', err);
+        }
     }
 
     const loadNewJournal = async (journalData) => {
@@ -299,16 +346,27 @@ export default function JournalEntryPage() {
             return;
         }
         entryJsonRef.current = json;
-        if (!entry || !entry.id || entry.id === 0 || json.modules == null || json.modules.length === 0) return;
+        
+        // Skip save if entry is not fully loaded or has no modules
+        if (!entry || !entry.id) {
+            console.warn('saveEntryContent: entry not loaded yet', entry);
+            return;
+        }
+        if (json.modules == null || json.modules.length === 0) {
+            console.warn('saveEntryContent: no modules to save');
+            return;
+        }
 
         setSaveStatus('saving');
         try {
             const api = Journals(session);
             const contentString = JSON.stringify(json);
 
+            console.log('saveEntryContent: saving entry', entry.id, contentString.length, 'bytes', contentString);
             const response = await api.updateEntryContent(entry.id, contentString);
 
             if (!response.data.success) {
+                console.error('saveEntryContent: API error', response.data);
                 return showError(response.data.message || 'Failed to save entry content');
             }
 
@@ -434,6 +492,7 @@ export default function JournalEntryPage() {
         if (index > -1) {
             updatedModules[index] = updatedModule;
             saveEntryContent({ ...entryJsonRef.current, modules: updatedModules });
+            checkEntryThumbnail(entryRef.current, updatedModules);
         }
     };
 
@@ -453,6 +512,7 @@ export default function JournalEntryPage() {
         };
 
         saveEntryContent(updatedEntryJson);
+        checkEntryThumbnail(entryRef.current, updatedModules);
     };
 
     const handleRemovedModule = (moduleId, updatedModules) => {
@@ -535,6 +595,7 @@ export default function JournalEntryPage() {
         <div className={"journal-entry-page " + (isEditing ? " editing" : "preview")}>
             <EntryToolbar
                 entry={entry}
+                entryJson={entryJson}
                 journal={journal}
                 chapters={chapters}
                 isEditing={isEditing}

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      width: 280px;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+    }
+    h3 {
+      margin: 0 0 12px 0;
+      color: #333;
+      font-size: 16px;
+    }
+    .status {
+      padding: 8px 12px;
+      border-radius: 4px;
+      margin-bottom: 12px;
+      font-size: 13px;
+    }
+    .status.connected {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+    .status.disconnected {
+      background: #ffebee;
+      color: #c62828;
+    }
+    .status.connecting {
+      background: #fff3e0;
+      color: #ef6c00;
+    }
+    button {
+      width: 100%;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background-color 0.2s;
+    }
+    button.primary {
+      background: #1976d2;
+      color: white;
+    }
+    button.primary:hover {
+      background: #1565c0;
+    }
+    button.danger {
+      background: #d32f2f;
+      color: white;
+      margin-top: 8px;
+    }
+    button.danger:hover {
+      background: #c62828;
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .user-info {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 12px;
+    }
+    button.secondary {
+      background: #757575;
+      color: white;
+      margin-top: 8px;
+    }
+    button.secondary:hover {
+      background: #616161;
+    }
+    .logs-container {
+      margin-top: 12px;
+      display: none;
+    }
+    .logs-container.visible {
+      display: block;
+    }
+    .logs {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 11px;
+      padding: 8px;
+      border-radius: 4px;
+      height: 200px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .logs .log-entry {
+      margin-bottom: 4px;
+      line-height: 1.4;
+    }
+    .logs .log-time {
+      color: #6a9955;
+    }
+    .logs .log-info {
+      color: #9cdcfe;
+    }
+    .logs .log-error {
+      color: #f48771;
+    }
+    .logs .log-cookie {
+      color: #dcdcaa;
+    }
+  </style>
+</head>
+<body>
+  <h3>Collector Cookie Bridge</h3>
+  <div id="status" class="status disconnected">Not connected</div>
+  <div id="userInfo" class="user-info" style="display: none;"></div>
+  <button id="authBtn" class="primary">Authenticate</button>
+  <button id="logoutBtn" class="danger" style="display: none;">Logout</button>
+  <button id="logsBtn" class="secondary">View Logs</button>
+  <div id="logsContainer" class="logs-container">
+    <div id="logs" class="logs"></div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

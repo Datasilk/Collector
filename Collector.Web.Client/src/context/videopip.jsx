@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiBasePath } from '@/helpers/endpoints.js';
 import Icon from '@/components/ui/icon';
@@ -13,11 +13,14 @@ export function VideoPiPProvider({ children }) {
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
-    const [volume, setVolume] = useState(1);
+    const [volume, setVolume] = useState(() => {
+        const saved = localStorage.getItem('collector:video-player:volume');
+        return saved !== null ? parseFloat(saved) : 1;
+    });
     const [isMuted, setIsMuted] = useState(false);
     const [showControls, setShowControls] = useState(true);
     const [bufferedRanges, setBufferedRanges] = useState([]);
-    const [isDragging, setIsDragging] = useState(false);
+    const [isFullscreen, setIsFullscreen] = useState(false);
 
     // Refs
     const videoRef = useRef(null);
@@ -32,7 +35,9 @@ export function VideoPiPProvider({ children }) {
         setPipVideo(videoData);
         setCurrentTime(videoData.currentTime || 0);
         setDuration(videoData.duration || 0);
-        setVolume(videoData.volume || 1);
+        // Use localStorage volume, fallback to videoData volume, then default to 1
+        const savedVolume = localStorage.getItem('collector:video-player:volume');
+        setVolume(savedVolume !== null ? parseFloat(savedVolume) : (videoData.volume || 1));
         setIsMuted(videoData.isMuted || false);
         setIsPlaying(true);
     }, []);
@@ -94,6 +99,11 @@ export function VideoPiPProvider({ children }) {
             videoRef.current.currentTime = initialTimeRef.current;
             initialTimeRef.current = 0; // Reset after use
         }
+        // Apply saved volume to video element
+        const savedVolume = localStorage.getItem('collector:video-player:volume');
+        if (savedVolume !== null) {
+            videoRef.current.volume = parseFloat(savedVolume);
+        }
         // Auto-play
         videoRef.current.play().catch(() => {});
     };
@@ -114,7 +124,7 @@ export function VideoPiPProvider({ children }) {
     };
 
     const handleSeek = (e) => {
-        if (!videoRef.current || !seekBarRef.current || isDragging) return;
+        if (!videoRef.current || !seekBarRef.current) return;
         const rect = seekBarRef.current.getBoundingClientRect();
         const pos = (e.clientX - rect.left) / rect.width;
         const time = pos * duration;
@@ -125,6 +135,7 @@ export function VideoPiPProvider({ children }) {
     const handleVolumeChange = (e) => {
         const newVolume = parseFloat(e.target.value);
         setVolume(newVolume);
+        localStorage.setItem('collector:video-player:volume', newVolume);
         if (videoRef.current) {
             videoRef.current.volume = newVolume;
         }
@@ -147,6 +158,15 @@ export function VideoPiPProvider({ children }) {
             container.requestFullscreen();
         }
     };
+
+    // Listen for fullscreen changes
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setIsFullscreen(!!document.fullscreenElement);
+        };
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    }, []);
 
     const handleVideoMouseEnter = () => {
         setShowControls(true);
@@ -211,7 +231,7 @@ export function VideoPiPProvider({ children }) {
             {children}
             {pipVideo && (
                 <div 
-                    className="global-pip-container"
+                    className={`global-pip-container${isFullscreen ? ' fullscreen' : ''}`}
                     onMouseEnter={handleVideoMouseEnter}
                     onMouseMove={handleVideoMouseMove}
                     onMouseLeave={handleVideoMouseLeave}

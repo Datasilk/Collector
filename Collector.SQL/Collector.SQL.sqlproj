@@ -317,7 +317,6 @@
     <Build Include="dbo\Stored Procedures\Domains\Services\DomainServices_Filter.sql" />
     <Build Include="dbo\Tables\Journal\JournalCheckListItems.sql" />
     <Build Include="dbo\Tables\Journal\JournalCheckLists.sql" />
-    <Build Include="dbo\Tables\Journal\JournalModules.sql" />
     <Build Include="dbo\Tables\Journal\JournalChapters.sql" />
     <Build Include="dbo\Tables\Journal\JournalImages.sql" />
     <Build Include="dbo\Tables\Journal\JournalVideos.sql" />
@@ -334,7 +333,6 @@
     <Build Include="dbo\Sequences\SequenceJournalVideos.sql" />
     <Build Include="dbo\Tables\Journal\JournalFiles.sql" />
     <Build Include="dbo\Sequences\SequenceJournalFiles.sql" />
-
   </ItemGroup>
   <ItemGroup>
     <None Include="Collector.SQL.publish.xml" />
