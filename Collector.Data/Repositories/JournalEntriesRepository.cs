@@ -5,16 +5,19 @@ using System.Collections.Generic;
 using System.Linq;
 using Collector.Data.Entities;
 using Collector.Data.Interfaces;
+using Microsoft.Extensions.Logging;
 
 namespace Collector.Data.Repositories
 {
     public class JournalEntriesRepository : IJournalEntriesRepository
     {
         readonly IDbConnection _dbConnection;
+        readonly ILogger _logger;
 
-        public JournalEntriesRepository(IDbConnection dbConnection)
+        public JournalEntriesRepository(IDbConnection dbConnection, ILogger<JournalEntriesRepository> logger)
         {
             _dbConnection = dbConnection;
+            _logger = logger;
         }
 
         public Guid Add(JournalEntry journalEntry)
@@ -160,7 +163,7 @@ namespace Collector.Data.Repositories
                     WHERE {baseWhere}
                       AND jet.[TagId] IN @tagIds
                     GROUP BY je.[Id]
-                    HAVING COUNT(DISTINCT jet.[TagId]) = @tagCount";
+                    HAVING COUNT(DISTINCT jet.[TagId]) >= @tagCount";
 
                 countSql = $"SELECT COUNT(*) FROM ({tagFilteredSubquery}) AS matches";
 
@@ -171,8 +174,8 @@ namespace Collector.Data.Repositories
                     LEFT JOIN [dbo].[JournalEntries] parent ON je.[ParentEntryId] = parent.[Id]
                     WHERE {baseWhere}
                       AND jet.[TagId] IN @tagIds
-                    GROUP BY je.[Id], je.[JournalId], je.[ParentEntryId], je.[Title], je.[Description], je.[Created], je.[Modified], je.[Status], je.[ChapterId], je.[Encrypted], je.[Thumbnail], je.[Url], parent.[Title]
-                    HAVING COUNT(DISTINCT jet.[TagId]) = @tagCount
+                    GROUP BY je.[Id], je.[JournalId], je.[ParentEntryId], je.[Title], je.[Description], je.[Created], je.[Modified], je.[Status], je.[ChapterId], je.[Encrypted], je.[Thumbnail], je.[ThumbnailModuleId], je.[Url], parent.[Title]
+                    HAVING COUNT(DISTINCT jet.[TagId]) >= @tagCount
                     ORDER BY {orderBy}
                     OFFSET @start ROWS FETCH NEXT @length ROWS ONLY";
             }

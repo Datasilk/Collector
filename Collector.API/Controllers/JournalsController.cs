@@ -7,6 +7,7 @@ using Collector.Data.Entities;
 using Collector.Data.Interfaces;
 using Collector.Data.Interfaces.Users;
 using Collector.Common.Encryption;
+using Microsoft.Extensions.Logging;
 
 namespace Collector.API.Controllers
 {
@@ -23,6 +24,7 @@ namespace Collector.API.Controllers
         private readonly IJournalTagsRepository _journalTagsRepository;
         private readonly IJournalEntryTagsRepository _journalEntryTagsRepository;
         private readonly IAppUserRepository _userRepository;
+        private readonly ILogger _logger;
 
         public JournalsController(
             IJournalCategoriesRepository categoriesRepository,
@@ -33,7 +35,8 @@ namespace Collector.API.Controllers
             IJournalImagesRepository imagesRepository,
             IJournalTagsRepository journalTagsRepository,
             IJournalEntryTagsRepository journalEntryTagsRepository,
-            IAppUserRepository userRepository)
+            IAppUserRepository userRepository,
+            ILogger<JournalsController> logger)
         {
             _categoriesRepository = categoriesRepository;
             _journalsRepository = journalsRepository;
@@ -44,6 +47,7 @@ namespace Collector.API.Controllers
             _journalTagsRepository = journalTagsRepository;
             _journalEntryTagsRepository = journalEntryTagsRepository;
             _userRepository = userRepository;
+            _logger = logger;
         }
 
         #region Journal Categories
@@ -523,8 +527,9 @@ namespace Collector.API.Controllers
                 var sort = filter?.Sort ?? string.Empty;
                 var start = filter?.Start ?? 0;
                 var length = filter?.Length ?? 50;
+                var tags = filter?.Tags;
 
-                var result = _entriesRepository.Filter(journalId, search, sort, start, length, filter?.Tags);
+                var result = _entriesRepository.Filter(journalId, search, sort, start, length, tags);
 
                 return Json(new ApiResponse { success = true, data = result });
             }
