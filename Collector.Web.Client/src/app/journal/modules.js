@@ -2,6 +2,7 @@
 import CKEditorModule from './modules/ckeditor';
 import ChecklistModule from './modules/checklist';
 import ImageModule from './modules/image';
+import ImageGalleryModule from './modules/image-gallery';
 import TabsModule from './modules/tabs';
 import ModuleListModule from './modules/module-list';
 import VideoPlayerModule from './modules/video-player';
@@ -31,6 +32,13 @@ const modules = [
         icon: 'image',
         type: 'image',
         module: ImageModule
+    },
+    {
+        id: 'image-gallery',
+        name: 'Image Gallery',
+        icon: 'collections',
+        type: 'image-gallery',
+        module: ImageGalleryModule
     },
     {
         id: 'tabs',

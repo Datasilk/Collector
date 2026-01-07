@@ -38,7 +38,10 @@ const Feeds = (args) => Api({...args, useToken:true}).endpoints(({api}) => {
         // Feed Checking
         check: () => api.get(`${apiPath}/check`),
         
-        checkFeed: (feedId) => api.get(`${apiPath}/check/${feedId}`)
+        checkFeed: (feedId) => api.get(`${apiPath}/check/${feedId}`),
+        
+        // Filter Feeds
+        getFilteredFeeds: (filter) => api.post(`${apiPath}/filter`, filter)
     };
 });
 

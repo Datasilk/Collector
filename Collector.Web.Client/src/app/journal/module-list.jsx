@@ -412,6 +412,25 @@ export default function ModuleList({
         e.currentTarget.classList.add('dragging');
     };
 
+    const getDropDetailsFromEvent = (event) => {
+        if (!entryJson?.modules?.length) return null;
+        const element = document.elementFromPoint(event.clientX, event.clientY);
+        const moduleElement = element?.closest?.('.module');
+        if (!moduleElement) return null;
+
+        const moduleId = moduleElement.getAttribute('data-id');
+        const moduleIndex = entryJson.modules.findIndex(m => m.id == moduleId);
+        if (moduleIndex === -1) return null;
+
+        const rect = moduleElement.getBoundingClientRect();
+        const isRightSide = event.clientX >= rect.left + (rect.width / 2);
+
+        return {
+            moduleId,
+            index: moduleIndex + (isRightSide ? 1 : 0)
+        };
+    };
+
     const handleDragOver = (e, moduleId) => {
         if (!canDragDrop || window.noDrag == true) {
             e.preventDefault();
@@ -816,7 +835,19 @@ export default function ModuleList({
         if (!draggedModuleIdRef.current) return;
 
         const dragIndex = dragStartIndexRef.current;
-        const dropIndex = dropIndexRef.current;
+        let dropIndex = dropIndexRef.current;
+
+        const eventDropDetails = getDropDetailsFromEvent(e);
+        if (eventDropDetails?.index !== undefined) {
+            dropIndex = eventDropDetails.index;
+        }
+
+        if (dropIndex === null || dropIndex === undefined) {
+            dropIndex = dragIndex;
+        }
+
+        const maxIndex = entryJson.modules.length;
+        dropIndex = Math.max(0, Math.min(maxIndex, dropIndex));
 
         // Only update if the position actually changed
         if (dragIndex !== dropIndex) {

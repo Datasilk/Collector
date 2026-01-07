@@ -1,0 +1,27 @@
+.feeds-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+.feeds-navigation {
+  padding: 1rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.feeds-nav a {
+  color: #007bff;
+  text-decoration: none;
+  margin-right: 1rem;
+}
+
+.feeds-nav a:hover {
+  text-decoration: underline;
+}
+
+.feeds-content {
+  flex: 1;
+  padding: 1.5rem;
+  overflow-y: auto;
+}

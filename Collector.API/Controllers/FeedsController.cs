@@ -190,5 +190,19 @@ namespace Collector.API.Controllers
             }
         }
 
+        [HttpPost("filter")]
+        public IActionResult GetFilteredFeeds([FromBody] FeedFilterModel model)
+        {
+            try
+            {
+                var feeds = _feedsRepository.GetFilteredFeeds(model.Start, model.Length, model.Search, model.Sort);
+                return Json(new ApiResponse { success = true, data = feeds });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
     }
 }

@@ -16,5 +16,6 @@ namespace Collector.Data.Interfaces
         void AddCategory(string title);
         List<FeedCategory> GetCategories();
         List<Feed> Check(int feedId = 0);
+        List<Feed> GetFilteredFeeds(int start, int length, string search, string sort);
     }
 }

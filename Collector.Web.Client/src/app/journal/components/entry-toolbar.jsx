@@ -289,15 +289,24 @@ export default function EntryToolbar({
         return chapter?.name ?? '';
     };
 
-    const getSaveStatusMessage = () => {
+    const getSaveStatusConfig = () => {
         switch (saveStatus) {
-            case 'saving': return 'Saving...';
-            case 'saved': return 'Saved successfully';
-            case 'archived': return 'Entry archived';
-            case 'unarchived': return 'Entry unarchived';
-            case 'published': return 'Entry published';
-            case 'error': return 'Error saving changes';
-            default: return null;
+            case 'saving':
+                return { text: 'Saving...', type: 'info', icon: 'progress_activity', spin: true };
+            case 'saved':
+                return { text: 'Saved successfully', type: 'success', icon: 'check_circle' };
+            case 'archived':
+                return { text: 'Entry archived', type: 'success', icon: 'inventory_2' };
+            case 'unarchived':
+                return { text: 'Entry unarchived', type: 'success', icon: 'unarchive' };
+            case 'published':
+                return { text: 'Entry published', type: 'success', icon: 'campaign' };
+            case 'error':
+                return { text: 'Error saving changes', type: 'error', icon: 'error' };
+            case 'save_failed_file_locked':
+                return { text: 'Save failed', type: 'warning', icon: 'warning' };
+            default:
+                return null;
         }
     };
 
@@ -353,11 +362,21 @@ export default function EntryToolbar({
                     )}
 
                     <div className="right-side entry-status-badge">
-                        {saveStatus && (
-                            <div className={`save-status-message ${saveStatus === 'error' ? 'error' : 'success'}`}>
-                                {getSaveStatusMessage()}
-                            </div>
-                        )}
+                        {(() => {
+                            const statusConfig = getSaveStatusConfig();
+                            if (!statusConfig) return null;
+                            return (
+                                <div className={`save-status-message ${statusConfig.type}`}>
+                                    {statusConfig.icon && (
+                                        <Icon
+                                            name={statusConfig.icon}
+                                            spin={statusConfig.spin}
+                                        />
+                                    )}
+                                    <span>{statusConfig.text}</span>
+                                </div>
+                            );
+                        })()}
                         <TagsList
                             tags={tags}
                             onRemoveTag={async (tag) => {

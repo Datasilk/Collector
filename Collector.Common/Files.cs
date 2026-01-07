@@ -159,7 +159,7 @@ namespace Collector.Common
             {
                 // Log the exception if needed
                 Console.WriteLine($"Error saving file: {ex.Message}");
-                return false;
+                throw;
             }
         }
         

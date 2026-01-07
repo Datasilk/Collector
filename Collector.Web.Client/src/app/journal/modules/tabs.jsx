@@ -10,8 +10,16 @@ import modules from '../modules';
 import { useSession } from '@/context/session';
 
 export default function TabsModule({ module, entryId, entry, journalId, journal, chapters, onUpdate, isEditable = true, manuallyAdded = false, tabButtons }) {
+    const cloneTabs = (sourceTabs = []) => {
+        if (!Array.isArray(sourceTabs)) return [];
+        return sourceTabs.map(tab => ({
+            ...tab,
+            modules: Array.isArray(tab.modules) ? [...tab.modules] : []
+        }));
+    };
+
     //state
-    const [tabs, setTabs] = useState(module.tabs || []);
+    const [tabs, setTabs] = useState(() => cloneTabs(module.tabs || []));
     const [activeTabId, setActiveTabId] = useState(null);
     const [editingTabId, setEditingTabId] = useState(null);
     const [showAddModuleDropdown, setShowAddModuleDropdown] = useState(false);
@@ -64,7 +72,7 @@ export default function TabsModule({ module, entryId, entry, journalId, journal,
 
     useEffect(() => {
         moduleRef.current = module;
-        setTabs(module.tabs || []);
+        setTabs(cloneTabs(module.tabs || []));
     }, [module]);
 
 
@@ -302,7 +310,7 @@ export default function TabsModule({ module, entryId, entry, journalId, journal,
         const activeTab = getActiveTab();
         if (!activeTab) return;
 
-        const childModules = activeTab.modules || [];
+        const childModules = [...(activeTab.modules || [])];
         const index = childModules.findIndex(m => m.id === updatedChildModule.id);
         
         if (index > -1) {
@@ -326,8 +334,9 @@ export default function TabsModule({ module, entryId, entry, journalId, journal,
     };
 
     const updateActiveTabModules = (updatedModules) => {
+        const normalizedModules = Array.isArray(updatedModules) ? [...updatedModules] : [];
         const updatedTabs = tabs.map(tab =>
-            tab.id === activeTabId ? { ...tab, modules: updatedModules } : tab
+            tab.id === activeTabId ? { ...tab, modules: normalizedModules } : tab
         );
         setTabs(updatedTabs);
         

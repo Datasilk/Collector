@@ -1387,7 +1387,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                     )}
                     <div
                         ref={videoPlayerRef}
-                        className={`custom-video-player${isFullscreen ? ' fullscreen' : ''}`}
+                        className={`custom-video-player${isFullscreen ? ' fullscreen' : ''}${isFullscreen && !showControls ? ' cursor-hidden' : ''}`}
                         onMouseEnter={handleVideoMouseEnter}
                         onMouseMove={handleVideoMouseMove}
                         onMouseLeave={handleVideoMouseLeave}
@@ -1402,6 +1402,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                             onPause={() => setIsPlaying(false)}
                             onProgress={updateBufferedProgress}
                             onClick={handleVideoClick}
+                            style={isFullscreen ? { width: '100%', height: '100%', objectFit: 'contain' } : undefined}
                         >
                             <source
                                 src={module.videoId ? apiBasePath() + `/video/${module.videoId}` : apiBasePath() + `/video/${module.videoPath}`}

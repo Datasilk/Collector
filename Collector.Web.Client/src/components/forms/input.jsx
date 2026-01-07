@@ -26,7 +26,7 @@ export default function Input({ children, label, name, type = 'text', value, aut
 
     //render input
     return (
-        <div className={"form-group input-" + name + ' ' + formGroupClassName}>
+        <div className={"form-group input-" + name + (formGroupClassName ? ' ' + formGroupClassName : '')}>
             <div className="form-label">
                 {label && <label htmlFor={name}>{label}{required ? ' *' : ''}</label>}
                 {error && <span className="error">{error}</span>}

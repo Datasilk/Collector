@@ -44,7 +44,9 @@ export default function JournalEntryPage() {
     const currentChapter = useRef(null);
 
     //apis
-    const { addEntry, renameEntry, getChapters, updateJournalEntryId } = Journals(session);
+    const { addEntry, renameEntry, getChapters, updateJournalEntryId, 
+        getJournal, getSnapshot, getEntry, getEntryContent, setEntryParent, 
+        updateEntryThumbnail, updateEntryContent } = Journals(session);
     const { addTagToEntry, removeTagFromEntry } = JournalTags(session);
 
     //effect
@@ -81,12 +83,11 @@ export default function JournalEntryPage() {
     const fetchEntryDetails = async () => {
         try {
             setLoading(true);
-            const api = Journals(session);
             const numericJournalId = parseInt(journalId);
             let journalData = journal;
 
             if (!journalData || journalData.id !== numericJournalId) {
-                const journalResponse = await api.getJournal(journalId);
+                const journalResponse = await getJournal(journalId);
 
                 if (!journalResponse.data.success) {
                     return showError(journalResponse.data.message || 'Failed to load journal details');
@@ -154,7 +155,7 @@ export default function JournalEntryPage() {
                 window.scrollTo(0, 0);
             } else {
                 // Get existing entry data
-                const entryResponse = await api.getEntry(newEntryId);
+                const entryResponse = await getEntry(newEntryId);
                 if (!entryResponse.data.success) {
                     return showError(entryResponse.data.message || 'Failed to load entry details');
                 }
@@ -164,7 +165,7 @@ export default function JournalEntryPage() {
                 
                 if (!entryData.parentEntryId && location?.state?.parentEntryId) {
                     try {
-                        await api.setEntryParent(entryData.id, location.state.parentEntryId);
+                        await setEntryParent(entryData.id, location.state.parentEntryId);
                         entryData.parentEntryId = location.state.parentEntryId;
                         if (location.state.parentEntryName) {
                             entryData.parentEntryName = location.state.parentEntryName;
@@ -178,7 +179,7 @@ export default function JournalEntryPage() {
 
                 // Fetch entry content (JSON data)
                 try {
-                    const contentResponse = await api.getEntryContent(newEntryId);
+                    const contentResponse = await getEntryContent(newEntryId);
                     if (contentResponse.data.success && contentResponse.data.data) {
                         try {
                             const contentJson = JSON.parse(contentResponse.data?.data || '{modules:[]}');
@@ -261,8 +262,7 @@ export default function JournalEntryPage() {
 
     const updateThumbnail = async (entryData, thumbnail, moduleId = null) => {
         try {
-            const api = Journals(session);
-            await api.updateEntryThumbnail(entryData.id, thumbnail, moduleId);
+            await updateEntryThumbnail(entryData.id, thumbnail, moduleId);
             setEntry({ ...entryData, thumbnail, thumbnailModuleId: moduleId });
             entryRef.current = { ...entryData, thumbnail, thumbnailModuleId: moduleId };
         } catch (err) {
@@ -298,7 +298,7 @@ export default function JournalEntryPage() {
 
         try {
             const contentString = JSON.stringify(defaultJournalEntryJson);
-            await api.updateEntryContent(createdEntry.id, contentString);
+            await updateEntryContent(createdEntry.id, contentString);
         } catch (contentErr) {
             console.error('Error saving default journal entry content:', contentErr);
         }
@@ -359,15 +359,20 @@ export default function JournalEntryPage() {
 
         setSaveStatus('saving');
         try {
-            const api = Journals(session);
             const contentString = JSON.stringify(json);
 
             console.log('saveEntryContent: saving entry', entry.id, contentString.length, 'bytes', contentString);
-            const response = await api.updateEntryContent(entry.id, contentString);
+            const response = await updateEntryContent(entry.id, contentString);
 
             if (!response.data.success) {
                 console.error('saveEntryContent: API error', response.data);
-                return showError(response.data.message || 'Failed to save entry content');
+                const errorMessage = response.data.message || '';
+                const isFileInUseError = errorMessage.toLowerCase().includes('because it is being used by another process');
+                if (isFileInUseError) {
+                    setSaveStatus('save_failed_file_locked');
+                    return;
+                }
+                return showError(errorMessage || 'Failed to save entry content');
             }
 
             applyEntryCss(json.css);
@@ -466,7 +471,7 @@ export default function JournalEntryPage() {
         return String(Math.floor(Math.random() * 1000000));
     };
 
-    const addModule = (type, position = 'bottom') => {
+    const addModule = (type) => {
         const newModule = {
             id: generateRandomId(),
             type: type,
@@ -477,13 +482,6 @@ export default function JournalEntryPage() {
             modules: [...(entryJsonRef.current?.modules ?? []), newModule] 
         };
         saveEntryContent(newEntryJson);
-
-        // Close the appropriate dropdown based on which one was used
-        if (position === 'top') {
-            setShowTopModuleDropdown(false);
-        } else {
-            setShowBottomModuleDropdown(false);
-        }
     };
 
     const handleUpdatedModule = (updatedModule) => {

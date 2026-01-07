@@ -63,5 +63,39 @@ namespace Collector.Data.Repositories
         {
             return _db.Query<Feed>("Feeds_Check", new { feedId }, commandType: CommandType.StoredProcedure).ToList();
         }
+
+        public List<Feed> GetFilteredFeeds(int start, int length, string search, string sort)
+        {
+            int sortValue;
+            switch (sort.ToLower())
+            {
+                case "url":
+                    sortValue = 0; // Url ASC
+                    break;
+                case "url_desc":
+                    sortValue = 1; // Url DESC
+                    break;
+                case "checkinterval":
+                    sortValue = 2; // CheckIntervals ASC
+                    break;
+                case "checkinterval_desc":
+                    sortValue = 3; // CheckIntervals DESC
+                    break;
+                case "title_desc":
+                    sortValue = 5; // Title DESC
+                    break;
+                default:
+                    sortValue = 4; // Title ASC
+                    break;
+            }
+            var parameters = new
+            {
+                Start = start,
+                Length = length,
+                Search = search,
+                Sort = sortValue
+            };
+            return _db.Query<Feed>("[dbo].[Feeds_Filter]", parameters, commandType: CommandType.StoredProcedure).ToList();
+        }
     }
 }

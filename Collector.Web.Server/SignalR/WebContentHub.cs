@@ -64,6 +64,11 @@ namespace Collector.Web.Server.SignalR
 
                     // Get YouTube video title & description using yt-dlp
                     var metadata = await GetYouTubeMetadata(videoUrl, appUserId);
+                    if (metadata.Title == null)
+                    {
+                        await Clients.Caller.SendAsync("OnError", "Failed to retrieve YouTube metadata. Please ensure the Chrome extension for Collector is installed and try again.");
+                        return new { success = false, message = "Failed to retrieve YouTube metadata" };
+                    }
                     title = metadata.Title;
                     description = metadata.Description;
 
@@ -314,10 +319,17 @@ namespace Collector.Web.Server.SignalR
                 // Retry with fresh cookies
                 await Clients.Caller.SendAsync("ScrapeStatus", "Retrying metadata fetch with fresh cookie...");
                 result = await TryGetYouTubeMetadata(url, appUserId);
+                if (string.IsNullOrEmpty(result.Title))
+                {
+                    await Clients.Caller.SendAsync("OnError", "Failed to retrieve YouTube metadata. Please ensure the Chrome extension for Collector is installed and try again.");
+                    return (null, null);
+                }
             }
             else
             {
                 _logger.LogWarning("Failed to get fresh cookies from extension for user {AppUserId}", appUserId);
+                await Clients.Caller.SendAsync("OnError", "Failed to retrieve YouTube metadata. Please ensure the Chrome extension for Collector is installed and try again.");
+                return (null, null);
             }
 
             return result;

@@ -10,7 +10,8 @@ const tokenCookieName = 'collector_token';
 const setAuthCookie = (token) => {
     const secureFlag = window.location.protocol === 'https:' ? '; Secure' : '';
     if (token) {
-        const expires = new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)).toUTCString();
+        const expires = new Date(Date.now() + (5 * 24 * 60 * 60 * 1000)).toUTCString();
+
         document.cookie = `${tokenCookieName}=${encodeURIComponent(token)}; Path=/; Expires=${expires}; SameSite=Lax${secureFlag}`;
     } else {
         document.cookie = `${tokenCookieName}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax${secureFlag}`;

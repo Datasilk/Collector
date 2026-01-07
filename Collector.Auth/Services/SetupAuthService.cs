@@ -50,7 +50,7 @@ namespace Collector.Auth.Services
             .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, options =>
             {
                 options.SlidingExpiration = true;
-                options.ExpireTimeSpan = TimeSpan.FromMinutes(60);
+                options.ExpireTimeSpan = TimeSpan.FromDays(5);
                 options.LoginPath = "/account/login";
                 options.LogoutPath = "/account/logout";
                 options.AccessDeniedPath = "/access-denied";

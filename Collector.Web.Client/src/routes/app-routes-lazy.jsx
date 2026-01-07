@@ -1,4 +1,4 @@
-import React, {lazy} from 'react';
+import {lazy} from 'react';
 
 const routes = [
     //end-user pages
@@ -9,7 +9,8 @@ const routes = [
     {path:'/forgot-password/',          Element:lazy(() => import('@/app/account/forgot-password/page'))},
     {path:'/reset-password/:hash',      Element:lazy(() => import('@/app/account/create-password/page'))},
     {path:'/create-password/:hash',     Element:lazy(() => import('@/app/account/create-password/page'))},
-    {path:'/account',                   Element:lazy(() => import('@/app/account/page'))}
+    {path:'/account',                   Element:lazy(() => import('@/app/account/page'))},
+    {path:'/feeds',                     Element:lazy(() => import('@/app/feeds/page'))}
 ];
 
 export default routes;

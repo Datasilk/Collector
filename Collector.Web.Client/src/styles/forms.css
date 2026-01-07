@@ -11,6 +11,11 @@
     gap: 1rem;
 }
 
+.form-row label{
+  display:inline-block;
+  padding-top:0.5em;
+}
+
 .form-row-block {
     display: block;
     white-space: nowrap;
@@ -25,7 +30,8 @@
     margin-bottom: 0;
 }
 
-form .form-group {
+form .form-group,
+.form .form-group {
     margin-bottom: 1.5em;
 }
 

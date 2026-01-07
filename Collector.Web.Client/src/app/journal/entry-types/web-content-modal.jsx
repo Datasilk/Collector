@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as signalR from '@microsoft/signalr';
 import Modal from '@/components/ui/modal';
@@ -23,6 +23,9 @@ export default function WebContentModal({ onClose, journalId = null, entryId = n
     const [selectionLoading, setSelectionLoading] = useState(false);
     const [isScraping, setIsScraping] = useState(false);
     const [scrapeStatusMessage, setScrapeStatusMessage] = useState('');
+    const [error, setError] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [videoMetadata, setVideoMetadata] = useState(null);
 
     const handleScrape = async () => {
         if (!url.trim() || !selectedJournalId || isScraping || selectionLoading) return;
@@ -95,6 +98,27 @@ export default function WebContentModal({ onClose, journalId = null, entryId = n
             handleScrape();
         }
     };
+
+    const handleError = (errorMessage) => {
+        setError(errorMessage);
+        setLoading(false);
+    };
+
+    if (error) {
+        return (
+            <Modal title="Error" onClose={onClose} width="500px" className="web-content-modal error-modal">
+                <div className="modal-content">
+                    <p>{error}</p>
+                    {error.includes("cookie") && (
+                        <p>Please ensure the Chrome extension for Collector is installed and try again.</p>
+                    )}
+                    <div className="buttons">
+                        <button className="btn cancel" onClick={onClose}>Close</button>
+                    </div>
+                </div>
+            </Modal>
+        );
+    }
 
     return (
         <Modal title="Scrape Web Content" onClose={onClose}>
