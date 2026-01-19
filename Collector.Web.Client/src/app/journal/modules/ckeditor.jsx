@@ -655,6 +655,11 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                     'tableCellProperties',
                 ],
             },
+            ui:{
+                viewportOffset:{
+                    top:80
+                }
+            }
         };
 
         [...document.querySelectorAll('.ck-body')].forEach(a => a.remove());
@@ -666,11 +671,10 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                 elem.innerHTML = '';
                 elem.appendChild(container);
 
+                /*
                 // Strip unwanted attributes on paste while preserving block structure
                 editor.plugins.get('ClipboardPipeline').on('contentInsertion', (evt, data) => {
                     const content = data.content;
-
-                    // Define allowed attributes
                     const allowedAttributes = [
                         'linkHref',
                         'highlight',
@@ -694,17 +698,77 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                         'htmlContentAttributes'
                     ];
 
+                    const allowedStyleProperties = new Set([
+                        'color',
+                        'background-color',
+                        'font-family',
+                        'line-height',
+                        'text-align',
+                        'font-size'
+                    ]);
+
+                    const sanitizeStyleMap = (styleObj) => {
+                        if (!styleObj || typeof styleObj !== 'object') return null;
+
+                        const sanitized = Object.keys(styleObj).reduce((result, key) => {
+                            const normalizedKey = key.trim().toLowerCase();
+                            if (allowedStyleProperties.has(normalizedKey)) {
+                                result[key] = styleObj[key];
+                            }
+                            return result;
+                        }, {});
+
+                        return Object.keys(sanitized).length ? sanitized : null;
+                    };
+
                     // Process the model fragment to remove unwanted attributes
                     editor.model.change(writer => {
+                        const sanitizeElementStyles = (element) => {
+                            if (!element || typeof element.getAttribute !== 'function') return;
+
+                            // Styles can be stored inside htmlAttributes when using GeneralHtmlSupport
+                            const htmlAttributes = element.getAttribute('htmlAttributes');
+                            if (htmlAttributes && typeof htmlAttributes === 'object') {
+                                const sanitizedStyles = sanitizeStyleMap(htmlAttributes.styles);
+
+                                if (sanitizedStyles) {
+                                    writer.setAttribute('htmlAttributes', {
+                                        ...htmlAttributes,
+                                        styles: sanitizedStyles
+                                    }, element);
+                                } else if (htmlAttributes.styles) {
+                                    const updatedHtmlAttributes = { ...htmlAttributes };
+                                    delete updatedHtmlAttributes.styles;
+
+                                    if (Object.keys(updatedHtmlAttributes).length) {
+                                        writer.setAttribute('htmlAttributes', updatedHtmlAttributes, element);
+                                    } else {
+                                        writer.removeAttribute('htmlAttributes', element);
+                                    }
+                                }
+                            }
+
+                            // Some plugins may store inline style attr directly on the element
+                            if (typeof element.hasAttribute === 'function' && element.hasAttribute('style')) {
+                                const inlineStyles = element.getAttribute('style');
+                                const sanitizedInline = sanitizeStyleMap(inlineStyles);
+
+                                if (sanitizedInline) {
+                                    writer.setAttribute('style', sanitizedInline, element);
+                                } else {
+                                    writer.removeAttribute('style', element);
+                                }
+                            }
+                        };
+
                         // Recursive function to process element and all its children
                         const processElement = (element) => {
                             // Check if element has getAttributeKeys method (it's a model element)
                             if (element && element.getAttributeKeys) {
+                                sanitizeElementStyles(element);
+
                                 // Get all attributes
                                 const attributes = Array.from(element.getAttributeKeys());
-                                if (element._removeAttribute) {
-                                    element._removeAttribute('style');
-                                }
 
                                 // Remove all attributes except essential CKEditor ones
                                 attributes.forEach(attr => {
@@ -724,12 +788,12 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                         };
 
                         const range = writer.createRangeIn(content);
-
                         for (const item of range.getItems()) {
                             processElement(item);
                         }
                     });
                 }, { priority: 'high' });
+                */
 
                 // Add line breaks after htmlDivParagraph elements after content is inserted
                 let isPasting = false;

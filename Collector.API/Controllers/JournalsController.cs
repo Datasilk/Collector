@@ -945,6 +945,11 @@ namespace Collector.API.Controllers
             if (userId == Guid.Empty)
                 return Json(new ApiResponse { success = false, message = "User not found" });
 
+            if(request == null)
+            {
+                return Json(new ApiResponse { success = false, message = "Request is empty" });
+            }
+
             try
             {
                 var entry = _entriesRepository.GetById(request.Id);

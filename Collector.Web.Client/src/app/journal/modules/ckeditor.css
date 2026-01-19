@@ -6,6 +6,11 @@
     width:100%;
     border:none !important;
     outline:none !important;
+    caret-color:#333 !important;
+}
+
+.ck.ck-editor__editable *{
+    caret-color:inherit;
 }
 .ck.ck-editor__editable_inline{
     padding:inherit !important;

@@ -11,6 +11,7 @@ import { useSession } from '@/context/session';
 //api
 import { Journals } from '@/api/user/journals';
 import { JournalTags } from '@/api/user/journal-tags';
+import { JournalSnapshots } from '@/api/user/journal-snapshots';
 
 /**
  * <summary>Journal Entry Page</summary>
@@ -45,8 +46,9 @@ export default function JournalEntryPage() {
 
     //apis
     const { addEntry, renameEntry, getChapters, updateJournalEntryId, 
-        getJournal, getSnapshot, getEntry, getEntryContent, setEntryParent, 
+        getJournal, getEntry, getEntryContent, setEntryParent, 
         updateEntryThumbnail, updateEntryContent } = Journals(session);
+    const { getSnapshot } = JournalSnapshots(session);
     const { addTagToEntry, removeTagFromEntry } = JournalTags(session);
 
     //effect
@@ -360,8 +362,6 @@ export default function JournalEntryPage() {
         setSaveStatus('saving');
         try {
             const contentString = JSON.stringify(json);
-
-            console.log('saveEntryContent: saving entry', entry.id, contentString.length, 'bytes', contentString);
             const response = await updateEntryContent(entry.id, contentString);
 
             if (!response.data.success) {
