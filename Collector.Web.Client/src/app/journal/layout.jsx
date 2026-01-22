@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useSession } from '@/context/session';
 import { Journals } from '@/api/user/journals';
 import Navigation from '@/components/navigation/navigation';
@@ -19,6 +19,8 @@ export default function JournalLayout({ children }) {
     const session = useSession();
     const navigate = useNavigate();
     const { journalId } = useParams();
+    const [searchParams] = useSearchParams();
+    const noUI = searchParams.get('noui') !== null;
 
     // state
     const [isAuth, setAuth] = useState(null);
@@ -425,6 +427,15 @@ export default function JournalLayout({ children }) {
             document.removeEventListener('mousedown', handleClickOutside);
         };
     }, [showEntryTypeDropdown]);
+
+    // If noUI mode, render children without any UI chrome
+    if (noUI) {
+        return (
+            <div className="app-container no-ui">
+                {isAuth ? children : <main className="main-content"></main>}
+            </div>
+        );
+    }
 
     return (
         <div className="app-container">

@@ -434,7 +434,14 @@ export default function JournalEntryPage() {
                     }
                 }
 
-                navigate(`/journal/${journalId}/entry/${createdEntry.id}?edit`, { replace: true });
+                // Preserve noui and edit querystring parameters
+                const searchParams = new URLSearchParams(window.location.search);
+                const queryParams = [];
+                if (searchParams.has('noui')) queryParams.push('noui');
+                if (searchParams.has('edit')) queryParams.push('edit');
+                const queryString = queryParams.length > 0 ? '?' + queryParams.join('&') : '?edit';
+
+                navigate(`/journal/${journalId}/entry/${createdEntry.id}${queryString}`, { replace: true });
                 return;
             } else {
                 // Update the entry title for existing entries

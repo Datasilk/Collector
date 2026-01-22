@@ -12,8 +12,8 @@ export default function Modal({children, title = "", onClose, noClose, wide = fa
     }
     return (
         <div className="modal-overlay" onMouseDown={noClose != true ?handleClose : () => {}}>
-            <div className="modal-container">
-                <div className={`modal ${wide ? 'wide' : ''} ${className}`}>
+            <div className={"modal-container " + className}>
+                <div className={`modal ${wide ? 'wide' : ''}`}>
                     <div className="modal-title-bar">
                         <h3>{title != "" && <span>{title}</span>}</h3>
                         {noClose != true &&<div className="modal-close-btn" onClick={onClose}><Icon name="close"></Icon></div>}

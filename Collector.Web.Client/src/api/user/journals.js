@@ -17,6 +17,7 @@ const Journals = (args) => Api({...args, useToken:true}).endpoints(({api}) => {
         // Journals
         getJournals: () => api.get(apiPath),
         getJournal: (id) => api.get(`${apiPath}/${id}`),
+        getOrCreateCustomModulesJournal: () => api.get(`${apiPath}/custom-modules-journal`),
         addJournal: (journal) => api.post(`${apiPath}/add`, journal),
         renameJournal: (id, title) => api.post(`${apiPath}/rename`, { Id: id, Title: title }),
         changeJournalColor: (id, color) => api.post(`${apiPath}/change-color`, { Id: id, Color: color }),

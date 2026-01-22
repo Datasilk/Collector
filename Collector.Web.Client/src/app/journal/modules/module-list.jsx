@@ -118,7 +118,7 @@ export default function ModuleListModule({ module, entryId, entry, journalId, on
     return (
         <div className="module-list-module">
             {isEditable && (
-                <div className="add-module-container tool-bar">
+                <div className="add-module-container tool-bar top-add-module">
                     <div className="align-right">
                     <button
                         ref={addModuleButtonRef}

@@ -244,6 +244,42 @@ namespace Collector.API.Controllers
             }
         }
 
+        [HttpGet("custom-modules-journal")]
+        public IActionResult GetOrCreateCustomModulesJournal()
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                // Try to find existing custom modules journal (status 8)
+                var journal = _journalsRepository.GetByUserIdAndStatus(userId, 8);
+                
+                if (journal == null)
+                {
+                    // Create new custom modules journal
+                    var newJournal = new Journal
+                    {
+                        AppUserId = userId,
+                        CategoryId = 0,
+                        Title = "Custom Modules",
+                        Status = 8,
+                        Color = "666666"
+                    };
+                    
+                    var journalId = _journalsRepository.Add(newJournal);
+                    journal = _journalsRepository.GetById(journalId);
+                }
+                
+                return Json(new ApiResponse { success = true, data = journal });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
         [HttpGet("{id}")]
         public async Task<IActionResult> GetJournal(int id)
         {

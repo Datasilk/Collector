@@ -9,6 +9,7 @@ import VideoPlayerModule from './modules/video-player';
 import FileDownloadModule from './modules/file-download';
 import PdfViewerModule from './modules/pdf-viewer';
 import EntriesListModule from './modules/entries-list';
+import CustomModule from './modules/custom';
 
 const modules = [
     {
@@ -81,6 +82,13 @@ const modules = [
         icon: 'picture_as_pdf',
         type: 'pdf-viewer',
         module: PdfViewerModule
+    },
+    {
+        id: 'custom',
+        name: 'Custom Module',
+        icon: 'extension',
+        type: 'custom',
+        module: CustomModule
     }
 ];
 

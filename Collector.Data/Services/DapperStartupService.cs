@@ -25,6 +25,7 @@ namespace Collector.Data.Services
             builder.Services.AddTransient<IAppUserTokenRepository, AppUserTokenRepository>();
 
             //Tables
+            builder.Services.AddTransient<ICollectorRepository, CollectorRepository>();
             builder.Services.AddTransient<IArticlesRepository, ArticlesRepository>();
             builder.Services.AddTransient<IBlacklistsRepository, BlacklistsRepository>();
             builder.Services.AddTransient<ICommonWordsRepository, CommonWordsRepository>();

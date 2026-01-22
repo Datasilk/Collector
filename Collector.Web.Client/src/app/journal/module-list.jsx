@@ -42,7 +42,6 @@ export default function ModuleList({
     // state
     const [showModuleAboveDropdown, setShowModuleAboveDropdown] = useState(false);
     const [currentModuleId, setCurrentModuleId] = useState(null);
-    const [pinnedModules, setPinnedModules] = useState([]);
     const [tabButtons, setTabButtons] = useState([]);
     const [hasUpdated, setHasUpdated] = useState(null);
 
@@ -62,7 +61,6 @@ export default function ModuleList({
     const tabButtonsTimer = useRef(null);
     const deleteListenersRef = useRef([]);
     const hoveredModuleIdRef = useRef(null);
-    const isJournalEntry = journal?.entryId == entryId;
 
     //effect
 
@@ -128,7 +126,7 @@ export default function ModuleList({
             const updatedModules = removeModuleFromHierarchy(entryJson.modules, moduleId);
 
             if (removedModule) {
-                removedModule(moduleId, updatedModules); 
+                removedModule(moduleId, updatedModules);
             }
         } else if (removedModule) {
             const updatedModules = removeModuleFromHierarchy(entryJson.modules, moduleId);
@@ -136,11 +134,11 @@ export default function ModuleList({
         }
     };
 
-    const handleUpdatedModule = (module) => {
+    const handleUpdatedModule = useCallback((module) => {
         if (!updatedModule) return;
         const { manuallyAdded, ...cleanModule } = module;
         updatedModule(cleanModule);
-    };
+    }, [entry, entryJson]);
     //#endregion
 
     //#region Clipboard
@@ -503,9 +501,9 @@ export default function ModuleList({
             const otherFile = fileArray.find(f =>
                 !f.type ||
                 (!f.type.startsWith('image/') &&
-                 f.type !== 'application/pdf' &&
-                 !f.name.toLowerCase().endsWith('.pdf') &&
-                 !f.type.startsWith('video/'))
+                    f.type !== 'application/pdf' &&
+                    !f.name.toLowerCase().endsWith('.pdf') &&
+                    !f.type.startsWith('video/'))
             );
 
             // Handle image file drop
@@ -808,7 +806,7 @@ export default function ModuleList({
 
             //remove module from source container
             newModules = removeModuleFromHierarchy(newModules, dragData.moduleId);
-            
+
             if (window.dragOverContainerId == 'main') {
                 // Dropping into main container
                 newModules.splice(dropIndex, 0, dragData.module);
@@ -926,27 +924,27 @@ export default function ModuleList({
             node = node.parentNode;
         }
         const containerId = node?.getAttribute('data-id') ?? 'main';
-        if(containerId == 'main') node = document.querySelector('.container-main');
+        if (containerId == 'main') node = document.querySelector('.container-main');
         // Only handle if dragging over the container itself, not over a module
         //find parent module
-            let moduleNode = node;
-            while (moduleNode && !moduleNode.classList?.contains('module')) {
-                moduleNode = moduleNode.parentNode;
-            }
-            if (moduleNode || containerId == 'main') {
-                const id = moduleNode?.getAttribute('data-id') || 'main';
-                if (window.dragOverContainerModuleId == id && window.dragOverContainerId == containerId) return;
-                window.dragOverContainerModuleId = id;
-                window.dragOverContainerId = containerId;
+        let moduleNode = node;
+        while (moduleNode && !moduleNode.classList?.contains('module')) {
+            moduleNode = moduleNode.parentNode;
+        }
+        if (moduleNode || containerId == 'main') {
+            const id = moduleNode?.getAttribute('data-id') || 'main';
+            if (window.dragOverContainerModuleId == id && window.dragOverContainerId == containerId) return;
+            window.dragOverContainerModuleId = id;
+            window.dragOverContainerId = containerId;
 
-                // Remove drag-over-container class from all entry-modules
-                document.querySelectorAll('.entry-modules.drag-over-container').forEach(el => {
-                    el.classList.remove('drag-over-container');
-                });
+            // Remove drag-over-container class from all entry-modules
+            document.querySelectorAll('.entry-modules.drag-over-container').forEach(el => {
+                el.classList.remove('drag-over-container');
+            });
 
-                // Add drag-over-container class to current container
-                node.classList.add('drag-over-container');
-            }
+            // Add drag-over-container class to current container
+            node.classList.add('drag-over-container');
+        }
     };
     //#endregion
 
@@ -1003,13 +1001,13 @@ export default function ModuleList({
 
             // If this is the last module in the path, add to its modules array
             if (i === moduleIdPath.length - 1) {
-                if(targetModule.type == 'tabs'){
+                if (targetModule.type == 'tabs') {
                     //tabs module type has an array of module lists
                     const tabIndex = [...document.querySelectorAll('.module[data-id="' + moduleId + '"] > .tabs-module > .tabs-toolbar .tabs-list .tab')].findIndex(a => a.classList.contains('active'));
-                    if(tabIndex > -1){
+                    if (tabIndex > -1) {
                         targetModule.tabs[tabIndex].modules.splice(dropIndex, 0, moduleToAdd);
                     }
-                }else{
+                } else {
                     //all other module types will only have one modules list
                     if (!targetModule.modules) {
                         targetModule.modules = [];
@@ -1176,7 +1174,16 @@ export default function ModuleList({
         if (node && window.mouseOverNode?.getAttribute('data-id') == node.getAttribute('data-id')) return;
         window.mouseOverNode = node;
         document.querySelectorAll('.module.hover').forEach(el => {
-            if (el != node) el.classList.remove('hover');
+            var pnode = node;
+            var immediateParentModuleList = false;
+            while (pnode && pnode != el) {
+                pnode = pnode.parentNode;
+                if (pnode == el && immediateParentModuleList == false) {
+                    immediateParentModuleList = true;
+                    continue;
+                }
+            }
+            if (el != node && !pnode) el.classList.remove('hover');
         });
         if (node == null) return;
         node.classList.add('hover');
@@ -1185,6 +1192,17 @@ export default function ModuleList({
         if (typeof window !== 'undefined') {
             window.moduleHovered = moduleId;
         }
+    };
+
+    const handleMouseEnterContainer = (e) => {
+        e.stopPropagation();
+        let node = e.target;
+        while (node && !node.classList?.contains('module')) {
+            if (node?.classList?.contains('module-tab-container')) return;
+            node = node.parentNode;
+        }
+        if (node == null) return;
+        node.classList.add('hover');
     };
 
     const handleMouseLeaveContainer = (e) => {
@@ -1250,7 +1268,7 @@ export default function ModuleList({
     }, []);
 
     const getTabButtonsHandler = useCallback((moduleId) => {
-        if (!moduleId) return () => {};
+        if (!moduleId) return () => { };
         if (!tabButtonHandlersRef.current.has(moduleId)) {
             tabButtonHandlersRef.current.set(moduleId, (buttons) => handleSetTabButtons(buttons, moduleId));
         }
@@ -1264,7 +1282,7 @@ export default function ModuleList({
     //#endregion
 
     //#region Render
-    if(!entryJson) return null;
+    if (!entryJson) return null;
     return (
         <div
             className={`entry-modules container-${containerId}`}
@@ -1273,6 +1291,7 @@ export default function ModuleList({
             onDragOver={handleContainerDragOver}
             onPaste={isEditing && containerId === 'main' ? handleContainerPaste : undefined}
             onMouseLeave={isEditing ? handleMouseLeaveContainer : undefined}
+            onMouseEnter={isEditing ? handleMouseEnterContainer : undefined}
             onDrop={isEditing && containerId == 'main' ? handleDrop : undefined}
         >
             {entryJson.modules.map((module, index) => {
@@ -1282,10 +1301,10 @@ export default function ModuleList({
                 const modulesList = modulesRegistry ? [...modules, ...modulesRegistry] : modules;
                 const moduleType = modulesList.find(m => m.type === module.type);
                 const ModuleComponent = moduleType?.module;
-                
+
                 // Don't render if module type doesn't exist in registry
                 if (!ModuleComponent) return null;
-                
+
                 const filteredButtons = tabButtons.filter(a => a.moduleId == module.id)[0] ?? null;
                 return (
                     <div
@@ -1296,12 +1315,12 @@ export default function ModuleList({
                             `${!showHoverOutline ? 'no-hover-outline' : ''} ` +
                             `${getWidthClass(module.width)} ` +
                             //`${module.right ? 'right' : ''} ` +
-                            `${canDragDrop ? 'draggable' : ''} ` +
+                            `${canDragDrop ? 'draggable' : 'no-drag'} ` +
                             `${showLabel ? 'show-label' : ''} ` +
                             (module.manuallyAdded ? 'manually-added' : '')
                         }
                         data-id={module.id}
-                        draggable={canDragDrop}
+                        draggable={canDragDrop ? true : false}
                         onDragStart={canDragDrop ? (e) => handleDragStart(e, module.id, index) : undefined}
                         onDragOver={canDragDrop ? (e) => handleDragOver(e, module.id) : undefined}
                         onDragLeave={canDragDrop ? handleDragLeave : undefined}
@@ -1324,65 +1343,68 @@ export default function ModuleList({
                             <div className="module-tab-container">
                                 <div className="module-tab">
                                     {showLabel && <div className="module-type">{moduleType?.name}</div>}
-                                    <div className="box">
-                                        <div className="tool-bar">
-                                            {canAddAbove == true &&
-                                                //Add above button
-                                                (<>
-                                                    <button
-                                                        className="icon"
-                                                        ref={module.id == currentModuleId ? moduleDropdownButtonRef : null}
-                                                        onClick={() => {
-                                                            setCurrentModuleId(module.id);
-                                                            setShowModuleAboveDropdown(true);
-                                                        }}
-                                                        title="Add new module above"
-                                                    >
-                                                        <Icon name="add" />
-                                                    </button>
-                                                    {showModuleAboveDropdown && (
-                                                        <div
-                                                            className="module-dropdown"
-                                                            ref={moduleDropdownRef}
-                                                        >
-                                                            {modules.map(moduleOption => (
-                                                                <div
-                                                                    key={'module-' + module.id + '-' + moduleOption.id}
-                                                                    className="module-option"
-                                                                    onClick={() => addModuleAbove(moduleOption.type)}
-                                                                >
-                                                                    <Icon name={moduleOption.icon} />
-                                                                    <span>{moduleOption.name}</span>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                </>)}
-                                            {filteredButtons && ( //module-defined buttons
-                                                filteredButtons.buttons.map((button, index) => {
-                                                    const hasLabel = button.hasLabel === true;
-                                                    return (
+                                    {(canAddAbove || filteredButtons?.length > 0 || canDelete) && (
+                                        <div className="box">
+                                            <div className="tool-bar">
+                                                {canAddAbove == true &&
+                                                    //Add above button
+                                                    (<>
                                                         <button
-                                                            key={'module-' + module.id + '-usertab-' + module.id + '_' + index}
-                                                            className={hasLabel ? '' : 'icon'}
-                                                            onClick={() => button.callback()}
-                                                            title={button.title}
+                                                            className="icon"
+                                                            ref={module.id == currentModuleId ? moduleDropdownButtonRef : null}
+                                                            onClick={() => {
+                                                                setCurrentModuleId(module.id);
+                                                                setShowModuleAboveDropdown(true);
+                                                            }}
+                                                            title="Add new module above"
                                                         >
-                                                            <Icon name={button.icon} />
-                                                            {hasLabel && (
-                                                                <span>{button.title}</span>
-                                                            )}
+                                                            <Icon name="add" />
                                                         </button>
-                                                    );
-                                                })
-                                            )}
-                                            {canDelete && ( //Delete button
-                                                <button className="icon" onClick={(e) => { e.stopPropagation(); removeModule(module.id); }} title="Delete module">
-                                                    <Icon name="delete" />
-                                                </button>
-                                            )}
+                                                        {showModuleAboveDropdown && (
+                                                            <div
+                                                                className="module-dropdown"
+                                                                ref={moduleDropdownRef}
+                                                            >
+                                                                {modules.map(moduleOption => (
+                                                                    <div
+                                                                        key={'module-' + module.id + '-' + moduleOption.id}
+                                                                        className="module-option"
+                                                                        onClick={() => addModuleAbove(moduleOption.type)}
+                                                                    >
+                                                                        <Icon name={moduleOption.icon} />
+                                                                        <span>{moduleOption.name}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </>)
+                                                }
+                                                {filteredButtons && ( //module-defined buttons
+                                                    filteredButtons.buttons.map((button, index) => {
+                                                        const hasLabel = button.hasLabel === true;
+                                                        return (
+                                                            <button
+                                                                key={'module-' + module.id + '-usertab-' + module.id + '_' + index}
+                                                                className={hasLabel ? '' : 'icon'}
+                                                                onClick={() => button.callback()}
+                                                                title={button.title}
+                                                            >
+                                                                <Icon name={button.icon} />
+                                                                {hasLabel && (
+                                                                    <span>{button.title}</span>
+                                                                )}
+                                                            </button>
+                                                        );
+                                                    })
+                                                )}
+                                                {canDelete && ( //Delete button
+                                                    <button className="icon" onClick={(e) => { e.stopPropagation(); removeModule(module.id); }} title="Delete module">
+                                                        <Icon name="delete" />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -1400,7 +1422,7 @@ export default function ModuleList({
                             tabButtons={getTabButtonsHandler(module.id)}
                             setDeleteListener={handleDeleteListener}
                             fromSnapshotId={fromSnapshotId}
-                            
+
                         />
                     </div>
                 )

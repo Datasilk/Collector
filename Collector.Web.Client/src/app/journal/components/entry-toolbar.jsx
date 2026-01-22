@@ -37,6 +37,10 @@ export default function EntryToolbar({
     const session = useSession();
     const { journalId } = useParams();
     const navigate = useNavigate();
+    
+    // Check if noui querystring is present
+    const searchParams = new URLSearchParams(window.location.search);
+    const noUI = searchParams.has('noui');
     const { addTagToEntry, removeTagFromEntry } = JournalTags(session);
     const { getSnapshotsByEntry, createSnapshot } = JournalSnapshots(session);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -57,7 +61,7 @@ export default function EntryToolbar({
 
     const [showTopModuleDropdown, setShowTopModuleDropdown] = useState(false);
     const [showBottomModuleDropdown, setShowBottomModuleDropdown] = useState(false);
-    const [isTitleEditing, setIsTitleEditing] = useState(false);
+    const [isTitleEditing, setIsTitleEditing] = useState(noUI);
 
     const effectiveLoadingSnapshots = localLoadingSnapshots;
 
@@ -220,10 +224,12 @@ export default function EntryToolbar({
 
     const handleAddModuleTop = (type) => {
         onAddModule(type, 'top');
+        setShowTopModuleDropdown(false);
     };
 
     const handleAddModuleBottom = (type) => {
         onAddModule(type, 'bottom');
+        setShowBottomModuleDropdown(false);
     };
 
     const formatDate = (dateString) => {
@@ -342,26 +348,27 @@ export default function EntryToolbar({
                 </Modal>
             )}
             <div className="entry-header">
-                <div className="entry-navigation tool-bar">
-                    {entry && entry.parentEntryId ? (
-                        <button
-                            className="back-button"
-                            onClick={() => navigate(`/journal/${journalId}/entry/${entry.parentEntryId}`)}
-                        >
-                            <Icon name="arrow_back" /> Back to {entry.parentEntryName || 'Parent Entry'}
-                        </button>
-                    ) : (
-                        journal.entryId != onGetEntryId() ? (
+                {!noUI && (
+                    <div className="entry-navigation tool-bar">
+                        {entry && entry.parentEntryId ? (
                             <button
                                 className="back-button"
-                                onClick={() => navigate(`/journal/${journalId}`)}
+                                onClick={() => navigate(`/journal/${journalId}/entry/${entry.parentEntryId}`)}
                             >
-                                <Icon name="arrow_back" /> Back to {journal?.title || 'Journal'}
+                                <Icon name="arrow_back" /> Back to {entry.parentEntryName || 'Parent Entry'}
                             </button>
-                        ) : <></>
-                    )}
+                        ) : (
+                            journal.entryId != onGetEntryId() ? (
+                                <button
+                                    className="back-button"
+                                    onClick={() => navigate(`/journal/${journalId}`)}
+                                >
+                                    <Icon name="arrow_back" /> Back to {journal?.title || 'Journal'}
+                                </button>
+                            ) : <></>
+                        )}
 
-                    <div className="right-side entry-status-badge">
+                        <div className="right-side entry-status-badge">
                         {(() => {
                             const statusConfig = getSaveStatusConfig();
                             if (!statusConfig) return null;
@@ -494,7 +501,8 @@ export default function EntryToolbar({
                             <Icon name="settings" />
                         </button>
                     </div>
-                </div>
+                    </div>
+                )}
 
                 <div className="entry-title-section">
                     {isTitleEditing ? (

@@ -1,6 +1,10 @@
 .journal-entry-page {
-    max-width: 80em;
+    width:100%;
     margin: 0 auto;
+}
+
+.entry-content{
+    padding:0 0.5em 0 0.5em;
 }
 
 /* Header styles */
@@ -11,6 +15,10 @@
     z-index: 120;
     transition: all 0.3s ease;
     padding: 0 0 1em 0;
+}
+
+.no-ui .entry-header{
+    top:0;
 }
 
 body.scrolled .entry-header {
@@ -467,8 +475,7 @@ body.scrolled .entry-header .add-module-container{
 
 /* Bottom Add Content button styles */
 .bottom-add-module {
-    margin-top: 1.5em;
-    margin-bottom: 2em;
+    margin: 0 0.25em 0.25em 0;
 }
 
 /* When the dropdown is shown from the bottom button, position it above the button */
@@ -516,6 +523,18 @@ body.scrolled .entry-header .add-module-container{
 .module.editable:not(.no-hover-outline).hover{
     outline:1px dashed #a6bfff;
     z-index:110;
+}
+
+.module.editable .top-add-module button,
+.module.editable .bottom-add-module button{
+    opacity:0;
+    visibility:hidden;
+}
+
+.module.editable:not(.no-hover-outline).hover > .module-list-module > .top-add-module button,
+.module.editable:not(.no-hover-outline).hover > .module-list-module > .bottom-add-module button{
+    opacity:1;
+    visibility:visible;
 }
 
 /* Module resize handles */
@@ -584,7 +603,7 @@ body.scrolled .entry-header .add-module-container{
 .module.width-70,
 .module.width-80,
 .module.width-90{
-    padding:0 0.5em 0 0;
+    padding:0 0 0 0;
 }
 
 @media screen and (max-width: 768px) {
@@ -621,6 +640,14 @@ body.scrolled .entry-header .add-module-container{
     cursor: move;
 }
 
+.module.no-drag {
+    cursor: default;
+}
+
+.module.no-drag .text-editor {
+    cursor: text;
+}
+
 .module.dragging {
     opacity: 0.5;
 }
@@ -648,7 +675,7 @@ body.scrolled .entry-header .add-module-container{
 }
 
 .entry-modules {
-    margin: 0 0.5em 2em 0.5em;
+    margin: 0;
     transition: outline 0.2s ease;
     transition: border-radius 0.2s ease;
     min-height:2em;
@@ -3041,7 +3068,7 @@ body.scrolled .entry-header .add-module-container{
 }
 
 .module-module-list .module-tab .box{
-    top:2em;
+    top:0.5em;
 }
 
 .module-video-player .module-tab .box{
@@ -3050,4 +3077,206 @@ body.scrolled .entry-header .add-module-container{
 
 .module-entries-list .module-tab .box{
     top:2.75em;
+}
+
+/* Custom Module */
+.custom-module-empty {
+    padding: 3em 0;
+    text-align: center;
+}
+
+.custom-module-empty-message {
+    margin-bottom: 2em;
+}
+
+.custom-module-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1em;
+}
+
+.custom-module-clickable {
+    cursor: pointer;
+}
+
+.custom-module-readonly {
+    cursor: default;
+}
+
+/* Custom Module Modal */
+.custom-module-modal .modal-body{
+    height:calc(100vh - 13em);
+}
+
+.custom-module-modal-container {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.custom-module-modal-input {
+    padding: 1em;
+}
+
+.custom-module-modal-content {
+    flex: 1;
+    overflow: auto;
+    padding: 1em;
+}
+
+.custom-module-modal-footer {
+    padding: 1em;
+    border-top: 1px solid #ccc;
+}
+
+.custom-module-modal-name {
+    padding: 1em;
+    font-weight: bold;
+    font-size: 1.1em;
+}
+
+/* Custom Module Settings */
+.custom-module-settings {
+    padding: 1em;
+}
+
+.custom-module-templates {
+    margin-top: 2em;
+}
+
+.custom-module-templates h3 {
+    margin-bottom: 1em;
+    font-size: 1.1em;
+    font-weight: bold;
+}
+
+.custom-module-templates table td:first-child {
+    width:100%;
+}
+
+.custom-module-templates table .button{
+    padding:0.25em 1em 0.25em 1em;
+}
+
+.custom-module-templates table .button .material-symbols-rounded {
+    font-size: 1.2em;
+}
+
+/* Custom Module List Wrapper Column Layouts */
+.custom-module-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em;
+}
+
+.custom-module-list-wrapper.cols-1 {
+    width: 100%;
+}
+
+.custom-module-list-wrapper.cols-2 {
+    width: calc(50% - 0.5em);
+}
+
+.custom-module-list-wrapper.cols-3 {
+    width: calc(33.333% - 0.667em);
+}
+
+.custom-module-list-wrapper.cols-4 {
+    width: calc(25% - 0.75em);
+}
+
+.custom-module-list-wrapper.cols-5 {
+    width: calc(20% - 0.8em);
+}
+
+.custom-module-list-wrapper.cols-6 {
+    width: calc(16.666% - 0.833em);
+}
+
+.custom-module-list-wrapper.cols-7 {
+    width: calc(14.285% - 0.857em);
+}
+
+.custom-module-list-wrapper.cols-8 {
+    width: calc(12.5% - 0.875em);
+}
+
+.custom-module-list-wrapper.cols-9 {
+    width: calc(11.111% - 0.889em);
+}
+
+.custom-module-list-wrapper.cols-10 {
+    width: calc(10% - 0.9em);
+}
+
+.custom-module-list-wrapper.cols-11 {
+    width: calc(9.090% - 0.909em);
+}
+
+.custom-module-list-wrapper.cols-12 {
+    width: calc(8.333% - 0.917em);
+}
+
+/* Responsive: Adjust columns based on screen size */
+
+/* Tablet (max 768px) - Reduce columns for 7+ */
+@media (max-width: 768px) {
+    .custom-module-list-wrapper.cols-7,
+    .custom-module-list-wrapper.cols-8,
+    .custom-module-list-wrapper.cols-9,
+    .custom-module-list-wrapper.cols-10,
+    .custom-module-list-wrapper.cols-11,
+    .custom-module-list-wrapper.cols-12 {
+        width: calc(25% - 0.75em); /* 4 columns max */
+    }
+}
+
+/* Small Tablet (max 640px) - Reduce to 3 columns max for 4+ */
+@media (max-width: 640px) {
+    .custom-module-list-wrapper.cols-4,
+    .custom-module-list-wrapper.cols-5,
+    .custom-module-list-wrapper.cols-6,
+    .custom-module-list-wrapper.cols-7,
+    .custom-module-list-wrapper.cols-8,
+    .custom-module-list-wrapper.cols-9,
+    .custom-module-list-wrapper.cols-10,
+    .custom-module-list-wrapper.cols-11,
+    .custom-module-list-wrapper.cols-12 {
+        width: calc(33.333% - 0.667em); /* 3 columns max */
+    }
+}
+
+/* Large Phone (max 480px) - Reduce to 2 columns max for 3+ */
+@media (max-width: 480px) {
+    .custom-module-list-wrapper.cols-3,
+    .custom-module-list-wrapper.cols-4,
+    .custom-module-list-wrapper.cols-5,
+    .custom-module-list-wrapper.cols-6,
+    .custom-module-list-wrapper.cols-7,
+    .custom-module-list-wrapper.cols-8,
+    .custom-module-list-wrapper.cols-9,
+    .custom-module-list-wrapper.cols-10,
+    .custom-module-list-wrapper.cols-11,
+    .custom-module-list-wrapper.cols-12 {
+        width: calc(50% - 0.5em); /* 2 columns max */
+    }
+}
+
+/* Phone (max 370px) - All columns become full width */
+@media (max-width: 370px) {
+    .custom-module-list-wrapper.cols-1,
+    .custom-module-list-wrapper.cols-2,
+    .custom-module-list-wrapper.cols-3,
+    .custom-module-list-wrapper.cols-4,
+    .custom-module-list-wrapper.cols-5,
+    .custom-module-list-wrapper.cols-6,
+    .custom-module-list-wrapper.cols-7,
+    .custom-module-list-wrapper.cols-8,
+    .custom-module-list-wrapper.cols-9,
+    .custom-module-list-wrapper.cols-10,
+    .custom-module-list-wrapper.cols-11,
+    .custom-module-list-wrapper.cols-12 {
+        width: 100%;
+    }
 }

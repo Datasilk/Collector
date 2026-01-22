@@ -334,6 +334,7 @@
     <Build Include="dbo\Tables\Journal\JournalFiles.sql" />
     <Build Include="dbo\Sequences\SequenceJournalFiles.sql" />
     <Build Include="dbo\Stored Procedures\Feeds\Feeds_Filter.sql" />
+    <Build Include="dbo\Stored Procedures\ResetAllSequences.sql" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Collector.SQL.publish.xml" />

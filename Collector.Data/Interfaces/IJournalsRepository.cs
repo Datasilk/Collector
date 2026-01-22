@@ -8,6 +8,7 @@ namespace Collector.Data.Interfaces
         int Add(Journal journal);
         List<Journal> GetAllByUserId(Guid appUserId);
         Journal GetById(int journalId);
+        Journal GetByUserIdAndStatus(Guid appUserId, int status);
         void Rename(int journalId, string title);
         void ChangeColor(int journalId, string color);
         void Archive(int journalId);

@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 //components
 import Icon from '@/components/ui/icon';
+import Modal from '@/components/ui/modal';
 //context
 import { useSession } from '@/context/session';
 //api
@@ -9,7 +10,7 @@ import { JournalImages } from '@/api/user/journalImages';
 //helpers
 import { apiBasePath } from '@/helpers/endpoints.js';
 
-export default function ImageModule({ module, entryId, journalId, onUpdate, isEditable = true, manuallyAdded = false, setDeleteListener }) {
+export default function ImageModule({ module, entryId, journalId, onUpdate, isEditable = true, manuallyAdded = false, setDeleteListener, tabButtons }) {
     //state
     const [isUploading, setIsUploading] = useState(false);
     const [isLoadingImage, setIsLoadingImage] = useState(false);
@@ -17,6 +18,7 @@ export default function ImageModule({ module, entryId, journalId, onUpdate, isEd
     
     //refs
     const fileInputRef = useRef(null);
+    const replaceInputRef = useRef(null);
     const clipboardUploadRef = useRef(false);
     
     //context
@@ -59,7 +61,8 @@ export default function ImageModule({ module, entryId, journalId, onUpdate, isEd
             const fallbackExtension = fileType.split('/').pop() || 'png';
             const fileExtension = extensionFromName || fallbackExtension;
             const fileName = `${timestamp}-${module.id}.${fileExtension}`;
-            const path = `journal-entries/${entryId}/${fileName}`;
+            const sourceEntryId = module.entryId || entryId;
+            const path = `journal-entries/${sourceEntryId}/${fileName}`;
 
             const response = await upload(path, file);
 
@@ -79,7 +82,7 @@ export default function ImageModule({ module, entryId, journalId, onUpdate, isEd
 
                         await addImageMetadata(imageMetadata);
 
-                        onUpdate({ ...module, image: fileName, uploadFromClipboard: null });
+                        onUpdate({ ...module, image: fileName, entryId: sourceEntryId, uploadFromClipboard: null });
                         setIsLoadingImage(false);
                     } catch (error) {
                         console.error('Error saving image metadata:', error);
@@ -88,7 +91,7 @@ export default function ImageModule({ module, entryId, journalId, onUpdate, isEd
                     }
                 };
                 img.onerror = () => {
-                    onUpdate({ ...module, image: fileName, uploadFromClipboard: null });
+                    onUpdate({ ...module, image: fileName, entryId: sourceEntryId, uploadFromClipboard: null });
                     setIsLoadingImage(false);
                 };
                 img.src = URL.createObjectURL(file);
@@ -108,6 +111,113 @@ export default function ImageModule({ module, entryId, journalId, onUpdate, isEd
             setIsUploading(false);
         }
     };
+
+    const handleReplaceImage = useCallback(() => {
+        const modalFileInputRef = { current: null };
+        let isDragging = false;
+
+        const handleModalDrop = async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            isDragging = false;
+            
+            const files = e.dataTransfer?.files;
+            if (files && files.length > 0) {
+                await processImageUpload(files[0]);
+                session.hideModal();
+            }
+        };
+
+        const handleModalDragOver = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        };
+
+        const handleModalDragEnter = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            isDragging = true;
+        };
+
+        const handleModalDragLeave = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            isDragging = false;
+        };
+
+        const handleModalFileChange = async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                await processImageUpload(file);
+                session.hideModal();
+            }
+        };
+
+        session.showModal(() => (
+            <Modal
+                title="Replace Image"
+                onClose={() => session.hideModal()}
+            >
+                <div
+                    style={{
+                        padding: '2em',
+                        textAlign: 'center',
+                        minHeight: '200px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '1em'
+                    }}
+                    onDrop={handleModalDrop}
+                    onDragOver={handleModalDragOver}
+                    onDragEnter={handleModalDragEnter}
+                    onDragLeave={handleModalDragLeave}
+                >
+                    <div
+                        style={{
+                            border: '2px dashed #ccc',
+                            borderRadius: '8px',
+                            padding: '2em',
+                            width: '100%',
+                            backgroundColor: isDragging ? '#f0f0f0' : 'transparent'
+                        }}
+                    >
+                        <Icon name="cloud_upload" style={{ fontSize: '3em', opacity: 0.5 }} />
+                        <p>Drag and drop an image here</p>
+                    </div>
+                    <div className="tool-bar">
+                        <div className="image-upload-button-container">
+                            <button disabled={isUploading}>
+                                <Icon name="upload" />
+                                {isUploading ? 'Uploading...' : 'Upload Image'}
+                            </button>
+                            <input
+                                type="file"
+                                ref={(el) => { modalFileInputRef.current = el; }}
+                                onChange={handleModalFileChange}
+                                accept="image/*"
+                                disabled={isUploading}
+                            />
+                        </div>
+                    </div>
+                </div>
+            </Modal>
+        ));
+    }, [session, isUploading, processImageUpload]);
+
+    useEffect(() => {
+        if (typeof tabButtons !== 'function') return;
+        const buttons = [];
+        if (module.image) {
+            buttons.push({
+                icon: 'add_photo_alternate',
+                title: 'Replace Image',
+                callback: handleReplaceImage
+            });
+        }
+        tabButtons(buttons);
+    }, [module.image, handleReplaceImage]);
 
     const handleFileChange = async (e) => {
         if (!isEditable) return;
@@ -150,7 +260,8 @@ export default function ImageModule({ module, entryId, journalId, onUpdate, isEd
 
     const removeModule = (moduleItem) => {
         if (deleteImageMetadata) {
-            deleteImageMetadata(entryId, moduleItem.id);
+            const sourceEntryId = moduleItem.entryId || entryId;
+            deleteImageMetadata(sourceEntryId, moduleItem.id);
         }
     };
     
@@ -192,7 +303,7 @@ export default function ImageModule({ module, entryId, journalId, onUpdate, isEd
             {module.image && !isLoadingImage && (
                 <div className="image-preview">
                     <img loading="lazy"
-                        src={apiBasePath() + `/image/journal-entries/${entryId}/${module.image}`} 
+                        src={apiBasePath() + `/image/journal-entries/${module.entryId || entryId}/${module.image}`} 
                         alt="Uploaded content" 
                     />
                 </div>

@@ -139,6 +139,21 @@ if (File.Exists(downloadToolsScript))
 
 var app = builder.Build();
 
+// Reset all sequences on application startup
+using (var scope = app.Services.CreateScope())
+{
+    try
+    {
+        var collectorRepo = scope.ServiceProvider.GetRequiredService<Collector.Data.Interfaces.ICollectorRepository>();
+        collectorRepo.ResetAllSequences();
+        Console.WriteLine("All database sequences have been reset successfully.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Warning: Failed to reset sequences: {ex.Message}");
+    }
+}
+
 // Note: CORS is handled by app.UseCors() middleware below
 
 // Configure the HTTP request pipeline.

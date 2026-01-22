@@ -17,9 +17,9 @@ namespace Collector.Data.Repositories
         public int Add(Journal journal)
         {
             return _dbConnection.QuerySingle<int>(@"INSERT INTO [dbo].[Journals] 
-                ([AppUserId], [CategoryId], [Title], [Color]) 
+                ([AppUserId], [CategoryId], [Title], [Color], [Status]) 
                 OUTPUT INSERTED.[Id]
-                VALUES (@AppUserId, @CategoryId, @Title, @Color)", 
+                VALUES (@AppUserId, @CategoryId, @Title, @Color, @Status)", 
                 journal);
         }
 
@@ -35,6 +35,13 @@ namespace Collector.Data.Repositories
             return _dbConnection.QuerySingleOrDefault<Journal>(@"SELECT * FROM [dbo].[Journals] 
                 WHERE [Id] = @journalId", 
                 new { journalId });
+        }
+
+        public Journal GetByUserIdAndStatus(Guid appUserId, int status)
+        {
+            return _dbConnection.QuerySingleOrDefault<Journal>(@"SELECT * FROM [dbo].[Journals] 
+                WHERE [AppUserId] = @appUserId AND [Status] = @status", 
+                new { appUserId, status });
         }
 
         public void Rename(int journalId, string title)
