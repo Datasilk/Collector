@@ -13,6 +13,7 @@ export default function CustomModule({ module, onUpdate, isEditable = true, entr
     const [customModuleEntries, setCustomModuleEntries] = useState([]);
     const [selectedEntryId, setSelectedEntryId] = useState(module.customId || null);
     const [editingIndex, setEditingIndex] = useState(null);
+    const [hoverIndex, setHoverIndex] = useState(null);
     const [columnsPerRow, setColumnsPerRow] = useState(module.columnsPerRow || 1);
     const hasLoadedInitialContent = useRef(false);
     const hasLoadedTemplate = useRef(false);
@@ -398,7 +399,31 @@ export default function CustomModule({ module, onUpdate, isEditable = true, entr
     const handleModuleListClick = (index) => {
         if (isEditable) {
             setEditingIndex(index);
+            document.addEventListener('click', deselectModuleListItem);
         }
+    };
+
+    const deselectModuleListItem = useCallback((e) => {
+        var node = e.target;
+        while (node && node !== document.body) {
+            if (node.classList && (
+                node.classList.contains('custom-module-' + module.id) ||
+                node.classList.contains('ck')
+            )) {
+                return;
+            }
+            node = node.parentNode;
+        }
+        document.removeEventListener('click', deselectModuleListItem);
+        setEditingIndex(null);
+    }, [module.id]);
+
+    const handleModuleListOver = (index) => {
+        setHoverIndex(index);
+    };
+
+    const handleModuleListLeave = () => {
+        setHoverIndex(null);
     };
 
     useEffect(() => {
@@ -406,14 +431,14 @@ export default function CustomModule({ module, onUpdate, isEditable = true, entr
         const buttons = [];
         if (isEditable) {
             buttons.push({
-                icon: 'settings',
-                title: 'Custom Module Settings',
-                callback: handleShowSettingsModal
+                icon: 'add_photo_alternate',
+                title: 'Add custom module item',
+                callback: handleAddModuleList
             });
             buttons.push({
-                icon: 'add_photo_alternate',
-                title: 'Add Custom Module Item',
-                callback: handleAddModuleList
+                icon: 'settings',
+                title: 'Custom module settings',
+                callback: handleShowSettingsModal
             });
         }
         tabButtons(buttons);
@@ -455,8 +480,14 @@ export default function CustomModule({ module, onUpdate, isEditable = true, entr
             {(module.items || []).map((item, index) => (
                 <div 
                     key={index} 
-                    className={`custom-module-list-wrapper cols-${columnsPerRow}`}
-                    onClick={() => handleModuleListClick(index)}
+                    className={
+                        `custom-module-list-wrapper cols-${columnsPerRow}` + 
+                        `${editingIndex === index ? ' editing' : ''}` +
+                        `${hoverIndex === index ? ' hover' : ''} ` +
+                        `custom-module-${module.id}`}
+                    onClick={isEditable ? () => handleModuleListClick(index) : null}
+                    onMouseOver={isEditable ? () => handleModuleListOver(index) : null}
+                    onMouseLeave={isEditable ? () => handleModuleListLeave() : null}
                 >
                     <ModuleList
                         entryJson={item}

@@ -10,6 +10,7 @@ import FileDownloadModule from './modules/file-download';
 import PdfViewerModule from './modules/pdf-viewer';
 import EntriesListModule from './modules/entries-list';
 import CustomModule from './modules/custom';
+import GenerateContentModule from './modules/generate-content';
 
 const modules = [
     {
@@ -89,6 +90,13 @@ const modules = [
         icon: 'extension',
         type: 'custom',
         module: CustomModule
+    },
+    {
+        id: 'generate-content',
+        name: 'Generate Content',
+        icon: 'auto_awesome',
+        type: 'generate-content',
+        module: GenerateContentModule
     }
 ];
 

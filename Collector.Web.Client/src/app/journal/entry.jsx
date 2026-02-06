@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 //css
 import './entry.css';
@@ -41,12 +41,13 @@ export default function JournalEntryPage() {
     const entryRef = useRef(null);
     const entryJsonRef = useRef(null);
     const secretsTimerRef = useRef(null);
+    const saveTimerRef = useRef(null);
     const currentChapterName = useRef(null);
     const currentChapter = useRef(null);
 
     //apis
-    const { addEntry, renameEntry, getChapters, updateJournalEntryId, 
-        getJournal, getEntry, getEntryContent, setEntryParent, 
+    const { addEntry, renameEntry, getChapters, updateJournalEntryId,
+        getJournal, getEntry, getEntryContent, setEntryParent,
         updateEntryThumbnail, updateEntryContent } = Journals(session);
     const { getSnapshot } = JournalSnapshots(session);
     const { addTagToEntry, removeTagFromEntry } = JournalTags(session);
@@ -71,6 +72,17 @@ export default function JournalEntryPage() {
             loadChapters();
         }
     }, [journalId]);
+
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                setIsEditing(prev => !prev);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
     //actions
     const getEntryId = (journalData) => {
@@ -114,16 +126,16 @@ export default function JournalEntryPage() {
                 created: new Date().toISOString(),
                 status: 1
             };
-                const newEntryJson = {
-                    modules: [
-                        {
-                            id: generateRandomId(),
-                            type: 'text-editor',
-                            manuallyAdded: false,
-                            html: '<p>Type or paste your content here!</p>'
-                        }
-                    ]
-                };
+            const newEntryJson = {
+                modules: [
+                    {
+                        id: generateRandomId(),
+                        type: 'text-editor',
+                        manuallyAdded: false,
+                        html: '<p>Type or paste your content here!</p>'
+                    }
+                ]
+            };
 
             if (isNewEntry) {
                 // Create a new entry template
@@ -164,7 +176,7 @@ export default function JournalEntryPage() {
 
                 const entryData = entryResponse.data.data.entry || entryResponse.data.data;
                 const tagsData = entryResponse.data.data.tags || entryData.tags || [];
-                
+
                 if (!entryData.parentEntryId && location?.state?.parentEntryId) {
                     try {
                         await setEntryParent(entryData.id, location.state.parentEntryId);
@@ -196,7 +208,7 @@ export default function JournalEntryPage() {
                         } catch (parseErr) {
                             console.error('Error parsing entry content JSON:', parseErr);
                         }
-                    }else{
+                    } else {
                         setupEntry(entryData, newEntryJson, [], true, false);
                     }
                 } catch (contentErr) {
@@ -224,19 +236,54 @@ export default function JournalEntryPage() {
         setEntryJson(newEntryJson);
         applyEntryCss(newEntryJson?.css);
         setSaveStatus(null);
-        setError(null); 
+        setError(null);
         window.scrollTo(0, 0);
         checkEntryThumbnail(newEntry, newEntryJson?.modules);
     }
 
+    const flattenModules = (modules) => {
+        if (!modules || !Array.isArray(modules)) return [];
+
+        const flattened = [];
+        for (const module of modules) {
+            flattened.push(module);
+            // Recursively flatten nested modules
+            if (module.modules && Array.isArray(module.modules)) {
+                flattened.push(...flattenModules(module.modules));
+            }
+            // Handle tabs module structure where modules are in tabs[x].modules
+            if (module.tabs && Array.isArray(module.tabs)) {
+                for (const tab of module.tabs) {
+                    if (tab.modules && Array.isArray(tab.modules)) {
+                        flattened.push(...flattenModules(tab.modules));
+                    }
+                }
+            }
+        }
+        return flattened;
+    };
+
     const checkEntryThumbnail = async (entryData, modules) => {
         if (!entryData || !modules) return;
 
+        // Flatten the module hierarchy to search through all nested modules
+        const allModules = flattenModules(modules);
+
         // If we have a thumbnailModuleId, check if that module's thumbnail has changed
         if (entryData.thumbnailModuleId) {
-            const sourceModule = modules.find(m => m.id === entryData.thumbnailModuleId);
+            const sourceModule = allModules.find(m => m.id === entryData.thumbnailModuleId);
             if (sourceModule) {
-                const moduleThumbnail = sourceModule.type === 'video-player' ? sourceModule.thumbnailPath : sourceModule.image;
+                let moduleThumbnail = null;
+                if (sourceModule.type === 'video-player') {
+                    moduleThumbnail = sourceModule.thumbnailPath;
+                } else if (sourceModule.type === 'image') {
+                    moduleThumbnail = sourceModule.image;
+                } else if (sourceModule.type === 'image-gallery' && sourceModule.images && sourceModule.images.length > 0) {
+                    // Try to find the matching image based on current thumbnail
+                    const matchingImage = sourceModule.images.find(img => img === entryData.thumbnail);
+                    moduleThumbnail = matchingImage || sourceModule.images[0];
+                }
+
                 if (moduleThumbnail && moduleThumbnail !== entryData.thumbnail) {
                     // Thumbnail has changed, update it
                     await updateThumbnail(entryData, moduleThumbnail, entryData.thumbnailModuleId);
@@ -249,24 +296,34 @@ export default function JournalEntryPage() {
         if (entryData.thumbnail) return;
 
         // Find first video module with thumbnailPath
-        const videoModule = modules.find(m => m.type === 'video-player' && m.thumbnailPath);
+        const videoModule = allModules.find(m => m.type === 'video-player' && m.thumbnailPath);
         if (videoModule) {
             await updateThumbnail(entryData, videoModule.thumbnailPath, videoModule.id);
             return;
         }
 
         // Find first image module with image
-        const imageModule = modules.find(m => m.type === 'image' && m.image);
+        const imageModule = allModules.find(m => m.type === 'image' && m.image);
         if (imageModule) {
-            await updateThumbnail(entryData, imageModule.image, imageModule.id);
+            const sourceEntryId = imageModule.entryId || entryData.id;
+            await updateThumbnail(entryData, imageModule.image, imageModule.id, sourceEntryId);
+            return;
+        }
+
+        // Find first image-gallery module with images
+        const galleryModule = allModules.find(m => m.type === 'image-gallery' && m.images && m.images.length > 0);
+        if (galleryModule) {
+            await updateThumbnail(entryData, galleryModule.images[0], galleryModule.id);
         }
     };
 
-    const updateThumbnail = async (entryData, thumbnail, moduleId = null) => {
+    const updateThumbnail = async (entryData, thumbnail, moduleId = null, sourceEntryId = null) => {
         try {
-            await updateEntryThumbnail(entryData.id, thumbnail, moduleId);
-            setEntry({ ...entryData, thumbnail, thumbnailModuleId: moduleId });
-            entryRef.current = { ...entryData, thumbnail, thumbnailModuleId: moduleId };
+            await updateEntryThumbnail(entryData.id, thumbnail, moduleId, sourceEntryId);
+            // Store the full path in state if sourceEntryId is provided
+            const thumbnailPath = sourceEntryId ? `${sourceEntryId}/${thumbnail}` : thumbnail;
+            setEntry({ ...entryData, thumbnail: thumbnailPath, thumbnailModuleId: moduleId });
+            entryRef.current = { ...entryData, thumbnail: thumbnailPath, thumbnailModuleId: moduleId };
         } catch (err) {
             console.error('Error updating entry thumbnail:', err);
         }
@@ -348,7 +405,7 @@ export default function JournalEntryPage() {
             return;
         }
         entryJsonRef.current = json;
-        
+
         // Skip save if entry is not fully loaded or has no modules
         if (!entry || !entry.id) {
             console.warn('saveEntryContent: entry not loaded yet', entry);
@@ -359,36 +416,45 @@ export default function JournalEntryPage() {
             return;
         }
 
+        // Debounce the save operation
+        if (saveTimerRef.current) {
+            clearTimeout(saveTimerRef.current);
+        }
+        saveTimerRef.current = setTimeout(() => {
+            finishSaving(json);
+        }, 5000);
+    };
+
+    const finishSaving = useCallback((json) => {
         setSaveStatus('saving');
         try {
             const contentString = JSON.stringify(json);
-            const response = await updateEntryContent(entry.id, contentString);
-
-            if (!response.data.success) {
-                console.error('saveEntryContent: API error', response.data);
-                const errorMessage = response.data.message || '';
-                const isFileInUseError = errorMessage.toLowerCase().includes('because it is being used by another process');
-                if (isFileInUseError) {
-                    setSaveStatus('save_failed_file_locked');
-                    return;
+            updateEntryContent(entry.id, contentString).then(response => {
+                if (!response.data.success) {
+                    console.error('saveEntryContent: API error', response.data);
+                    const errorMessage = response.data.message || '';
+                    const isFileInUseError = errorMessage.toLowerCase().includes('because it is being used by another process');
+                    if (isFileInUseError) {
+                        setSaveStatus('save_failed_file_locked');
+                        return;
+                    }
+                    return showError(errorMessage || 'Failed to save entry content');
                 }
-                return showError(errorMessage || 'Failed to save entry content');
-            }
 
-            applyEntryCss(json.css);
+                applyEntryCss(json.css);
 
-            setSaveStatus('saved');
+                setSaveStatus('saved');
 
-            // Clear the "saved" status after a few seconds
-            setTimeout(() => {
-                setSaveStatus(null);
-            }, 3000);
-
+                // Clear the "saved" status after a few seconds
+                setTimeout(() => {
+                    setSaveStatus(null);
+                }, 3000);
+            });
         } catch (err) {
             console.error('Error saving entry content:', err);
             setSaveStatus('error');
         }
-    };
+    }, [entry, entryJson])
     //#endregion
 
     //#region Entry Title
@@ -485,8 +551,9 @@ export default function JournalEntryPage() {
             manuallyAdded: true
         };
 
-        const newEntryJson = { ...entryJsonRef.current, 
-            modules: [...(entryJsonRef.current?.modules ?? []), newModule] 
+        const newEntryJson = {
+            ...entryJsonRef.current,
+            modules: [...(entryJsonRef.current?.modules ?? []), newModule]
         };
         saveEntryContent(newEntryJson);
     };
@@ -505,7 +572,7 @@ export default function JournalEntryPage() {
         saveEntryContent({ ...entryJsonRef.current, ...json });
     };
 
-    const handleAddedModule = (newModule, targetModuleId) => {
+    const handleAddedModule = useCallback((newModule, targetModuleId) => {
         const moduleIndex = entryJsonRef.current.modules.findIndex(module => module.id === targetModuleId);
         if (moduleIndex === -1) return;
 
@@ -518,11 +585,11 @@ export default function JournalEntryPage() {
 
         saveEntryContent(updatedEntryJson);
         checkEntryThumbnail(entryRef.current, updatedModules);
-    };
+    }, [entryJsonRef]);
 
-    const handleRemovedModule = (moduleId, updatedModules) => {
+    const handleRemovedModule = useCallback((moduleId, updatedModules) => {
         saveEntryContent({ ...entryJsonRef.current, modules: updatedModules });
-    };
+    }, [entryJsonRef]);
     //#endregion
 
     //#region Secrets
@@ -540,17 +607,6 @@ export default function JournalEntryPage() {
             el.onclick = showSecret;
         });
     }, 500);
-
-    const handleRemoveEntryTag = async (tag) => {
-        if (!entry || !entry.id || !tag || tag.tagId == null) return;
-
-        try {
-            await removeTagFromEntry(entry.id, tag.tagId);
-            setEntryTags(prev => prev.filter(t => t.tagId !== tag.tagId));
-        } catch (err) {
-            console.error('Error removing tag from entry:', err);
-        }
-    };
 
     //#endregion
 

@@ -211,39 +211,48 @@ namespace Collector.Common
         /// <returns>Thumbnail image as byte array</returns>
         public static byte[] CreateThumbnail(byte[] imageBytes, int maxDimension = 300, int quality = 80)
         {
-            using var image = Image.Load(imageBytes);
-            
-            int width = image.Width;
-            int height = image.Height;
-            
-            // Calculate new dimensions while maintaining aspect ratio
-            if (width > height)
+            try
             {
-                if (width > maxDimension)
+                using var image = Image.Load(imageBytes);
+                
+                int width = image.Width;
+                int height = image.Height;
+                
+                // Calculate new dimensions while maintaining aspect ratio
+                if (width > height)
                 {
-                    height = (int)(height * (maxDimension / (double)width));
-                    width = maxDimension;
+                    if (width > maxDimension)
+                    {
+                        height = (int)(height * (maxDimension / (double)width));
+                        width = maxDimension;
+                    }
                 }
-            }
-            else
-            {
-                if (height > maxDimension)
+                else
                 {
-                    width = (int)(width * (maxDimension / (double)height));
-                    height = maxDimension;
+                    if (height > maxDimension)
+                    {
+                        width = (int)(width * (maxDimension / (double)height));
+                        height = maxDimension;
+                    }
                 }
+                
+                // Only resize if the image is larger than maxDimension
+                if (width != image.Width || height != image.Height)
+                {
+                    image.Mutate(x => x.Resize(width, height));
+                }
+                
+                using var ms = new MemoryStream();
+                var jpegEncoder = new JpegEncoder { Quality = quality };
+                image.Save(ms, jpegEncoder);
+                return ms.ToArray();
             }
-            
-            // Only resize if the image is larger than maxDimension
-            if (width != image.Width || height != image.Height)
+            catch (Exception ex)
             {
-                image.Mutate(x => x.Resize(width, height));
+                Console.WriteLine($"Error creating thumbnail: {ex.Message}");
+                // Return null if thumbnail creation fails
+                return null;
             }
-            
-            using var ms = new MemoryStream();
-            var jpegEncoder = new JpegEncoder { Quality = quality };
-            image.Save(ms, jpegEncoder);
-            return ms.ToArray();
         }
 
         // Helper class for TinyPNG API response

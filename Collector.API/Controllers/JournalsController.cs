@@ -996,7 +996,18 @@ namespace Collector.API.Controllers
                 if (journal == null || journal.AppUserId != userId)
                     return Json(new ApiResponse { success = false, message = "Not authorized to update this entry" });
 
-                _entriesRepository.UpdateThumbnail(request.Id, request.Thumbnail, request.ThumbnailModuleId);
+                // Build full thumbnail path if source entry ID is provided (for images)
+                var thumbnailPath = request.Thumbnail;
+                if (request.SourceEntryId.HasValue && !string.IsNullOrEmpty(request.Thumbnail))
+                {
+                    // Only add path if it doesn't already contain a path separator
+                    if (!request.Thumbnail.Contains("/") && !request.Thumbnail.Contains("\\"))
+                    {
+                        thumbnailPath = $"{request.SourceEntryId.Value}/{request.Thumbnail}";
+                    }
+                }
+
+                _entriesRepository.UpdateThumbnail(request.Id, thumbnailPath, request.ThumbnailModuleId);
                 return Json(new ApiResponse { success = true });
             }
             catch (Exception ex)
@@ -1341,8 +1352,11 @@ namespace Collector.API.Controllers
                 var thumbnailFilename = $"{filenameWithoutExt}_thumb{extension}";
                 var thumbnailPath = $"journal-entries/{image.JournalEntryId}/{thumbnailFilename}";
                 
-                // Save thumbnail
-                Files.SaveFileBytes(Files.Paths.Images, thumbnailPath, thumbnailBytes);
+                // Save thumbnail only if creation succeeded
+                if (thumbnailBytes != null && thumbnailBytes.Length > 0)
+                {
+                    Files.SaveFileBytes(Files.Paths.Images, thumbnailPath, thumbnailBytes);
+                }
 
                 var id = _imagesRepository.Add(image);
                 image.Id = id;
@@ -1494,8 +1508,11 @@ namespace Collector.API.Controllers
                     var thumbnailFilename = $"{filenameWithoutExt}_thumb{extension}";
                     var thumbnailPath = $"journal-entries/{image.JournalEntryId}/{thumbnailFilename}";
                     
-                    // Save thumbnail
-                    Files.SaveFileBytes(Files.Paths.Images, thumbnailPath, thumbnailBytes);
+                    // Save thumbnail only if creation succeeded
+                    if (thumbnailBytes != null && thumbnailBytes.Length > 0)
+                    {
+                        Files.SaveFileBytes(Files.Paths.Images, thumbnailPath, thumbnailBytes);
+                    }
                     
                     // Delete old thumbnail if it exists
                     var oldExtension = Path.GetExtension(existingImage.Filename);

@@ -47,7 +47,7 @@ const WorkerHubProvider = ({ children }) => {
 
             // Setup global WorkerProgress listener once
             conn.on('WorkerProgress', (appUserId, workerId, eventName, payload) => {
-                const currentAppUserId = session?.user?.appUserId || session?.user?.AppUser || session?.user?.id || session?.user?.userId;
+                const currentAppUserId = session?.user?.appUserId;
                 // Compare as strings to handle number vs string mismatch
                 if (!currentAppUserId || String(currentAppUserId) !== String(appUserId)) {
                     return;
@@ -91,7 +91,7 @@ const WorkerHubProvider = ({ children }) => {
             connectionRef.current = conn;
 
             // After connecting, register user and request progress updates
-            const currentAppUserId = session?.user?.appUserId || session?.user?.AppUser || session?.user?.id || session?.user?.userId;
+            const currentAppUserId = session?.user?.appUserId;
             if (currentAppUserId) {
                 try {
                     // Register this connection for the user (required for receiving cookie requests)
@@ -118,7 +118,7 @@ const WorkerHubProvider = ({ children }) => {
     }, []);
 
     const call = useCallback(async (route, method, args, onMessage, customId, url) => {
-        const appUserId = session?.user?.appUserId || session?.user?.AppUser || session?.user?.id || session?.user?.userId;
+        const appUserId = session?.user?.appUserId;
         if (!appUserId) {
             throw new Error('No AppUserId available in session');
         }
@@ -136,7 +136,7 @@ const WorkerHubProvider = ({ children }) => {
     }, [ensureConnection, session]);
 
     const getWorkers = useCallback(async () => {
-        const appUserId = session?.user?.appUserId || session?.user?.AppUser || session?.user?.id || session?.user?.userId;
+        const appUserId = session?.user?.appUserId;
         if (!appUserId) {
             throw new Error('No AppUserId available in session');
         }
@@ -164,7 +164,7 @@ const WorkerHubProvider = ({ children }) => {
     }, [ensureConnection]);
 
     const requestProgress = useCallback(async (workerId) => {
-        const appUserId = session?.user?.appUserId || session?.user?.AppUser || session?.user?.id || session?.user?.userId;
+        const appUserId = session?.user?.appUserId;
         if (!appUserId || !workerId) return;
 
         const conn = await ensureConnection();
@@ -172,7 +172,7 @@ const WorkerHubProvider = ({ children }) => {
     }, [ensureConnection, session]);
 
     const progressAll = useCallback(async () => {
-        const appUserId = session?.user?.appUserId || session?.user?.AppUser || session?.user?.id || session?.user?.userId;
+        const appUserId = session?.user?.appUserId;
         if (!appUserId) return;
 
         const conn = await ensureConnection();

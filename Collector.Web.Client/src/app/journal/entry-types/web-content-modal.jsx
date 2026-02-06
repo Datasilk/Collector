@@ -52,7 +52,7 @@ export default function WebContentModal({ onClose, journalId = null, entryId = n
             });
 
             await webContentHub.start();
-            const appUserId = session?.user?.appUserId || session?.user?.AppUser || session?.user?.id || session?.user?.userId;
+            const appUserId = session?.user?.appUserId;
             const result = await webContentHub.invoke('ScrapeUrl', urlToScrape, journalId, entryId, appUserId);
 
             if (result && result.success && result.entryId) {

@@ -207,8 +207,11 @@ namespace Collector.API.Controllers
         private void SaveThumbnail(string relativePath, byte[] originalBytes)
         {
             var thumbnailBytes = Images.CreateThumbnail(originalBytes, 640, 80);
-            var thumbnailPath = BuildThumbnailPath(relativePath);
-            Files.SaveFileBytes(Files.Paths.Images, thumbnailPath, thumbnailBytes);
+            if (thumbnailBytes != null && thumbnailBytes.Length > 0)
+            {
+                var thumbnailPath = BuildThumbnailPath(relativePath);
+                Files.SaveFileBytes(Files.Paths.Images, thumbnailPath, thumbnailBytes);
+            }
         }
 
         private string BuildThumbnailPath(string relativePath)

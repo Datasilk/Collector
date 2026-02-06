@@ -1050,7 +1050,10 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         const effectiveEntryId = module.entryId || entryIdFromPath;
         const videoFileName = pathParts[pathParts.length - 1];
 
-        return `${apiBasePath()}/video/preview/${effectiveEntryId}/${videoFileName}/${time}`;
+        // URL encode the filename to handle special characters like dots
+        const encodedFileName = encodeURIComponent(videoFileName);
+
+        return `${apiBasePath()}/video/preview/${effectiveEntryId}/${encodedFileName}/${time}`;
     };
 
     const loadPreviewThumbnail = async (time) => {

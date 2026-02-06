@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 //components
 import Icon from '@/components/ui/icon';
 import Input from '@/components/forms/input';
@@ -375,14 +375,14 @@ export default function TabsModule({ module, entryId, entry, journalId, journal,
         setShowAddModuleDropdown(false);
     };
 
-    const handleShowSettingsModal = () => {
+    const handleShowSettingsModal = useCallback(() => {
         session.showModal(() => (
             <TabsSettingsModal
                 module={moduleRef.current}
                 onUpdate={onUpdate}
             />
         ));
-    };
+    }, [session, onUpdate]);
 
     useEffect(() => {
         if (!tabButtons) return;
@@ -393,7 +393,7 @@ export default function TabsModule({ module, entryId, entry, journalId, journal,
                 callback: handleShowSettingsModal
             }
         ]);
-    }, [tabButtons, handleShowSettingsModal]);
+    }, [tabButtons]);
 
     const handleDroppedModule = (updatedEntryJson) => {
         updateActiveTabModules(updatedEntryJson.modules);

@@ -26,6 +26,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Remove="download-tools.bat" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="download-tools.bat">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.2.0" />
     <PackageReference Include="Microsoft.AspNetCore.SpaProxy">
       <Version>8.0.18</Version>
@@ -40,12 +50,6 @@
     <ProjectReference Include="..\Collector.Web.Client\Collector.Web.Client.esproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Update="download-tools.bat">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
   </ItemGroup>
 
 </Project>

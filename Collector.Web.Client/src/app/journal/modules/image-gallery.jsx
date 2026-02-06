@@ -130,17 +130,43 @@ export default function ImageGalleryModule({
         journalImagesApi.deleteByModuleId(entryId, moduleItem.id);
     }, [entryId, journalImagesApi]);
 
-    const handleUploadButtonClick = useCallback(() => {
-        if (!isEditable || !fileInputRef.current) return;
-        fileInputRef.current.click();
-    }, [isEditable]);
+    const getImageDimensions = (file) => {
+        return new Promise((resolve) => {
+            if (!file) {
+                resolve({ width: 0, height: 0 });
+                return;
+            }
 
-    const handleFileChange = useCallback(async (event) => {
-        const selectedFiles = Array.from(event.target.files || []);
-        event.target.value = '';
-        if (!selectedFiles.length) return;
-        await uploadImages(selectedFiles);
-    }, [entryId, module.id, thumbnailsPerRow]);
+            const img = new Image();
+            const objectUrl = URL.createObjectURL(file);
+            img.onload = () => {
+                resolve({ width: img.width || 0, height: img.height || 0 });
+                URL.revokeObjectURL(objectUrl);
+            };
+            img.onerror = () => {
+                resolve({ width: 0, height: 0 });
+                URL.revokeObjectURL(objectUrl);
+            };
+            img.src = objectUrl;
+        });
+    };
+
+    const saveImageMetadata = useCallback(async (fileName, file) => {
+        if (!journalImagesApi?.add || !fileName) return;
+        try {
+            const dimensions = file ? await getImageDimensions(file) : { width: 0, height: 0 };
+            await journalImagesApi.add({
+                JournalId: journalId || null,
+                JournalEntryId: entryId,
+                ModuleId: moduleRef.current.id,
+                FileName: fileName,
+                Width: dimensions.width,
+                Height: dimensions.height
+            });
+        } catch (error) {
+            console.error('Error saving image metadata', error);
+        }
+    }, [entryId, journalId, journalImagesApi]);
 
     const uploadImages = useCallback(async (selectedFiles) => {
         if (!entryId || !moduleRef.current?.id) {
@@ -200,45 +226,111 @@ export default function ImageGalleryModule({
         } finally {
             setIsUploading(false);
         }
-    }, [entryId, onUpdate, thumbnailsPerRow, uploadBatch]);
+    }, [entryId, onUpdate, thumbnailsPerRow, uploadBatch, saveImageMetadata]);
 
-    const saveImageMetadata = useCallback(async (fileName, file) => {
-        if (!journalImagesApi?.add || !fileName) return;
-        try {
-            const dimensions = file ? await getImageDimensions(file) : { width: 0, height: 0 };
-            await journalImagesApi.add({
-                JournalId: journalId || null,
-                JournalEntryId: entryId,
-                ModuleId: moduleRef.current.id,
-                FileName: fileName,
-                Width: dimensions.width,
-                Height: dimensions.height
-            });
-        } catch (error) {
-            console.error('Error saving image metadata', error);
-        }
-    }, [entryId, journalId, journalImagesApi]);
+    const handleUploadButtonClick = useCallback(() => {
+        if (!isEditable) return;
+        
+        const modalFileInputRef = { current: null };
+        let isDragging = false;
 
-    const getImageDimensions = (file) => {
-        return new Promise((resolve) => {
-            if (!file) {
-                resolve({ width: 0, height: 0 });
-                return;
+        const handleModalDrop = async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            isDragging = false;
+
+            const files = e.dataTransfer?.files;
+            if (files && files.length > 0) {
+                await uploadImages(Array.from(files));
             }
+        };
 
-            const img = new Image();
-            const objectUrl = URL.createObjectURL(file);
-            img.onload = () => {
-                resolve({ width: img.width || 0, height: img.height || 0 });
-                URL.revokeObjectURL(objectUrl);
-            };
-            img.onerror = () => {
-                resolve({ width: 0, height: 0 });
-                URL.revokeObjectURL(objectUrl);
-            };
-            img.src = objectUrl;
-        });
-    };
+        const handleModalDragOver = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        };
+
+        const handleModalDragEnter = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            isDragging = true;
+        };
+
+        const handleModalDragLeave = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            isDragging = false;
+        };
+
+        const handleModalFileChange = async (e) => {
+            const files = Array.from(e.target.files || []);
+            if (files.length > 0) {
+                await uploadImages(files);
+                e.target.value = '';
+            }
+        };
+
+        session.showModal(() => (
+            <Modal
+                title="Upload Images"
+                onClose={() => session.hideModal()}
+            >
+                <div
+                    style={{
+                        padding: '2em',
+                        textAlign: 'center',
+                        minHeight: '200px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '1em'
+                    }}
+                    onDrop={handleModalDrop}
+                    onDragOver={handleModalDragOver}
+                    onDragEnter={handleModalDragEnter}
+                    onDragLeave={handleModalDragLeave}
+                >
+                    <div
+                        style={{
+                            border: '2px dashed #ccc',
+                            borderRadius: '8px',
+                            padding: '2em',
+                            width: '100%',
+                            backgroundColor: isDragging ? '#f0f0f0' : 'transparent'
+                        }}
+                    >
+                        <Icon name="cloud_upload" style={{ fontSize: '3em', opacity: 0.5 }} />
+                        <p>Drag and drop images here</p>
+                        <p style={{ fontSize: '0.9em', opacity: 0.7 }}>Multiple files supported</p>
+                    </div>
+                    <div className="tool-bar">
+                        <div className="image-upload-button-container">
+                            <button disabled={isUploading}>
+                                <Icon name="upload" />
+                                {isUploading ? 'Uploading...' : 'Upload Images'}
+                            </button>
+                            <input
+                                type="file"
+                                ref={(el) => { modalFileInputRef.current = el; }}
+                                onChange={handleModalFileChange}
+                                accept="image/*"
+                                multiple
+                                disabled={isUploading}
+                            />
+                        </div>
+                    </div>
+                </div>
+            </Modal>
+        ));
+    }, [isEditable, session, isUploading, uploadImages]);
+
+    const handleFileChange = useCallback(async (event) => {
+        const selectedFiles = Array.from(event.target.files || []);
+        event.target.value = '';
+        if (!selectedFiles.length) return;
+        await uploadImages(selectedFiles);
+    }, [uploadImages]);
 
     const handlePrevPage = useCallback(() => {
         if (page === 0) return;
@@ -270,12 +362,16 @@ export default function ImageGalleryModule({
         const fullSrc = getFullImageSrc(fileName);
         session.showModal(() => (
             <Modal
+                title="Image Preview"
                 onClose={() => session.hideModal()}
                 className="image-gallery-preview-modal"
+                wide={true}
             >
                 <img
                     className="image-gallery-preview-image"
                     src={fullSrc}
+                    alt="Full size preview"
+                    style={{ maxWidth: '100%', height: 'auto' }}
                 />
             </Modal>
         ));
@@ -373,6 +469,15 @@ export default function ImageGalleryModule({
         '--image-gallery-aspect': thumbnailAspectRatio
     }), [thumbnailAspectRatio, thumbnailsPerRow]);
 
+    const visibleImages = useMemo(() => {
+        if (galleryTypeState === 1) {
+            return images;
+        }
+        const startIndex = page * thumbnailsPerRow;
+        const endIndex = startIndex + thumbnailsPerRow;
+        return images.slice(startIndex, endIndex);
+    }, [images, page, thumbnailsPerRow, galleryTypeState]);
+
     const uploadButtonText = isUploading ? 'Uploading...' : 'Upload Images';
     const mainContainerClass = mainImageSrc ? 'image-gallery-main' : 'image-gallery-main empty';
     const isGridView = galleryTypeState === 1;
@@ -427,28 +532,29 @@ export default function ImageGalleryModule({
                             )}
                             <div className="image-gallery-thumbnails-viewport" ref={thumbnailsViewportRef}>
                                 <div className="image-gallery-thumbnails-track">
-                                    {images.map((fileName, index) => {
+                                    {visibleImages.map((fileName, visibleIndex) => {
+                                        const actualIndex = page * thumbnailsPerRow + visibleIndex;
                                         const src = getThumbnailSrc(fileName);
-                                        const isSelected = index === selectedIndex;
+                                        const isSelected = actualIndex === selectedIndex;
                                         const thumbnailClass = `image-gallery-thumbnail${isSelected ? ' selected' : ''}`;
                                         return (
                                             <div
-                                                key={fileName + index}
+                                                key={fileName + actualIndex}
                                                 className={thumbnailClass}
-                                                data-index={index}
+                                                data-index={actualIndex}
                                             >
                                                 <div
                                                     className="image-gallery-thumbnail-select"
-                                                    data-index={index}
+                                                    data-index={actualIndex}
                                                     onClick={handleThumbnailButtonClick}
                                                 >
-                                                    <img src={src} alt={`Gallery thumbnail ${index + 1}`} loading="lazy" />
+                                                    <img src={src} alt={`Gallery thumbnail ${actualIndex + 1}`} loading="lazy" />
                                                 </div>
                                                 {isEditable && (
                                                     <button
                                                         type="button"
                                                         className="icon image-gallery-thumbnail-delete"
-                                                        data-index={index}
+                                                        data-index={actualIndex}
                                                         aria-label="Remove image from gallery"
                                                         onClick={handleRemoveImage}
                                                     >
@@ -478,17 +584,17 @@ export default function ImageGalleryModule({
                 <>
                     {images.length > 0 ? (
                         <div className="image-gallery-grid">
-                            {images.map((fileName, index) => {
+                            {visibleImages.map((fileName, visibleIndex) => {
                                 const src = getThumbnailSrc(fileName);
                                 return (
                                     <div
-                                        key={fileName + index}
+                                        key={fileName + visibleIndex}
                                         className="image-gallery-grid-item"
-                                        data-index={index}
+                                        data-index={visibleIndex}
                                     >
                                         <div
                                             className="image-gallery-grid-thumb"
-                                            data-index={index}
+                                            data-index={visibleIndex}
                                             onClick={handleGridThumbnailClick}
                                             style={{ backgroundImage: `url(${src})` }}
                                         >
@@ -497,7 +603,7 @@ export default function ImageGalleryModule({
                                             <button
                                                 type="button"
                                                 className="icon image-gallery-thumbnail-delete"
-                                                data-index={index}
+                                                data-index={visibleIndex}
                                                 aria-label="Remove image from gallery"
                                                 onClick={handleRemoveImage}
                                             >

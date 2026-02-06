@@ -311,7 +311,7 @@ namespace Collector.Web.Server.Workers
             try
             {
                 var (cookiesArg, _) = await GetCookiesArgumentAsync(appUserId, workerId, cancellationToken);
-                var arguments = $"{cookiesArg}--get-title \"{url}\"";
+                var arguments = $"{cookiesArg}--js-runtimes node --get-title \"{url}\"";
                 _logger.LogInformation("GetVideoTitle yt-dlp arguments: {Arguments}", arguments);
                 var startInfo = new ProcessStartInfo
                 {
@@ -322,6 +322,9 @@ namespace Collector.Web.Server.Workers
                     UseShellExecute = false,
                     CreateNoWindow = true
                 };
+                
+                // Ensure PATH is inherited so yt-dlp can find Node.js for n challenge solving
+                startInfo.EnvironmentVariables["PATH"] = Environment.GetEnvironmentVariable("PATH");
 
                 using (var process = Process.Start(startInfo))
                 {
@@ -480,12 +483,15 @@ namespace Collector.Web.Server.Workers
             var startInfo = new ProcessStartInfo
             {
                 FileName = "yt-dlp",
-                Arguments = $"{cookiesArg}-f \"{format}\" -o \"{outputPath}\" \"{url}\"",
+                Arguments = $"{cookiesArg}--js-runtimes node -f \"{format}\" -o \"{outputPath}\" \"{url}\"",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            
+            // Ensure PATH is inherited so yt-dlp can find Node.js for n challenge solving
+            startInfo.EnvironmentVariables["PATH"] = Environment.GetEnvironmentVariable("PATH");
 
             using (var process = Process.Start(startInfo))
             {

@@ -71,6 +71,11 @@ body {
   float:left;
 }
 
+.col-3{
+  width:33.333%;
+  display:inline-block;
+}
+
 .row{
   display:block;
   vertical-align: top;

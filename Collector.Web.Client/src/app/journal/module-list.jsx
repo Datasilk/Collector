@@ -3,8 +3,6 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import Icon from '@/components/ui/icon';
 //context
 import { useSession } from '@/context/session';
-//api
-import { Journals } from '@/api/user/journals';
 //helpers
 import { uploadImageForModule, uploadPdfForModule, uploadFileForModule } from '@/helpers/files';
 //modules
@@ -43,7 +41,6 @@ export default function ModuleList({
     const [showModuleAboveDropdown, setShowModuleAboveDropdown] = useState(false);
     const [currentModuleId, setCurrentModuleId] = useState(null);
     const [tabButtons, setTabButtons] = useState([]);
-    const [hasUpdated, setHasUpdated] = useState(null);
 
     // refs
     const moduleDropdownRef = useRef(null);
@@ -61,29 +58,7 @@ export default function ModuleList({
     const tabButtonsTimer = useRef(null);
     const deleteListenersRef = useRef([]);
     const hoveredModuleIdRef = useRef(null);
-
-    //effect
-
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            var node = event.target;
-            while (node && node != null) {
-                if (node.classList?.contains('module-dropdown')) return;
-                node = node.parentNode;
-            }
-            setShowModuleAboveDropdown(false);
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, [showModuleAboveDropdown]);
-
-    useEffect(() => {
-        setHasUpdated(1 + (999999 * Math.random()));
-    }, [entryJson]);
+    const autoScrollIntervalRef = useRef(null);
 
     // actions
 
@@ -93,7 +68,23 @@ export default function ModuleList({
         return String(Math.floor(Math.random() * 1000000));
     };
 
-    const addModuleAbove = (type, options, targetModuleId = null) => {
+    const handleClickOutsideModuleDropdown = (event) => {
+        var node = event.target;
+        while (node && node != null) {
+            if (node.classList?.contains('module-dropdown')) return;
+            node = node.parentNode;
+        }
+        setShowModuleAboveDropdown(false);
+        document.removeEventListener('mousedown', handleClickOutsideModuleDropdown);
+    };
+
+    const showModuleDropdownAtTop = () => {
+        setCurrentModuleId(module.id);
+        setShowModuleAboveDropdown(true);
+        document.addEventListener('mousedown', handleClickOutsideModuleDropdown);
+    }
+
+    const addModuleAbove = useCallback((type, options, targetModuleId = null) => {
         const moduleId = targetModuleId ?? currentModuleId;
         if (!moduleId) return;
 
@@ -111,7 +102,7 @@ export default function ModuleList({
         }
 
         return newModule;
-    };
+    }, [entryJson, addedModule, currentModuleId]);
 
     const removeModule = async (moduleId) => {
         const listener = deleteListenersRef.current.find(listener => listener.moduleId == moduleId);
@@ -380,6 +371,36 @@ export default function ModuleList({
     //#endregion
 
     //#region Drag and Drop
+    
+    const startAutoScroll = (clientY) => {
+        if (autoScrollIntervalRef.current) return;
+        
+        autoScrollIntervalRef.current = setInterval(() => {
+            const viewportHeight = window.innerHeight;
+            const topScrollThreshold = viewportHeight * 0.25; // 25% from top for nav bar & toolbar
+            const bottomScrollThreshold = viewportHeight * 0.1; // 10% from bottom
+            const scrollSpeed = 20; // Twice as fast
+            
+            // Get current mouse position from last known position
+            const mouseY = window.lastDragY || clientY;
+            
+            if (mouseY < topScrollThreshold) {
+                // Near top - scroll up
+                window.scrollBy(0, -scrollSpeed);
+            } else if (mouseY > viewportHeight - bottomScrollThreshold) {
+                // Near bottom - scroll down
+                window.scrollBy(0, scrollSpeed);
+            }
+        }, 16); // ~60fps
+    };
+    
+    const stopAutoScroll = () => {
+        if (autoScrollIntervalRef.current) {
+            clearInterval(autoScrollIntervalRef.current);
+            autoScrollIntervalRef.current = null;
+        }
+    };
+    
     const handleDragStart = (e, moduleId, index) => {
         if (!canDragDrop || window.noDrag == true) {
             e.preventDefault();
@@ -408,6 +429,10 @@ export default function ModuleList({
 
         // Add dragging class
         e.currentTarget.classList.add('dragging');
+        
+        // Start auto-scroll
+        window.lastDragY = e.clientY;
+        startAutoScroll(e.clientY);
     };
 
     const getDropDetailsFromEvent = (event) => {
@@ -436,6 +461,9 @@ export default function ModuleList({
         }
         //NOTE: Do not stop propogation!
         e.dataTransfer.dropEffect = 'move';
+        
+        // Update mouse position for auto-scroll
+        window.lastDragY = e.clientY;
 
         // Allow drag over even if draggedModuleIdRef is not set (for cross-container drops)
         if (moduleId !== draggedModuleIdRef.current) {
@@ -799,6 +827,14 @@ export default function ModuleList({
         let dragData = window.dragData;
         // Handle cross-container drop
         if (dragData && dragData.sourceContainerId != window.dragOverContainerId) {
+            // Check if trying to drop a module into its own descendant container
+            if (window.dragOverContainerId !== 'main' && 
+                isContainerDescendantOfModule(window.dragOverContainerId, dragData.moduleId, entryJson.modules)) {
+                console.warn('Cannot drop a module into its own child container');
+                handleDragEnd();
+                return;
+            }
+            
             // If dropping into a nested container (tab or module-list)
             let newModules = [...entryJson.modules];
             const dropIndex = dropIndexRef.current !== undefined ? dropIndexRef.current : newModules.length;
@@ -882,6 +918,10 @@ export default function ModuleList({
 
     const handleDragEnd = (e) => {
         if (!canDragDrop) return;
+
+        // Stop auto-scroll
+        stopAutoScroll();
+        window.lastDragY = null;
 
         // Remove dragging class
         if (e && e.currentTarget) {
@@ -1121,6 +1161,100 @@ export default function ModuleList({
         return updateAtLevel(modules);
     };
 
+    const isContainerDescendantOfModule = (containerId, moduleId, modules) => {
+        // Check if the container is a descendant of the module being dragged
+        // This prevents dropping a module into its own child containers
+        
+        const findModule = (modulesList, targetModuleId) => {
+            for (const module of modulesList) {
+                if (module.id == targetModuleId) {
+                    return module;
+                }
+                
+                // Check tabs module
+                if (module.type === 'tabs' && module.tabs && Array.isArray(module.tabs)) {
+                    for (const tab of module.tabs) {
+                        if (tab.modules && Array.isArray(tab.modules)) {
+                            const found = findModule(tab.modules, targetModuleId);
+                            if (found) return found;
+                        }
+                    }
+                }
+                
+                // Check module-list module
+                if (module.type === 'module-list' && module.modules && Array.isArray(module.modules)) {
+                    const found = findModule(module.modules, targetModuleId);
+                    if (found) return found;
+                }
+                
+                // Check custom module
+                if (module.type === 'custom' && module.items && Array.isArray(module.items)) {
+                    for (const item of module.items) {
+                        if (item.modules && Array.isArray(item.modules)) {
+                            const found = findModule(item.modules, targetModuleId);
+                            if (found) return found;
+                        }
+                    }
+                }
+            }
+            return null;
+        };
+        
+        const checkIfContainerInModule = (module, targetContainerId) => {
+            // Check if this module contains a container with the target ID
+            if (module.type === 'tabs' && module.tabs && Array.isArray(module.tabs)) {
+                for (const tab of module.tabs) {
+                    const tabContainerId = `tab-${module.id}-${tab.id}`;
+                    if (tabContainerId === targetContainerId) {
+                        return true;
+                    }
+                    if (tab.modules && Array.isArray(tab.modules)) {
+                        for (const childModule of tab.modules) {
+                            if (checkIfContainerInModule(childModule, targetContainerId)) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if (module.type === 'module-list' && module.modules && Array.isArray(module.modules)) {
+                const moduleListContainerId = `module-list-${module.id}`;
+                if (moduleListContainerId === targetContainerId) {
+                    return true;
+                }
+                for (const childModule of module.modules) {
+                    if (checkIfContainerInModule(childModule, targetContainerId)) {
+                        return true;
+                    }
+                }
+            }
+            
+            if (module.type === 'custom' && module.items && Array.isArray(module.items)) {
+                for (let i = 0; i < module.items.length; i++) {
+                    const customContainerId = `custom-${module.id}-${i}`;
+                    if (customContainerId === targetContainerId) {
+                        return true;
+                    }
+                    if (module.items[i].modules && Array.isArray(module.items[i].modules)) {
+                        for (const childModule of module.items[i].modules) {
+                            if (checkIfContainerInModule(childModule, targetContainerId)) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            return false;
+        };
+        
+        const draggedModule = findModule(modules, moduleId);
+        if (!draggedModule) return false;
+        
+        return checkIfContainerInModule(draggedModule, containerId);
+    };
+
     const getModuleHierarchyFromNode = (moduleNode) => {
         let node = moduleNode;
         const allContainers = [];
@@ -1162,7 +1296,6 @@ export default function ModuleList({
         window.mouseOverElem = node;
         let foundDrag = false;
         while (node && !node.classList?.contains('module')) {
-            if (node?.classList?.contains('module-tab-container')) return;
             if (node?.classList?.contains('no-drag') ||
                 node?.classList?.contains('ck')) {
                 window.noDrag = true;
@@ -1174,19 +1307,28 @@ export default function ModuleList({
         if (node && window.mouseOverNode?.getAttribute('data-id') == node.getAttribute('data-id')) return;
         window.mouseOverNode = node;
         document.querySelectorAll('.module.hover').forEach(el => {
-            var pnode = node;
-            var immediateParentModuleList = false;
-            while (pnode && pnode != el) {
-                pnode = pnode.parentNode;
-                if (pnode == el && immediateParentModuleList == false) {
-                    immediateParentModuleList = true;
-                    continue;
-                }
-            }
-            if (el != node && !pnode) el.classList.remove('hover');
+            //var pnode = node;
+            //var immediateParentModuleList = false;
+            //while (pnode && pnode != el) {
+            //    pnode = pnode.parentNode;
+            //    if (pnode == el && immediateParentModuleList == false) {
+            //        immediateParentModuleList = true;
+            //        continue;
+            //    }
+            //}
+            //if (el != node && !pnode) el.classList.remove('hover');
+            el.classList.remove('hover');
         });
         if (node == null) return;
-        node.classList.add('hover');
+        node = e.target;
+        while (node) {
+            if(node.classList?.contains('module')){
+                node.classList.add('hover');
+            }
+            node = node.parentNode;
+        }
+        node = e.target;
+        
         const moduleId = node.getAttribute('data-id');
         hoveredModuleIdRef.current = moduleId;
         if (typeof window !== 'undefined') {
@@ -1198,7 +1340,6 @@ export default function ModuleList({
         e.stopPropagation();
         let node = e.target;
         while (node && !node.classList?.contains('module')) {
-            if (node?.classList?.contains('module-tab-container')) return;
             node = node.parentNode;
         }
         if (node == null) return;
@@ -1242,7 +1383,6 @@ export default function ModuleList({
         const normalizedButtons = Array.isArray(buttons) ? buttons : [];
         const existingIndex = tabButtonsRef.current.findIndex(item => item.moduleId === moduleId);
         const nextEntry = { moduleId, buttons: normalizedButtons };
-
         if (existingIndex >= 0) {
             const existingEntry = tabButtonsRef.current[existingIndex];
             if (areButtonSetsEqual(existingEntry.buttons, normalizedButtons)) {
@@ -1265,7 +1405,7 @@ export default function ModuleList({
             setTabButtons(tabButtonsRef.current);
             tabButtonsTimer.current = null;
         }, 100);
-    }, []);
+    }, [containerId]);
 
     const getTabButtonsHandler = useCallback((moduleId) => {
         if (!moduleId) return () => { };
@@ -1306,6 +1446,7 @@ export default function ModuleList({
                 if (!ModuleComponent) return null;
 
                 const filteredButtons = tabButtons.filter(a => a.moduleId == module.id)[0] ?? null;
+
                 return (
                     <div
                         key={'module-' + module.id}
@@ -1343,7 +1484,7 @@ export default function ModuleList({
                             <div className="module-tab-container">
                                 <div className="module-tab">
                                     {showLabel && <div className="module-type">{moduleType?.name}</div>}
-                                    {(canAddAbove || filteredButtons?.length > 0 || canDelete) && (
+                                    {(canAddAbove || filteredButtons?.buttons?.length > 0 || canDelete) && (
                                         <div className="box">
                                             <div className="tool-bar">
                                                 {canAddAbove == true &&
@@ -1352,10 +1493,7 @@ export default function ModuleList({
                                                         <button
                                                             className="icon"
                                                             ref={module.id == currentModuleId ? moduleDropdownButtonRef : null}
-                                                            onClick={() => {
-                                                                setCurrentModuleId(module.id);
-                                                                setShowModuleAboveDropdown(true);
-                                                            }}
+                                                            onClick={showModuleDropdownAtTop}
                                                             title="Add new module above"
                                                         >
                                                             <Icon name="add" />
@@ -1416,13 +1554,12 @@ export default function ModuleList({
                             journal={journal}
                             chapters={chapters}
                             onUpdate={handleUpdatedModule}
-                            hasUpdated={hasUpdated}
                             isEditable={isEditing}
                             manuallyAdded={module.manuallyAdded}
                             tabButtons={getTabButtonsHandler(module.id)}
                             setDeleteListener={handleDeleteListener}
                             fromSnapshotId={fromSnapshotId}
-
+                            onAddModuleAbove={(type, options) => addModuleAbove(type, options, module.id)}
                         />
                     </div>
                 )

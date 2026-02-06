@@ -46,14 +46,39 @@ export default function SettingsModal({
     const [originalThumbnail] = useState(entry.thumbnail || null);
     const [theme] = useState('vs-dark');
 
+    // Recursive function to flatten module hierarchy
+    const flattenModules = (modules) => {
+        if (!modules || !Array.isArray(modules)) return [];
+        
+        const flattened = [];
+        for (const module of modules) {
+            flattened.push(module);
+            // Recursively flatten nested modules
+            if (module.modules && Array.isArray(module.modules)) {
+                flattened.push(...flattenModules(module.modules));
+            }
+            // Handle tabs module structure where modules are in tabs[x].modules
+            if (module.tabs && Array.isArray(module.tabs)) {
+                for (const tab of module.tabs) {
+                    if (tab.modules && Array.isArray(tab.modules)) {
+                        flattened.push(...flattenModules(tab.modules));
+                    }
+                }
+            }
+        }
+        return flattened;
+    };
+
     // Get all image modules and video modules with thumbnails from entryJson
     const thumbnailOptions = useMemo(() => {
         const modules = entryJson?.modules || [];
+        const allModules = flattenModules(modules);
         const options = [];
         let videoIndex = 0;
         let imageIndex = 0;
+        let galleryIndex = 0;
 
-        modules.forEach(module => {
+        allModules.forEach(module => {
             if (module.type === 'video-player' && (module.thumbnailPath || module.videoPath)) {
                 videoIndex++;
                 options.push({
@@ -71,6 +96,17 @@ export default function SettingsModal({
                     path: module.image,
                     label: module.caption || module.alt || `Image ${imageIndex}`,
                     type: 'image'
+                });
+            } else if (module.type === 'image-gallery' && module.images && module.images.length > 0) {
+                galleryIndex++;
+                // Add each image from the gallery as a separate option
+                module.images.forEach((imagePath, imgIndex) => {
+                    options.push({
+                        moduleId: module.id,
+                        path: imagePath,
+                        label: `Gallery ${galleryIndex} - Image ${imgIndex + 1}`,
+                        type: 'image-gallery'
+                    });
                 });
             }
         });
@@ -481,6 +517,9 @@ export default function SettingsModal({
                                                         } else if (selected.videoId) {
                                                             imageSrc = apiBasePath() + `/video/thumbnail/${selected.videoId}`;
                                                         }
+                                                    } else if (selected.type === 'image-gallery') {
+                                                        // Use thumbnail for gallery images
+                                                        imageSrc = apiBasePath() + `/image/journal-entries/${entry.id}/thumb_${selected.path}`;
                                                     } else {
                                                         imageSrc = apiBasePath() + `/image/journal-entries/${entry.id}/${selected.path}`;
                                                     }

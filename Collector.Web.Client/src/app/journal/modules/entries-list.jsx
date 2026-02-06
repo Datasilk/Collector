@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '@/components/ui/icon';
 import { useSession } from '@/context/session';
@@ -9,7 +9,7 @@ import EntriesListFilter from './entries-list/entries-list-filter';
 import EntriesListPaging from './entries-list/entries-list-paging';
 import NewEntry from '../components/new-entry';
 
-export default function EntriesListModule({ module, journalId, entryId, entry, hasUpdated, chapters, isEditable = false, tabButtons, onUpdate }) {
+export default function EntriesListModule({ module, journalId, entryId, entry, chapters, isEditable = false, tabButtons, onUpdate }) {
     const navigate = useNavigate();
     const session = useSession();
 
@@ -97,10 +97,6 @@ export default function EntriesListModule({ module, journalId, entryId, entry, h
         filterEntries(nextFilter, updateTabButtons);
     }, [journalId, module]);
 
-    useEffect(() => {
-        updateTabButtons();
-    }, [hasUpdated]);
-
     // keep filterOptionsRef in sync with state (fallback for other updates)
     useEffect(() => {
         filterOptionsRef.current = filterOptions;
@@ -165,7 +161,7 @@ export default function EntriesListModule({ module, journalId, entryId, entry, h
     //#endregion
 
     //#region "Settings"
-    const updateTabButtons = () => {
+    const updateTabButtons = useCallback(() => {
         if (tabButtons) tabButtons([
             {
                 icon: 'settings',
@@ -173,9 +169,9 @@ export default function EntriesListModule({ module, journalId, entryId, entry, h
                 callback: handleShowSettingsModal
             }
         ]);
-    }
+    }, [module]);
 
-    const handleShowSettingsModal = () => {
+    const handleShowSettingsModal = useCallback(() => {
         session.showModal(() => (
             <EntriesListSettingsModal
                 journalId={journalId}
@@ -190,7 +186,7 @@ export default function EntriesListModule({ module, journalId, entryId, entry, h
                 onSaved={handleOnSavedSettings}
             />
         ));
-    };
+    }, [module]);
 
     const handleOnSavedSettings = (newViewType, newColumns, entriesPerPage, tagIds, newGridColumns, newAspectRatio, newRoundedCorners) => {
         setViewType(newViewType);

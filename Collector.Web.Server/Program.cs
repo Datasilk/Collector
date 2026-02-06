@@ -50,8 +50,11 @@ builder.Services.AddHttpClient();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHealthChecks();
 
-// Add SignalR services
-builder.Services.AddSignalR();
+// Add SignalR services with increased message size for cache support
+builder.Services.AddSignalR(options =>
+{
+    options.MaximumReceiveMessageSize = 1024 * 1024; // 1MB (default is 32KB)
+});
 
 builder.Services.AddControllers()
     .AddApplicationPart(Assembly.Load("Collector.API"))
@@ -110,6 +113,7 @@ if (File.Exists(downloadToolsScript))
 {
     try
     {
+        Console.WriteLine($"Running download-tools.bat...");
         var processInfo = new System.Diagnostics.ProcessStartInfo
         {
             FileName = downloadToolsScript,
@@ -129,6 +133,7 @@ if (File.Exists(downloadToolsScript))
             var baseDir = AppDomain.CurrentDomain.BaseDirectory;
             var currentPath = Environment.GetEnvironmentVariable("PATH") ?? "";
             Environment.SetEnvironmentVariable("PATH", $"{baseDir};{currentPath}");
+            Console.WriteLine($"Finished running download-tools.bat");
         }
     }
     catch (Exception ex)

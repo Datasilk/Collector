@@ -61,6 +61,7 @@ import AIGeneratorModal from './ckeditor/ai-generator-modal';
 //helpers
 import { fonts } from '@/helpers/fonts';
 import { useSession } from '@/context/session';
+import { useNavigate } from 'react-router-dom';
 
 
 export default function CKEditorModule({ module, onUpdate, isEditable = true, manuallyAdded = false }) {
@@ -71,6 +72,7 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
     const [showToolbar, setShowToolbar] = useState(false);
 
     //refs
+    const navigate = useNavigate();
     const htmlRef = useRef(null);
     const editorRef = useRef(null);
     const timerSave = useRef(null);
@@ -138,7 +140,6 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
         const elem = getTextElement();
         if (!elem) return;
         if (isEditable) {
-            //elem.addEventListener('mouseover', showEditor);
             elem.addEventListener('mouseup', showEditor);
         }
     };
@@ -146,7 +147,6 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
     const removeEditorEventListeners = () => {
         const elem = getTextElement();
         if (!elem) return;
-        //elem.removeEventListener('mouseover', showEditor);
         elem.removeEventListener('mouseup', showEditor);
     };
 
@@ -163,7 +163,32 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
         //make all anchor links open in new tab
         const anchors = elem.querySelectorAll('a');
         anchors.forEach(anchor => {
-            anchor.setAttribute('target', '_blank');
+            const href = anchor.getAttribute('href');
+            if(href && href.substring(0, 1) == '#'){
+                //scroll to section with matching id
+                anchor.onclick = (e) => {
+                    e.preventDefault();
+                    const targetId = href.substring(1);
+                    const targetElement = document.getElementById(targetId);
+                    if(targetElement){
+                        const elementPosition = targetElement.getBoundingClientRect().top;
+                        const offsetPosition = elementPosition + window.pageYOffset - 215;
+                        window.scrollTo({
+                            top: offsetPosition,
+                            behavior: 'smooth'
+                        });
+                    }
+                };
+            }else if(href && href.substring(0, 1) == '/'){
+                //use history API to navigate
+                anchor.onclick = (e) => {
+                    e.preventDefault();
+                    navigate(href);
+                };
+            }else{
+                anchor.setAttribute('target', '_blank');
+            }
+            
         });
         //re-attach secret content event listeners
         const secrets = elem.querySelectorAll('.secret-content');

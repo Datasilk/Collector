@@ -25,7 +25,6 @@ function FeedsPage() {
   const loadFeeds = async () => {
     const response = await getFilteredFeeds(filter);
     if (response.data && response.data.data && response.data.success) {
-      console.log('Feeds loaded:', response.data.data); // Debug log
       setFeeds(response.data.data);
     }
   };
@@ -33,7 +32,6 @@ function FeedsPage() {
   const loadCategories = async () => {
     const response = await getCategories();
     if (response.data && response.data.data && response.data.success) {
-      console.log('Categories loaded:', response.data.data); // Debug log
       setCategories(response.data.data);
     }
   };
@@ -73,8 +71,6 @@ function FeedsPage() {
     category,
     feeds: feeds.filter(feed => feed.categoryId === category.categoryId)
   })).filter(group => group.feeds.length > 0);
-
-  console.log('Grouped Feeds for rendering:', groupedFeeds); // Debug log
 
   return (
     <FeedsLayout>
