@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import Modal from '@/components/ui/modal';
 import Input from '@/components/forms/input';
 import Checkbox from '@/components/forms/checkbox';
+import Select from '@/components/forms/select';
+import TextArea from '@/components/forms/textarea';
 
 export default function GenerateContentModal({ 
     initialUrl = '',
@@ -10,6 +12,8 @@ export default function GenerateContentModal({
     initialIncludeDescription = true,
     initialIncludeTranscriptResearch = false,
     initialIncludeCommentsResearch = false,
+    initialGenerateChapters = true,
+    initialChapterCount = 'any',
     onGenerate,
     onClose 
 }) {
@@ -19,6 +23,9 @@ export default function GenerateContentModal({
     const [includeDescription, setIncludeDescription] = useState(initialIncludeDescription);
     const [includeTranscriptResearch, setIncludeTranscriptResearch] = useState(initialIncludeTranscriptResearch);
     const [includeCommentsResearch, setIncludeCommentsResearch] = useState(initialIncludeCommentsResearch);
+    const [generateChapters, setGenerateChapters] = useState(initialGenerateChapters);
+    const [chapterCount, setChapterCount] = useState(initialChapterCount);
+    const [userInstructions, setUserInstructions] = useState('');
 
     const isYouTubeUrl = (urlString) => {
         if (!urlString) return false;
@@ -36,7 +43,10 @@ export default function GenerateContentModal({
                 includeTitle,
                 includeDescription,
                 includeTranscriptResearch,
-                includeCommentsResearch
+                includeCommentsResearch,
+                generateChapters,
+                chapterCount,
+                userInstructions
             });
         }
         if (onClose) {
@@ -103,6 +113,45 @@ export default function GenerateContentModal({
                                 onChange={setIncludeCommentsResearch}
                             />
                         </div>
+                        {(includeTranscriptResearch || includeCommentsResearch) && (
+                            <>
+                                <div className="row" style={{ display: 'flex', gap: '1em', alignItems: 'flex-end' }}>
+                                    <div style={{ flex: '0 0 auto' }}>
+                                        <Checkbox
+                                            label="Generate Chapters"
+                                            name="generate-chapters"
+                                            checked={generateChapters}
+                                            onChange={setGenerateChapters}
+                                        />
+                                    </div>
+                                    {generateChapters && (
+                                        <div style={{ flex: '0 0 150px' }}>
+                                            <Select
+                                                label="Chapter Count"
+                                                name="chapter-count"
+                                                value={chapterCount}
+                                                onChange={(e) => setChapterCount(e.target.value)}
+                                                options={[
+                                                    { value: 'any', label: 'Any' },
+                                                    ...Array.from({ length: 32 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))
+                                                ]}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="row">
+                                    <TextArea
+                                        label="User Instructions"
+                                        name="user-instructions"
+                                        defaultValue={userInstructions}
+                                        onInput={(e) => setUserInstructions(e.target.value)}
+                                        placeholder="Add any specific instructions for content generation..."
+                                        rows={3}
+                                        autoResize={true}
+                                    />
+                                </div>
+                            </>
+                        )}
                     </>
                 )}
 

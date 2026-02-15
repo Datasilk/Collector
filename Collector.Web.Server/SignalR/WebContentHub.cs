@@ -580,7 +580,7 @@ namespace Collector.Web.Server.SignalR
             }
         }
 
-        public async Task GenerateContent(string url, bool includeVideo, bool includeTitle, bool includeDescription, bool includeTranscriptResearch, bool includeCommentsResearch, string appUserId, string cacheJson = "")
+        public async Task GenerateContent(string url, bool includeVideo, bool includeTitle, bool includeDescription, bool includeTranscriptResearch, bool includeCommentsResearch, string appUserId, string cacheJson = "", string userInstructions = "", bool generateChapters = true, string chapterCount = "any")
         {
             try
             {
@@ -790,8 +790,8 @@ namespace Collector.Web.Server.SignalR
                 
                 _logger.LogInformation("Analysis check: hasAnalysis={HasAnalysis}, includeTranscript={IncludeTranscript}, hasTranscript={HasTranscript}, includeComments={IncludeComments}, hasComments={HasComments}", 
                     analysis != null, includeTranscriptResearch, !string.IsNullOrEmpty(transcriptText), includeCommentsResearch, commentsList != null && commentsList.Any());
-                
-                if (((includeTranscriptResearch && !string.IsNullOrEmpty(transcriptText)) ||
+                // Generate chapters if we have transcript or comments research AND generateChapters is true
+                if (generateChapters && ((includeTranscriptResearch && !string.IsNullOrEmpty(transcriptText)) ||
                     (includeCommentsResearch && commentsList != null && commentsList.Any())) && analysis == null)
                 {
                     currentStep++;
@@ -832,6 +832,10 @@ namespace Collector.Web.Server.SignalR
                     }
 
                     // Generate structured analysis with chapters
+                    var chapterCountInstruction = chapterCount != "any" && int.TryParse(chapterCount, out int requestedCount)
+                        ? $"Create EXACTLY {requestedCount} chapters. "
+                        : "Create as many chapters as needed to cover all distinct topics. ";
+                    
                     var analysisPrompt = $"Analyze the following YouTube {analysisSource} and organize them into chapters. Be COMPREHENSIVE and SPECIFIC - create chapters for ALL topics being discussed, including:\n" +
                             $"- Broad themes and concepts\n- Specific people mentioned (by name or role)\n- Specific events, actions, or things people did\n- Specific products, tools, or technologies discussed\n" +
                             $"- Specific opinions, criticisms, or praise\n- Any other distinct subjects of discussion\n\n" +
@@ -843,10 +847,11 @@ namespace Collector.Web.Server.SignalR
                             $"- Criticisms about the behavior of people in the video\n" +
                             $"- Meta-commentary about the video itself\n\n" +
                             $"Focus ONLY on the substantive content topics being discussed.\n\n" +
+                            (!string.IsNullOrWhiteSpace(userInstructions) ? $"USER INSTRUCTIONS:\n{userInstructions}\n\n" : "") +
                             $"TRANSLATIONS: If any comments are not in English, translate them to English and include them in the Translations array with the comment index and translation.\n\n" +
                             $"For each chapter, provide a descriptive title" +
                             (includeCommentsResearch && commentsList != null && commentsList.Any() ? " and list the INDEXES (numbers in brackets) of relevant comments" : "") + ". " +
-                            $"Create as many chapters as needed to cover all distinct topics. " +
+                            chapterCountInstruction +
                             $"IMPORTANT: Do NOT use Unicode escape sequences like \\u0027. Use plain ASCII characters only. Use regular apostrophes and quotes.\n" +
                             $"Return ONLY valid JSON in this exact format:\n" +
                             $"{{\n  \"Chapters\": [\n    {{\n      \"Title\": \"Chapter title here\"" +
@@ -953,25 +958,25 @@ namespace Collector.Web.Server.SignalR
                     await Clients.Caller.SendAsync("GenerateProgress", (currentStep * 100) / totalSteps);
 
                     // Generate content for each chapter using transcript and/or comments
-                    var chapterCount = analysis.Chapters.Count;
+                    var chapterCounts = analysis.Chapters.Count;
                     
                     // Build list of all chapter titles for context
                     var allChapterTitles = string.Join("\n", analysis.Chapters.Select((c, idx) => $"{idx + 1}. {c.Title}"));
                     
-                    for (int i = 0; i < chapterCount; i++)
+                    for (int i = 0; i < chapterCounts; i++)
                     {
                         // Skip if this chapter was already completed
                         if (cache?.CompletedChapters?.Contains(i) == true)
                         {
                             currentStep++;
-                            await Clients.Caller.SendAsync("GenerateStatus", $"Skipping completed chapter {i + 1}/{chapterCount}: {analysis.Chapters[i].Title}...");
+                            await Clients.Caller.SendAsync("GenerateStatus", $"Skipping completed chapter {i + 1}/{chapterCounts}: {analysis.Chapters[i].Title}...");
                             await Clients.Caller.SendAsync("GenerateProgress", (currentStep * 100) / totalSteps);
                             continue;
                         }
                         
                         currentStep++;
                         var chapter = analysis.Chapters[i];
-                        await Clients.Caller.SendAsync("GenerateStatus", $"Generating chapter {i + 1}/{chapterCount}: {chapter.Title}...");
+                        await Clients.Caller.SendAsync("GenerateStatus", $"Generating chapter {i + 1}/{chapterCounts}: {chapter.Title}...");
 
                         // Build source content for chapter
                         string chapterSourceContent = "";
@@ -1002,12 +1007,13 @@ namespace Collector.Web.Server.SignalR
                         
                         // Build context about previous chapters
                         var chapterContext = i > 0 
-                            ? $"\n\nIMPORTANT: This is Chapter {i + 1} of {chapterCount}. Previous chapters have already covered other topics, so avoid repeating information that would have been explained in earlier chapters. Focus specifically on '{chapter.Title}' without re-explaining concepts from previous chapters."
-                            : $"\n\nThis is Chapter 1 of {chapterCount}.";
+                            ? $"\n\nIMPORTANT: This is Chapter {i + 1} of {chapterCounts}. Previous chapters have already covered other topics, so avoid repeating information that would have been explained in earlier chapters. Focus specifically on '{chapter.Title}' without re-explaining concepts from previous chapters."
+                            : $"\n\nThis is Chapter 1 of {chapterCounts}.";
                         
-                        var chapterPrompt = $"You are writing Chapter {i + 1} of a {chapterCount}-chapter research document.\n\n" +
+                        var chapterPrompt = $"You are writing Chapter {i + 1} of a {chapterCounts}-chapter research document.\n\n" +
                             $"ALL CHAPTERS:\n{allChapterTitles}\n\n" +
                             $"CURRENT CHAPTER: Chapter {i + 1} - {chapter.Title}{chapterContext}\n\n" +
+                            (!string.IsNullOrWhiteSpace(userInstructions) ? $"USER INSTRUCTIONS:\n{userInstructions}\n\n" : "") +
                             $"Write a comprehensive, well-researched chapter about '{chapter.Title}' based on the following {sourceDescription}. " +
                             $"Include multiple paragraphs with detailed analysis. Use proper HTML formatting with <p> tags for paragraphs. " +
                             $"Do not include a title at the top, only include the paragraphs of text.\n\n{chapterSourceContent}";
@@ -1072,6 +1078,60 @@ namespace Collector.Web.Server.SignalR
 
                         currentStep++;
                         await Clients.Caller.SendAsync("GenerateProgress", (currentStep * 100) / totalSteps);
+                    }
+                }
+                else if (!generateChapters && ((includeTranscriptResearch && !string.IsNullOrEmpty(transcriptText)) ||
+                    (includeCommentsResearch && commentsList != null && commentsList.Any())))
+                {
+                    // Generate single text module without chapters
+                    currentStep++;
+                    await Clients.Caller.SendAsync("GenerateStatus", "Generating content...");
+                    
+                    // Prepare content for generation
+                    string sourceContent = "";
+                    string sourceDescription = "";
+                    
+                    if (includeTranscriptResearch && !string.IsNullOrEmpty(transcriptText))
+                    {
+                        sourceContent += $"TRANSCRIPT:\n{transcriptText}\n\n";
+                        sourceDescription = "transcript";
+                    }
+                    
+                    if (includeCommentsResearch && commentsList != null && commentsList.Any())
+                    {
+                        var commentsText = string.Join("\n\n", commentsList.Select(c => $"{c.Author}: {c.Text}"));
+                        sourceContent += $"COMMENTS:\n{commentsText}";
+                        sourceDescription = includeTranscriptResearch ? "transcript and comments" : "comments";
+                    }
+                    
+                    var contentPrompt = $"Write comprehensive, well-researched content based on the following YouTube {sourceDescription}. " +
+                        $"Include multiple paragraphs with detailed analysis. Use proper HTML formatting with <p> tags for paragraphs.\n\n" +
+                        (!string.IsNullOrWhiteSpace(userInstructions) ? $"USER INSTRUCTIONS:\n{userInstructions}\n\n" : "") +
+                        $"Content:\n{sourceContent}";
+                    
+                    try
+                    {
+                        var content = await Common.LLMs.Prompt(
+                            "You are a research writer creating detailed, informative content based on YouTube content.",
+                            "I will write thorough, well-structured content with multiple paragraphs using proper HTML formatting.",
+                            contentPrompt
+                        );
+                        
+                        var contentModule = new
+                        {
+                            id = GenerateRandomId(),
+                            type = "text-editor",
+                            html = content,
+                            manuallyAdded = false
+                        };
+                        await Clients.Caller.SendAsync("ModuleGenerated", contentModule);
+                        await Clients.Caller.SendAsync("GenerateProgress", (currentStep * 100) / totalSteps);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to generate content");
+                        await Clients.Caller.SendAsync("GenerateError", "Failed to generate content. Please try again.\n" + ex.Message);
+                        return;
                     }
                 }
 

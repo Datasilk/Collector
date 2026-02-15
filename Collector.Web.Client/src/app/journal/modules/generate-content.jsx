@@ -28,6 +28,9 @@ export default function GenerateContentModule({
     const [includeDescription, setIncludeDescription] = useState(module.includeDescription ?? true);
     const [includeTranscriptResearch, setIncludeTranscriptResearch] = useState(module.includeTranscriptResearch ?? false);
     const [includeCommentsResearch, setIncludeCommentsResearch] = useState(module.includeCommentsResearch ?? false);
+    const [generateChapters, setGenerateChapters] = useState(module.generateChapters ?? true);
+    const [chapterCount, setChapterCount] = useState(module.chapterCount || 'any');
+    const [userInstructions, setUserInstructions] = useState(module.userInstructions || '');
     const [cache, setCache] = useState(module.cache || null);
     const [commentsRetrievalFailed, setCommentsRetrievalFailed] = useState(false);
     const hubConnectionRef = useRef(null);
@@ -55,6 +58,9 @@ export default function GenerateContentModule({
         const generateIncludeDescription = settings?.includeDescription ?? includeDescription;
         const generateIncludeTranscriptResearch = settings?.includeTranscriptResearch ?? includeTranscriptResearch;
         const generateIncludeCommentsResearch = settings?.includeCommentsResearch ?? includeCommentsResearch;
+        const generateGenerateChapters = settings?.generateChapters ?? generateChapters;
+        const generateChapterCount = settings?.chapterCount ?? chapterCount;
+        const generateUserInstructions = settings?.userInstructions ?? userInstructions;
 
         if (!generateUrl.trim() || !isYouTubeUrl(generateUrl)) {
             alert('Please enter a valid YouTube URL');
@@ -74,7 +80,10 @@ export default function GenerateContentModule({
             includeTitle: generateIncludeTitle,
             includeDescription: generateIncludeDescription,
             includeTranscriptResearch: generateIncludeTranscriptResearch,
-            includeCommentsResearch: generateIncludeCommentsResearch
+            includeCommentsResearch: generateIncludeCommentsResearch,
+            generateChapters: generateGenerateChapters,
+            chapterCount: generateChapterCount,
+            userInstructions: generateUserInstructions
         };
         moduleRef.current = updatedModule;
         onUpdate(updatedModule);
@@ -167,7 +176,10 @@ export default function GenerateContentModule({
                 generateIncludeTranscriptResearch,
                 generateIncludeCommentsResearch,
                 appUserId,
-                cache ? JSON.stringify(cache) : null
+                cache ? JSON.stringify(cache) : null,
+                generateUserInstructions,
+                generateGenerateChapters,
+                generateChapterCount
             ).catch(err => {
                 console.error('Error invoking GenerateContent:', err);
                 setStatusMessage('Error starting content generation.');
@@ -189,6 +201,9 @@ export default function GenerateContentModule({
             setIncludeDescription(settings.includeDescription);
             setIncludeTranscriptResearch(settings.includeTranscriptResearch);
             setIncludeCommentsResearch(settings.includeCommentsResearch);
+            setGenerateChapters(settings.generateChapters);
+            setChapterCount(settings.chapterCount);
+            setUserInstructions(settings.userInstructions);
             
             handleGenerate(settings);
         };
@@ -201,6 +216,8 @@ export default function GenerateContentModule({
                 initialIncludeDescription={includeDescription}
                 initialIncludeTranscriptResearch={includeTranscriptResearch}
                 initialIncludeCommentsResearch={includeCommentsResearch}
+                initialGenerateChapters={generateChapters}
+                initialChapterCount={chapterCount}
                 onGenerate={handleModalGenerate}
                 onClose={() => session.hideModal()}
             />
