@@ -1,6 +1,7 @@
 
 import CKEditorModule from './modules/ckeditor';
 import ChecklistModule from './modules/checklist';
+import CalendarModule from './modules/calendar';
 import ImageModule from './modules/image';
 import ImageGalleryModule from './modules/image-gallery';
 import TabsModule from './modules/tabs';
@@ -69,6 +70,13 @@ const modules = [
         icon: 'checklist',
         type: 'checklist',
         module: ChecklistModule
+    },
+    {
+        id: 'calendar',
+        name: 'Calendar',
+        icon: 'calendar_month',
+        type: 'calendar',
+        module: CalendarModule
     },
     {
         id: 'file-download',

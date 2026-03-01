@@ -70,14 +70,6 @@ export default function JournalLayout({ children }) {
                 setAuth(true);
                 fetchCategories();
                 loadToggleStates();
-
-                // If no journalId is provided in URL, check if we have a saved journal
-                if (!journalId) {
-                    const savedJournalId = localStorage.getItem(selectedJournalKey);
-                    if (savedJournalId) {
-                        navigate(`/journal/${savedJournalId}`);
-                    }
-                }
             }
         }
     }, [mounted, journalId]);
@@ -150,6 +142,20 @@ export default function JournalLayout({ children }) {
                 setCategories(response.data.data);
             } else {
                 setError(response.data?.message || 'Failed to load categories');
+            }
+            
+            // If no journalId is provided in URL, check if we have a saved journal
+            if (!journalId) {
+                const savedJournalId = localStorage.getItem(selectedJournalKey);
+                if (savedJournalId) {
+                    navigate(`/journal/${savedJournalId}`);
+                }else{
+                    //go to first journal
+                    var cats = response.data.data;
+                    if (cats.length > 0 && cats[0].journals.length > 0) {
+                        navigate(`/journal/${cats[0].journals[0].id}`);
+                    }
+                }
             }
         }).catch(err => {
             setError('Error loading journal categories: ' + (err.message || 'Unknown error'));

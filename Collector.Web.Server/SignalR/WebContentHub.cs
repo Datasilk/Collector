@@ -601,6 +601,12 @@ namespace Collector.Web.Server.SignalR
                         cache = null;
                     }
                 }
+                
+                // Initialize or update cache with current settings
+                cache = cache ?? new GenerationCache();
+                cache.GenerateChapters = generateChapters;
+                cache.ChapterCount = chapterCount;
+                cache.UserInstructions = userInstructions;
 
                 await Clients.Caller.SendAsync("GenerateStatus", cache != null ? "Resuming content generation..." : "Starting content generation...");
                 await Clients.Caller.SendAsync("GenerateProgress", 0);
@@ -1298,6 +1304,9 @@ namespace Collector.Web.Server.SignalR
         public YouTubeCommentsAnalysis Analysis { get; set; }
         public bool TableOfContentsGenerated { get; set; }
         public List<int> CompletedChapters { get; set; } = new List<int>();
+        public bool GenerateChapters { get; set; } = true;
+        public string ChapterCount { get; set; } = "any";
+        public string UserInstructions { get; set; }
     }
 
     public class YouTubeCommentsAnalysis

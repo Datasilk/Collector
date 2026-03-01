@@ -60,6 +60,14 @@ namespace Collector.Data.Repositories
                 new { journalId, color });
         }
 
+        public void ChangeCategory(int journalId, int categoryId)
+        {
+            _dbConnection.Execute(@"UPDATE [dbo].[Journals] 
+                SET [CategoryId] = @categoryId 
+                WHERE [Id] = @journalId", 
+                new { journalId, categoryId });
+        }
+
         public void Archive(int journalId)
         {
             _dbConnection.Execute(@"UPDATE [dbo].[Journals] 

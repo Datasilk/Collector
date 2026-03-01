@@ -2156,7 +2156,16 @@ body.scrolled .entry-header .add-module-container{
 
 /* entry settings modal */
 .settings-modal-content{
-    padding:1em 0;
+    padding:1em 0 0 0;
+}
+
+.entry-settings-modal .tab-content{
+    padding-bottom:0;
+}
+
+.settings-modal-content .buttons{
+    clear:both;
+    padding-top:2em;
 }
 
 .css-editor-container{

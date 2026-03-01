@@ -14,6 +14,7 @@ export default function GenerateContentModal({
     initialIncludeCommentsResearch = false,
     initialGenerateChapters = true,
     initialChapterCount = 'any',
+    initialUserInstructions = '',
     onGenerate,
     onClose 
 }) {
@@ -25,7 +26,7 @@ export default function GenerateContentModal({
     const [includeCommentsResearch, setIncludeCommentsResearch] = useState(initialIncludeCommentsResearch);
     const [generateChapters, setGenerateChapters] = useState(initialGenerateChapters);
     const [chapterCount, setChapterCount] = useState(initialChapterCount);
-    const [userInstructions, setUserInstructions] = useState('');
+    const [userInstructions, setUserInstructions] = useState(initialUserInstructions);
 
     const isYouTubeUrl = (urlString) => {
         if (!urlString) return false;

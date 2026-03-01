@@ -136,10 +136,24 @@ export default function GenerateContentModule({
                     const parsedCache = JSON.parse(cacheData);
                     setCache(parsedCache);
                     
-                    // Update module with cache
+                    // Restore settings from cache if available
+                    if (parsedCache.GenerateChapters !== undefined) {
+                        setGenerateChapters(parsedCache.GenerateChapters);
+                    }
+                    if (parsedCache.ChapterCount !== undefined) {
+                        setChapterCount(parsedCache.ChapterCount);
+                    }
+                    if (parsedCache.UserInstructions !== undefined) {
+                        setUserInstructions(parsedCache.UserInstructions);
+                    }
+                    
+                    // Update module with cache and restored settings
                     const updatedModule = {
                         ...moduleRef.current,
-                        cache: parsedCache
+                        cache: parsedCache,
+                        generateChapters: parsedCache.GenerateChapters ?? moduleRef.current.generateChapters,
+                        chapterCount: parsedCache.ChapterCount ?? moduleRef.current.chapterCount,
+                        userInstructions: parsedCache.UserInstructions ?? moduleRef.current.userInstructions
                     };
                     moduleRef.current = updatedModule;
                     onUpdate(updatedModule);
@@ -218,6 +232,7 @@ export default function GenerateContentModule({
                 initialIncludeCommentsResearch={includeCommentsResearch}
                 initialGenerateChapters={generateChapters}
                 initialChapterCount={chapterCount}
+                initialUserInstructions={userInstructions}
                 onGenerate={handleModalGenerate}
                 onClose={() => session.hideModal()}
             />

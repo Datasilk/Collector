@@ -417,11 +417,21 @@ export default function ChecklistModule({ module, entryId, onUpdate, isEditable 
                         />
                     </div>
                 ))}
-                {isEditable && (<div className="tool-bar">  
-                    <div className="left-side">
-                        <button onClick={handleAddChecklistItem}><Icon name="add" />Add Task</button>
+                {isEditable && (
+                    <div className="tool-bar">  
+                        {!entryId ? (
+                            <div className="left-side">
+                                <p style={{ margin: '0.5em 0', color: '#666', fontStyle: 'italic' }}>
+                                    Please save this entry before creating checklist items.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="left-side">
+                                <button onClick={handleAddChecklistItem}><Icon name="add" />Add Task</button>
+                            </div>
+                        )}
                     </div>
-                </div>)}
+                )}
             </div>
         </>
     );

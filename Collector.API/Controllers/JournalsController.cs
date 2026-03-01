@@ -476,6 +476,32 @@ namespace Collector.API.Controllers
             }
         }
 
+        [HttpPost("change-category")]
+        public IActionResult ChangeJournalCategory([FromBody] JournalModel request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var journal = _journalsRepository.GetById(request.Id);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Journal not found" });
+
+                if (!request.CategoryId.HasValue)
+                {
+                    return Json(new ApiResponse { success = false, message = "Category was not provided" });
+                }
+                _journalsRepository.ChangeCategory(request.Id, request.CategoryId.Value);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
         [HttpGet("archive/{id}")]
         public IActionResult ArchiveJournal(int id)
         {

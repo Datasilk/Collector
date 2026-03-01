@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Modal from '@/components/ui/modal';
 import Tabs from '@/components/ui/tabs';
 import Icon from '@/components/ui/icon';
@@ -6,6 +7,7 @@ import Input from '@/components/forms/input';
 import Select from '@/components/forms/select';
 import ToggleSwitch from '@/components/ui/toggle-switch';
 import JournalChapters from '@/components/journal/journal-chapters';
+import MoveEntryModal from './move-entry-modal';
 import { useSession } from '@/context/session';
 import { Journals } from '@/api/user/journals';
 import { apiBasePath } from '@/helpers/endpoints.js';
@@ -22,7 +24,8 @@ export default function SettingsModal({
     onChaptersChanged
 }) {
     const session = useSession();
-    const { setEntryEncrypted, setEntryPublished, updateEntryCreated, setEntryChapter, updateEntryThumbnail, archiveEntry } = Journals(session);
+    const navigate = useNavigate();
+    const { setEntryEncrypted, setEntryPublished, updateEntryCreated, setEntryChapter, updateEntryThumbnail, archiveEntry, getJournal, archiveJournal } = Journals(session);
 
     const [selectedTab, setSelectedTab] = useState(0);
     const [settings, setSettings] = useState({
@@ -34,10 +37,15 @@ export default function SettingsModal({
     });
     const [settingsChanged, setSettingsChanged] = useState(false);
     const [showChapterManagement, setShowChapterManagement] = useState(false);
+    const [showMoveModal, setShowMoveModal] = useState(false);
     const [saveStatus, setSaveStatus] = useState(null);
 
     const [journalTitle, setJournalTitle] = useState('');
     const [originalJournalTitle, setOriginalJournalTitle] = useState('');
+    const [journalCategoryId, setJournalCategoryId] = useState('');
+    const [originalJournalCategoryId, setOriginalJournalCategoryId] = useState('');
+    const [categories, setCategories] = useState([]);
+    const [journalData, setJournalData] = useState(null);
     const [cssCode, setCssCode] = useState('');
     const [originalCss, setOriginalCss] = useState('');
     const [journalSaving, setJournalSaving] = useState(false);
@@ -119,20 +127,36 @@ export default function SettingsModal({
         const loadJournalDetails = async () => {
             try {
                 const api = Journals(session);
-                const response = await api.getJournal(journalId);
-                if (response.data?.success && response.data.data) {
-                    const journal = response.data.data;
+                const [journalResponse, categoriesResponse] = await Promise.all([
+                    api.getJournal(journalId),
+                    api.getCategories()
+                ]);
+                
+                if (journalResponse.data?.success && journalResponse.data.data) {
+                    const journal = journalResponse.data.data;
+                    setJournalData(journal);
                     const title = journal.title || '';
+                    const categoryId = journal.categoryId ? journal.categoryId.toString() : '';
                     setJournalTitle(title);
                     setOriginalJournalTitle(title);
+                    setJournalCategoryId(categoryId);
+                    setOriginalJournalCategoryId(categoryId);
                 } else {
                     setJournalTitle('');
                     setOriginalJournalTitle('');
+                    setJournalCategoryId('');
+                    setOriginalJournalCategoryId('');
+                }
+                
+                if (categoriesResponse.data?.success) {
+                    setCategories(categoriesResponse.data.data || []);
                 }
             } catch (err) {
                 console.error('Error loading journal details:', err);
                 setJournalTitle('');
                 setOriginalJournalTitle('');
+                setJournalCategoryId('');
+                setOriginalJournalCategoryId('');
             }
         };
 
@@ -272,6 +296,20 @@ export default function SettingsModal({
         }
     };
 
+    const handleMoveEntry = () => {
+        setShowMoveModal(true);
+    };
+
+    const handleMoveModalClose = () => {
+        setShowMoveModal(false);
+    };
+
+    const handleEntryMoved = async (targetJournal) => {
+        // Navigate to the new journal/entry URL
+        session.hideModal();
+        navigate(`/journal/${targetJournal.id}/entry/${entry.id}`);
+    };
+
     const handleShowChapterManagement = () => {
         setShowChapterManagement(true);
     };
@@ -290,26 +328,58 @@ export default function SettingsModal({
         setJournalTitle(e.target.value);
     };
 
+    const handleJournalCategoryChange = (e) => {
+        setJournalCategoryId(e.target.value);
+    };
+
     const handleJournalCancelDetails = () => {
         setJournalTitle(originalJournalTitle);
+        setJournalCategoryId(originalJournalCategoryId);
     };
 
     const handleJournalSaveDetails = async () => {
         if (!journalId) return;
 
-        if (journalTitle === originalJournalTitle) {
+        const titleChanged = journalTitle !== originalJournalTitle;
+        const categoryChanged = journalCategoryId !== originalJournalCategoryId;
+
+        if (!titleChanged && !categoryChanged) {
             return;
         }
 
         setJournalSaving(true);
         try {
             const api = Journals(session);
-            await api.renameJournal(journalId, journalTitle);
+            
+            if (titleChanged) {
+                await api.renameJournal(journalId, journalTitle);
+            }
+            
+            if (categoryChanged) {
+                await api.changeJournalCategory(journalId, parseInt(journalCategoryId));
+                // Refresh the page to reload journal categories
+                window.location.reload();
+                return;
+            }
+            
             setOriginalJournalTitle(journalTitle);
+            setOriginalJournalCategoryId(journalCategoryId);
         } catch (err) {
-            console.error('Error saving journal title:', err);
+            console.error('Error saving journal details:', err);
         } finally {
             setJournalSaving(false);
+        }
+    };
+
+    const handleArchiveJournal = async () => {
+        if (!window.confirm(`Do you really want to archive the journal, "${journalTitle}"?`)) return;
+
+        try {
+            await archiveJournal(journalId);
+            localStorage.setItem('collector:journal:selected', null);
+            navigate('/journal');
+        } catch (err) {
+            console.error('Error archiving journal:', err);
         }
     };
 
@@ -372,15 +442,28 @@ export default function SettingsModal({
         }
     };
 
-    const hasJournalDetailsChanges = journalTitle !== originalJournalTitle;
+    const hasJournalDetailsChanges = journalTitle !== originalJournalTitle || journalCategoryId !== originalJournalCategoryId;
+    const isJournalEntry = journalData && journalData.entryId === entry.id;
+    const tabsList = isJournalEntry ? ['Details', 'Journal', 'Images', 'CSS'] : ['Details', 'Images', 'CSS'];
     const hasCSSChanges = cssCode !== originalCss;
     const hasThumbnailChanges = settings.thumbnail !== originalThumbnail;
+
+    if (showMoveModal) {
+        return (
+            <MoveEntryModal
+                entry={entry}
+                currentJournalId={journalId}
+                onClose={handleMoveModalClose}
+                onMoved={handleEntryMoved}
+            />
+        );
+    }
 
     return (
         <Modal title="Entry Settings" onClose={onClose} width="600px" className={'entry-settings-modal selected-tab-' + selectedTab}>
             {!showChapterManagement ? (
                 <>
-                    <Tabs tabs={['Details', 'Journal', 'Images', 'CSS']} selectedIndex={selectedTab} onChange={setSelectedTab}>
+                    <Tabs tabs={tabsList} selectedIndex={selectedTab} onChange={setSelectedTab}>
                         {/* Details Tab */}
                         <div className="settings-modal-content">
                             <div className="form-row-block">
@@ -436,7 +519,10 @@ export default function SettingsModal({
 
                             <div className="buttons">
                                 {entry.status !== 0 && (
-                                    <button className="btn" style={{ backgroundColor: '#c62828', color: 'white' }} onClick={handleArchiveEntry}>Archive Entry</button>
+                                    <>
+                                        <button className="btn" style={{ backgroundColor: '#c62828', color: 'white' }} onClick={handleArchiveEntry}>Archive</button>
+                                        <button className="btn" onClick={handleMoveEntry}>Move</button>
+                                    </>
                                 )}
                                 {settingsChanged && (
                                     <button className="btn primary" onClick={handleSaveSettings}>Save Changes</button>
@@ -459,26 +545,47 @@ export default function SettingsModal({
                                     />
                                 </div>
                             </div>
-                            {hasJournalDetailsChanges && (
-                                <div className="buttons">
-                                    <button onClick={handleJournalCancelDetails} className="cancel" disabled={journalSaving}>
-                                        Cancel
-                                    </button>
-                                    <button onClick={handleJournalSaveDetails} disabled={journalSaving}>
-                                        {journalSaving ? (
-                                            <>
-                                                <Icon name="progress_activity" spin={true} />
-                                                Saving...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Icon name="save" />
-                                                Save
-                                            </>
-                                        )}
-                                    </button>
+                            <div className="form-row-block">
+                                <div className="form-group">
+                                    <label htmlFor="journal-category">Category</label>
+                                    <Select
+                                        id="journal-category"
+                                        name="category"
+                                        value={journalCategoryId}
+                                        onChange={handleJournalCategoryChange}
+                                        options={[
+                                            { value: '', label: 'Select a category...' },
+                                            ...categories.map(cat => ({
+                                                value: cat.id.toString(),
+                                                label: cat.title
+                                            }))
+                                        ]}
+                                    />
                                 </div>
-                            )}
+                            </div>
+                            <div className="buttons">
+                                <button className="btn" style={{ backgroundColor: '#c62828', color: 'white' }} onClick={handleArchiveJournal}>Archive</button>
+                                {hasJournalDetailsChanges && (
+                                    <>
+                                        <button onClick={handleJournalCancelDetails} className="cancel" disabled={journalSaving}>
+                                            Cancel
+                                        </button>
+                                        <button onClick={handleJournalSaveDetails} disabled={journalSaving}>
+                                            {journalSaving ? (
+                                                <>
+                                                    <Icon name="progress_activity" spin={true} />
+                                                    Saving...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Icon name="save" />
+                                                    Save
+                                                </>
+                                            )}
+                                        </button>
+                                    </>
+                                )}
+                            </div>
                         </div>
 
                         {/* Images Tab */}

@@ -225,7 +225,8 @@ namespace Collector.Data.Repositories
         public void UpdateJournalId(Guid journalEntryId, int journalId)
         {
             _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
-                SET [JournalId] = @journalId 
+                SET [JournalId] = @journalId, 
+                    [ParentEntryId] = (SELECT [EntryId] FROM [dbo].[Journals] WHERE [Id] = @journalId)
                 WHERE [Id] = @journalEntryId", 
                 new { journalEntryId, journalId });
         }

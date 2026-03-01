@@ -1,0 +1,131 @@
+.calendar-module {
+    padding: 1em;
+    background: #fff;
+    border-radius: 4px;
+}
+
+.calendar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1em;
+    padding-bottom: 0.5em;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.calendar-title {
+    margin: 0;
+    font-size: 1.5em;
+    font-weight: 600;
+    color: #333;
+}
+
+.calendar-nav-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0.5em;
+    border-radius: 4px;
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.calendar-nav-btn:hover {
+    background: #f0f0f0;
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+
+.calendar-day-header {
+    text-align: center;
+    font-weight: 600;
+    padding: 0.5em;
+    color: #666;
+    font-size: 0.9em;
+    border-bottom: 2px solid #e0e0e0;
+    margin-bottom: 4px;
+}
+
+.calendar-day {
+    aspect-ratio: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    position: relative;
+    background: #fff;
+    transition: all 0.2s;
+}
+
+.calendar-day.empty {
+    border: none;
+    background: transparent;
+}
+
+.calendar-day.editable {
+    cursor: pointer;
+}
+
+.calendar-day.editable:hover {
+    background: #f8f8f8;
+    border-color: #ccc;
+    transform: scale(1.05);
+}
+
+.calendar-day.today {
+    border-color: #4CAF50;
+    border-width: 2px;
+    font-weight: 600;
+}
+
+.calendar-day.crossed-off {
+    background: #e8f5e9;
+    border-color: #4CAF50;
+}
+
+.calendar-day.crossed-off .day-number {
+    color: #2e7d32;
+}
+
+.day-number {
+    font-size: 1.1em;
+    color: #333;
+}
+
+.cross-mark {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3em;
+    color: #4CAF50;
+    font-weight: bold;
+    line-height: 1;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .calendar-day {
+        font-size: 0.9em;
+    }
+    
+    .day-number {
+        font-size: 1em;
+    }
+    
+    .cross-mark {
+        font-size: 2.5em;
+    }
+}
