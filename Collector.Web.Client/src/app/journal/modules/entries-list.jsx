@@ -105,9 +105,11 @@ export default function EntriesListModule({ module, journalId, entryId, entry, c
     // actions
 
     //#region "Entries"
+    const api = Journals(session);
+    const { filterEntries: filterEntriesApi, setEntryFavorite } = api;
+    
     const filterEntries = async (customFilter, callback) => {
         setLoading(true);
-        const api = Journals(session);
         const requestFilter = customFilter || {
             ...filterOptions,
             sort: filterOptions.sort || sort
@@ -116,7 +118,7 @@ export default function EntriesListModule({ module, journalId, entryId, entry, c
         try {
             const filterTagIds = (customFilter?.tags || module?.tags || []);
 
-            const response = await api.filterEntries(journalId, {
+            const response = await filterEntriesApi(journalId, {
                 Search: requestFilter.search || '',
                 Sort: requestFilter.sort || sort,
                 Start: requestFilter.start,
@@ -156,6 +158,20 @@ export default function EntriesListModule({ module, journalId, entryId, entry, c
         }
 
         navigate(`/journal/${journalId}/entry/${newEntry.id}`, navOptions);
+    };
+
+    const handleToggleFavorite = async (entryItem) => {
+        if (!entryItem || !entryItem.id) return;
+        
+        try {
+            const newFavoriteValue = !entryItem.favorite;
+            await setEntryFavorite(entryItem.id, newFavoriteValue);
+            
+            // Refresh the list to update sorting (favorites appear at top)
+            await filterEntries(filterOptionsRef.current);
+        } catch (err) {
+            console.error('Error toggling favorite:', err);
+        }
     };
 
     //#endregion
@@ -500,6 +516,16 @@ export default function EntriesListModule({ module, journalId, entryId, entry, c
                                     )}
                                     <td className="entry-tool-bar tool-bar align-right">
                                         <button
+                                            className={"icon " + (newEntry.favorite ? "favorite" : "")}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleToggleFavorite(newEntry);
+                                            }}
+                                            title={newEntry.favorite ? "Remove from favorites" : "Add to favorites"}
+                                        >
+                                            <Icon name={newEntry.favorite ? "star_shine" : "star"} />
+                                        </button>
+                                        <button
                                             className="icon"
                                             onClick={(e) => {
                                                 e.stopPropagation();
@@ -567,6 +593,18 @@ export default function EntriesListModule({ module, journalId, entryId, entry, c
                                 <span className="entry-status">
                                     <span className={`entry-status ${getStatusClass(newEntry)}`}>
                                         {getStatusText(newEntry)}
+                                    </span>
+                                    <span className="entry-favorite tool-bar">
+                                        <button
+                                            className={"icon " + (newEntry.favorite ? "favorite" : "")}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleToggleFavorite(newEntry);
+                                            }}
+                                            title={newEntry.favorite ? "Remove from favorites" : "Add to favorites"}
+                                        >
+                                            <Icon name={newEntry.favorite ? "star_shine" : "star"} />
+                                        </button>
                                     </span>
                                 </span>
                             </div>
@@ -640,6 +678,18 @@ export default function EntriesListModule({ module, journalId, entryId, entry, c
                                 <span className="entry-status">
                                     <span className={`entry-status ${getStatusClass(newEntry)}`}>
                                         {getStatusText(newEntry)}
+                                    </span>
+                                    <span className="entry-favorite tool-bar">
+                                        <button
+                                            className={"icon " + (newEntry.favorite ? "favorite" : "")}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleToggleFavorite(newEntry);
+                                            }}
+                                            title={newEntry.favorite ? "Remove from favorites" : "Add to favorites"}
+                                        >
+                                            <Icon name={newEntry.favorite ? "star_shine" : "star"} />
+                                        </button>
                                     </span>
                                 </span>
                             </div>

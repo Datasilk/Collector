@@ -13,6 +13,7 @@ import { useSession } from '@/context/session';
 //api
 import { JournalTags } from '@/api/user/journal-tags';
 import { JournalSnapshots } from '@/api/user/journal-snapshots';
+import { Journals } from '@/api/user/journals';
 
 export default function EntryToolbar({
     entry,
@@ -43,6 +44,7 @@ export default function EntryToolbar({
     const noUI = searchParams.has('noui');
     const { addTagToEntry, removeTagFromEntry } = JournalTags(session);
     const { getSnapshotsByEntry, createSnapshot } = JournalSnapshots(session);
+    const { setEntryFavorite } = Journals(session);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
     const [showCreateSnapshotModal, setShowCreateSnapshotModal] = useState(false);
     const [showSnapshotCreatedModal, setShowSnapshotCreatedModal] = useState(false);
@@ -232,6 +234,18 @@ export default function EntryToolbar({
         setShowBottomModuleDropdown(false);
     };
 
+    const handleToggleFavorite = async () => {
+        if (!entry || !entry.id) return;
+        
+        try {
+            const newFavoriteValue = !entry.favorite;
+            await setEntryFavorite(entry.id, newFavoriteValue);
+            setEntry(prev => prev ? { ...prev, favorite: newFavoriteValue } : prev);
+        } catch (err) {
+            console.error('Error toggling favorite:', err);
+        }
+    };
+
     const formatDate = (dateString) => {
         const date = new Date(dateString);
         return date.toLocaleDateString('en-US', {
@@ -384,47 +398,60 @@ export default function EntryToolbar({
                                 </div>
                             );
                         })()}
-                        <TagsList
-                            tags={tags}
-                            onRemoveTag={async (tag) => {
-                                if (!entry || !entry.id || !tag || tag.tagId == null) return;
-                                try {
-                                    await removeTagFromEntry(entry.id, tag.tagId);
-                                    setTags(prev => prev.filter(t => t.tagId !== tag.tagId));
-                                    setEntry(prev => prev ? { ...prev, tags: prev.tags?.filter(t => t.tagId !== tag.tagId) } : prev);
-                                } catch (err) {
-                                    console.error('Error removing tag from entry:', err);
-                                }
-                            }}
-                        />
-                        {tags.length > 0 && (
-                            <div className="tag-pointer">
-                                <Icon name="chevron_left" />
-                            </div>
+                        {entry?.id !== journal?.entryId && (
+                            <>
+                                <TagsList
+                                    tags={tags}
+                                    onRemoveTag={async (tag) => {
+                                        if (!entry || !entry.id || !tag || tag.tagId == null) return;
+                                        try {
+                                            await removeTagFromEntry(entry.id, tag.tagId);
+                                            setTags(prev => prev.filter(t => t.tagId !== tag.tagId));
+                                            setEntry(prev => prev ? { ...prev, tags: prev.tags?.filter(t => t.tagId !== tag.tagId) } : prev);
+                                        } catch (err) {
+                                            console.error('Error removing tag from entry:', err);
+                                        }
+                                    }}
+                                />
+                                {tags.length > 0 && (
+                                    <div className="tag-pointer">
+                                        <Icon name="chevron_left" />
+                                    </div>
+                                )}
+                                <NewEntryTag
+                                    entry={entry}
+                                    journalId={journalId}
+                                    onAddTag={async (tag) => {
+                                        if (!entry || !entry.id || entry.id === 0 || !tag || tag.id == null) return;
+                                        try {
+                                            await addTagToEntry(entry.id, tag.id);
+                                            setTags(prev => {
+                                                const exists = prev.some(t => t.tagId === tag.id);
+                                                if (exists) return prev;
+                                                return [...prev, { tagId: tag.id, name: tag.tag }];
+                                            });
+                                            setEntry(prev => prev ? {
+                                                ...prev,
+                                                tags: (prev.tags || []).some(t => t.tagId === tag.id)
+                                                    ? prev.tags
+                                                    : [...(prev.tags || []), { tagId: tag.id, name: tag.tag }]
+                                            } : prev);
+                                        } catch (err) {
+                                            console.error('Error attaching tag to entry:', err);
+                                        }
+                                    }}
+                                />
+                            </>
                         )}
-                        <NewEntryTag
-                            entry={entry}
-                            journalId={journalId}
-                            onAddTag={async (tag) => {
-                                if (!entry || !entry.id || entry.id === 0 || !tag || tag.id == null) return;
-                                try {
-                                    await addTagToEntry(entry.id, tag.id);
-                                    setTags(prev => {
-                                        const exists = prev.some(t => t.tagId === tag.id);
-                                        if (exists) return prev;
-                                        return [...prev, { tagId: tag.id, name: tag.tag }];
-                                    });
-                                    setEntry(prev => prev ? {
-                                        ...prev,
-                                        tags: (prev.tags || []).some(t => t.tagId === tag.id)
-                                            ? prev.tags
-                                            : [...(prev.tags || []), { tagId: tag.id, name: tag.tag }]
-                                    } : prev);
-                                } catch (err) {
-                                    console.error('Error attaching tag to entry:', err);
-                                }
-                            }}
-                        />
+                        {entry?.id !== journal?.entryId && (
+                            <button
+                                className="icon"
+                                onClick={handleToggleFavorite}
+                                title={entry?.favorite ? "Remove from favorites" : "Add to favorites"}
+                            >
+                                <Icon name={entry?.favorite ? "star_shine" : "star"} />
+                            </button>
+                        )}
                         {chapters.length > 0 && getChapterName() != '' && (
                             <span className="chapter-label" title={'Chapter #' + getChapter().sort}>
                                 <Icon name="book" /> {getChapterName()}
@@ -433,6 +460,11 @@ export default function EntryToolbar({
                         <span className={`status-indicator ${getStatusClass(entry)}`} title={getStatusTitle(entry)}>
                             {getStatusText(entry)}
                         </span>
+                        {entry?.id === journal?.entryId && (
+                            <span className="status-indicator journal-label" title="This is the journal's main entry">
+                                Journal
+                            </span>
+                        )}
                         <ToggleSwitch
                             name="edit-entry"
                             checked={isEditing}

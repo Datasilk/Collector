@@ -117,6 +117,7 @@
     <Folder Include="deploy" />
     <Folder Include="dbo\Tables\Journal" />
     <Folder Include="dbo\Stored Procedures\Domains\Services" />
+    <Folder Include="dbo\Tables\Chat" />
   </ItemGroup>
   <ItemGroup>
     <Build Include="dbo\Functions\GetPathFromUrl.sql" />
@@ -335,6 +336,8 @@
     <Build Include="dbo\Sequences\SequenceJournalFiles.sql" />
     <Build Include="dbo\Stored Procedures\Feeds\Feeds_Filter.sql" />
     <Build Include="dbo\Stored Procedures\ResetAllSequences.sql" />
+    <Build Include="dbo\Tables\Chat\ChatHistory.sql" />
+    <Build Include="dbo\Tables\Chat\Chats.sql" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Collector.SQL.publish.xml" />

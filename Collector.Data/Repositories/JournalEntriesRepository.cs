@@ -103,35 +103,36 @@ namespace Collector.Data.Repositories
             sort = string.IsNullOrWhiteSpace(sort) ? "Created_desc" : sort;
 
             // Build ORDER BY clause based on sort string
+            // Always order by Favorite DESC first, then by the user's selected sort
             string orderBy;
             switch (sort)
             {
                 case "Title_asc":
-                    orderBy = "[Title] ASC";
+                    orderBy = "[Favorite] DESC, [Title] ASC";
                     break;
                 case "Title_desc":
-                    orderBy = "[Title] DESC";
+                    orderBy = "[Favorite] DESC, [Title] DESC";
                     break;
                 case "Created_asc":
-                    orderBy = "[Created] ASC";
+                    orderBy = "[Favorite] DESC, [Created] ASC";
                     break;
                 case "Created_desc":
-                    orderBy = "[Created] DESC";
+                    orderBy = "[Favorite] DESC, [Created] DESC";
                     break;
                 case "Modified_asc":
-                    orderBy = "[Modified] ASC";
+                    orderBy = "[Favorite] DESC, [Modified] ASC";
                     break;
                 case "Modified_desc":
-                    orderBy = "[Modified] DESC";
+                    orderBy = "[Favorite] DESC, [Modified] DESC";
                     break;
                 case "Status_asc":
-                    orderBy = "[Status] ASC";
+                    orderBy = "[Favorite] DESC, [Status] ASC";
                     break;
                 case "Status_desc":
-                    orderBy = "[Status] DESC";
+                    orderBy = "[Favorite] DESC, [Status] DESC";
                     break;
                 default:
-                    orderBy = "[Created] DESC";
+                    orderBy = "[Favorite] DESC, [Created] DESC";
                     break;
             }
 
@@ -174,7 +175,7 @@ namespace Collector.Data.Repositories
                     LEFT JOIN [dbo].[JournalEntries] parent ON je.[ParentEntryId] = parent.[Id]
                     WHERE {baseWhere}
                       AND jet.[TagId] IN @tagIds
-                    GROUP BY je.[Id], je.[JournalId], je.[ParentEntryId], je.[Title], je.[Description], je.[Created], je.[Modified], je.[Status], je.[ChapterId], je.[Encrypted], je.[Thumbnail], je.[ThumbnailModuleId], je.[Url], parent.[Title]
+                    GROUP BY je.[Id], je.[JournalId], je.[ParentEntryId], je.[Title], je.[Description], je.[Created], je.[Modified], je.[Status], je.[ChapterId], je.[Encrypted], je.[Thumbnail], je.[ThumbnailModuleId], je.[Favorite], je.[Url], parent.[Title]
                     HAVING COUNT(DISTINCT jet.[TagId]) >= @tagCount
                     ORDER BY {orderBy}
                     OFFSET @start ROWS FETCH NEXT @length ROWS ONLY";
@@ -262,6 +263,14 @@ namespace Collector.Data.Repositories
                 SET [Status] = @status
                 WHERE [Id] = @journalEntryId",
                 new { journalEntryId, status });
+        }
+
+        public void SetFavorite(Guid journalEntryId, bool favorite)
+        {
+            _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
+                SET [Favorite] = @favorite
+                WHERE [Id] = @journalEntryId",
+                new { journalEntryId, favorite });
         }
 
         public void SetChapter(Guid journalEntryId, int? chapterId)

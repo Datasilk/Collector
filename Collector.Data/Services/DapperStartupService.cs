@@ -50,6 +50,9 @@ namespace Collector.Data.Services
             builder.Services.AddTransient<IJournalSnapshotsRepository, JournalSnapshotsRepository>();
             builder.Services.AddTransient<IJournalTagsRepository, JournalTagsRepository>();
             builder.Services.AddTransient<IJournalEntryTagsRepository, JournalEntryTagsRepository>();
+            
+            //Chat Tables
+            builder.Services.AddTransient<IChatsRepository, ChatsRepository>();
         }
     }
 }

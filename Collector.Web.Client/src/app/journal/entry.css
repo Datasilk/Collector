@@ -179,6 +179,11 @@ body.scrolled .entry-header  .add-module-container{
     margin-right:0.25em;
 }
 
+.status-indicator.journal-label {
+    background-color: #fcf7e0;
+    color: #ef8c00;
+}
+
 .toggle-switch-edit-entry{
     background-color:#d4c6f9;
     border-radius:1em;
@@ -1116,32 +1121,32 @@ body.scrolled .entry-header .add-module-container{
     margin:0;
 }
 
-.entries-list-module .centered{
+.module-entries-list .centered{
     text-align:center;
     margin:0 auto;
     width:auto;
     display:inline-block;
 }
 
-.entries-list-module tbody td {
+.module-entries-list tbody td {
     padding: 0;
 }
 
-.entries-list-module tbody td:first-child{
+.module-entries-list tbody td:first-child{
     padding: 0 0 0 1em;
 }
 
-.entries-list-module td.entry-title{
+.module-entries-list td.entry-title{
     font-size:0.9em;
 }
 
-.entries-list-module td.entry-created,
-.entries-list-module td.entry-modified{
+.module-entries-list td.entry-created,
+.module-entries-list td.entry-modified{
     opacity:0.65;
     font-size:0.8em;
 }
 
-.entries-list-module td.entry-chapter {
+.module-entries-list td.entry-chapter {
     max-width: 200px;
     white-space: nowrap;
     overflow: hidden;
@@ -1150,17 +1155,26 @@ body.scrolled .entry-header .add-module-container{
     font-size: 0.9em;
 }
 
-.entries-list-module .page-info{
+.module-entries-list td.entry-tool-bar button {
+    opacity:0.3;
+}
+
+.module-entries-list tr:hover td.entry-tool-bar button,
+.module-entries-list td.entry-tool-bar button.favorite {
+    opacity:1;
+}
+
+.module-entries-list .page-info{
     opacity:0.65;
     font-size:0.8em;
     padding:0 1em 0 1.5em;
 }
 
-.entries-list-module .pagination{
+.module-entries-list .pagination{
     text-align:center;
 }
 
-.entries-list-module > .pagination{
+.module-entries-list > .pagination{
     padding:1em 0 2em 0;
 }
 
@@ -1170,7 +1184,7 @@ body.scrolled .entry-header .add-module-container{
     overflow-y:visible;
 }
 
-.module-entries-list-module.loading {
+.module-module-entries-list.loading {
     margin-top: 1em;
 }
 
@@ -1497,6 +1511,19 @@ body.scrolled .entry-header .add-module-container{
     display:inline-block;
     font-size:0.8em;
 }
+
+.module-entries-list .entry-favorite button,
+.module-entries-list .entry-poster button {
+    opacity:0.3;
+}
+
+.module-entries-list .entry-card:hover .entry-favorite button,
+.module-entries-list .entry-favorite button.favorite,
+.module-entries-list .entry-poster:hover .entry-favorite button,
+.module-entries-list .entry-poster .entry-favorite button.favorite {
+    opacity:1;
+}
+
 .module-entries-list .entry-card.has-thumbnail .entry-card-info{
     width:70%;
     float:left;

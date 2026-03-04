@@ -21,6 +21,7 @@ namespace Collector.Data.Interfaces
         void UpdateCreated(Guid journalEntryId, DateTime created);
         void SetEncrypted(Guid journalEntryId, bool encrypted);
         void SetPublished(Guid journalEntryId, bool isPublished);
+        void SetFavorite(Guid journalEntryId, bool favorite);
         void SetChapter(Guid journalEntryId, int? chapterId);
         void UpdateThumbnail(Guid journalEntryId, string thumbnail, string thumbnailModuleId = null);
         void SetParent(Guid journalEntryId, Guid? parentEntryId);

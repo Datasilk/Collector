@@ -887,7 +887,7 @@ namespace Collector.API.Controllers
                 if (journal == null || journal.AppUserId != userId)
                     return Json(new ApiResponse { success = false, message = "Not authorized to update this entry" });
 
-                _entriesRepository.SetPublished(request.Id, request.IsSet);
+                _entriesRepository.SetPublished(request.Id, request.Value);
                 return Json(new ApiResponse { success = true });
             }
             catch (Exception ex)
@@ -926,7 +926,7 @@ namespace Collector.API.Controllers
                 var filePath = $"{request.Id:N}.json";
                 var content = Files.GetFile(Files.Paths.Journal, filePath);
 
-                if (request.IsSet)
+                if (request.Value)
                 {
                     // Encrypt the file
                     var encryptedContent = Sha256.Encrypt(content, user.EncryptionKey);
@@ -939,7 +939,7 @@ namespace Collector.API.Controllers
                     Files.SaveFile(Files.Paths.Journal, filePath, decryptedContent);
                 }
 
-                _entriesRepository.SetEncrypted(request.Id, request.IsSet);
+                _entriesRepository.SetEncrypted(request.Id, request.Value);
                 return Json(new ApiResponse { success = true });
             }
             catch (Exception ex)
@@ -966,6 +966,32 @@ namespace Collector.API.Controllers
                     return Json(new ApiResponse { success = false, message = "Not authorized to update this entry" });
 
                 _entriesRepository.UpdateCreated(request.Id, request.Created);
+                return Json(new ApiResponse { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("entries/set-favorite")]
+        public IActionResult SetEntryFavorite([FromBody] JournalEntryStateModel request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var entry = _entriesRepository.GetById(request.Id);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
+
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized to update this entry" });
+
+                _entriesRepository.SetFavorite(request.Id, request.Value);
                 return Json(new ApiResponse { success = true });
             }
             catch (Exception ex)

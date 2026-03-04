@@ -19,6 +19,7 @@ namespace Collector.Data.Entities
         public bool Encrypted { get; set; }
         public string Thumbnail { get; set; }
         public string ThumbnailModuleId { get; set; }
+        public bool Favorite { get; set; }
 
         [NotMapped]
         public List<JournalEntryTag> Tags { get; set; } = new List<JournalEntryTag>();

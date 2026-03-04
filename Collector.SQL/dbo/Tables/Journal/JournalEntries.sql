@@ -12,5 +12,6 @@ CREATE TABLE [dbo].[JournalEntries]
     [Status] INT NOT NULL DEFAULT 1, --0=deleted, 1=active, 2=published, 3=archived
     [Encrypted] BIT NOT NULL DEFAULT 0, --if encrypted, cannot be published
     [Thumbnail] NVARCHAR(128) NULL, --image to use as thumbnail
-    [ThumbnailModuleId] NVARCHAR(64) NULL --module id that the thumbnail came from
+    [ThumbnailModuleId] NVARCHAR(64) NULL, --module id that the thumbnail came from
+    [Favorite] BIT NOT NULL DEFAULT 0 --if entry is favorited
 )

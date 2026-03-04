@@ -60,6 +60,10 @@ const WorkerHubProvider = ({ children }) => {
                 if (!handlers || handlers.length === 0) return;
 
                 handlers.forEach((handler) => {
+                    if (typeof handler !== 'function') {
+                        console.warn('WorkerHub: Invalid handler found, skipping', handler);
+                        return;
+                    }
                     try {
                         handler({ eventName, payload, workerId: key });
                     } catch (err) {

@@ -10,6 +10,7 @@ import { SessionProvider } from './context/session';
 import { WorkerHubProvider } from './context/workerhub';
 import { VideoPiPProvider } from './context/videopip';
 import { addSvg } from './helpers/svg';
+import Chat from './components/chat/chat';
 
 function App() {
   //ref
@@ -53,6 +54,7 @@ function App() {
         <WorkerHubProvider>
           <VideoPiPProvider>
             <Routing />
+            <Chat />
           </VideoPiPProvider>
         </WorkerHubProvider>
       </SessionProvider>

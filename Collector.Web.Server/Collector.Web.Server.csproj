@@ -40,6 +40,7 @@
     <PackageReference Include="Microsoft.AspNetCore.SpaProxy">
       <Version>8.0.18</Version>
     </PackageReference>
+    <PackageReference Include="OllamaSharp" Version="5.4.18" />
     <PackageReference Include="serilog" Version="4.3.0" />
     <PackageReference Include="serilog.aspnetcore" Version="9.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.3" />

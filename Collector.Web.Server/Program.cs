@@ -70,6 +70,7 @@ builder.AddAuthService();
 
 // Register workers
 builder.Services.AddTransient<VideoWorker>();
+builder.Services.AddTransient<ChatWorker>();
 
 // Configure request limits for large file uploads (5GB for video files)
 builder.Services.Configure<IISServerOptions>(options =>
@@ -98,6 +99,85 @@ builder.Services.AddSwaggerGen(e =>
 foreach(var llm in Collector.Common.LLMs.Available)
 {
     llm.Value.PrivateKey = builder.Configuration["LLM:" + llm.Key + ":PrivateKey"] ?? "";
+}
+
+// Configure Ollama for local LLM reasoning
+LLMOllama.Url = builder.Configuration["Ollama:Url"] ?? "http://localhost:11434";
+LLMOllama.Model = builder.Configuration["Ollama:Model"] ?? "qwen2.5:0.5b";
+LLMOllama.UseGpu = builder.Configuration.GetValue<bool>("Ollama:UseGpu", false);
+LLMOllama.NumGpu = builder.Configuration.GetValue<int>("Ollama:NumGpu", 1);
+LLMOllama.ContextSize = builder.Configuration.GetValue<int>("Ollama:ContextSize", 2048); //2048 (96MB), 4096 (192MB), 8192 (384MB), or 32768 (1.5GB)
+LLMOllama.Temperature = builder.Configuration.GetValue<float>("Ollama:Temperature", 0.7f);
+LLMOllama.AutoPullModel = builder.Configuration.GetValue<bool>("Ollama:AutoPullModel", true);
+
+builder.Services.AddSingleton(sp => new OllamaSharp.OllamaApiClient(LLMOllama.Url));
+
+Console.WriteLine($"Ollama Configuration:");
+Console.WriteLine($"  URL: {LLMOllama.Url}");
+Console.WriteLine($"  Model: {LLMOllama.Model}");
+Console.WriteLine($"  GPU: {(LLMOllama.UseGpu ? $"Enabled ({LLMOllama.NumGpu} GPU(s))" : "Disabled")}");
+Console.WriteLine($"  Context Size: {LLMOllama.ContextSize}");
+Console.WriteLine($"  Temperature: {LLMOllama.Temperature}");
+
+if (LLMOllama.AutoPullModel)
+{
+    try
+    {
+        var tempOllama = new OllamaSharp.OllamaApiClient(LLMOllama.Url);
+        var models = await tempOllama.ListLocalModelsAsync();
+        
+        // Check and pull main chat model
+        var modelExists = models.Any(m => m.Name == LLMOllama.Model);
+        if (!modelExists)
+        {
+            Console.WriteLine($"\n{LLMOllama.Model} model not found. Pulling from Ollama...");
+            Console.WriteLine("This may take several minutes depending on your connection...");
+            var pullRequest = new OllamaSharp.Models.PullModelRequest { Model = LLMOllama.Model };
+            await foreach (var status in tempOllama.PullModelAsync(pullRequest))
+            {
+                if (status?.Status != null)
+                {
+                    Console.WriteLine($"  {status.Status}");
+                }
+            }
+            Console.WriteLine($"{LLMOllama.Model} model pulled successfully.\n");
+        }
+        else
+        {
+            Console.WriteLine($"{LLMOllama.Model} model is already available.\n");
+        }
+        
+        // Check and pull embedding model for RAG
+        var embeddingModelExists = models.Any(m => m.Name == "nomic-embed-text");
+        if (!embeddingModelExists)
+        {
+            Console.WriteLine("\nnomic-embed-text embedding model not found. Pulling from Ollama...");
+            Console.WriteLine("This model is required for RAG (Retrieval-Augmented Generation)...");
+            var pullRequest = new OllamaSharp.Models.PullModelRequest { Model = "nomic-embed-text" };
+            await foreach (var status in tempOllama.PullModelAsync(pullRequest))
+            {
+                if (status?.Status != null)
+                {
+                    Console.WriteLine($"  {status.Status}");
+                }
+            }
+            Console.WriteLine("nomic-embed-text model pulled successfully.\n");
+        }
+        else
+        {
+            Console.WriteLine("nomic-embed-text embedding model is already available.\n");
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"\n⚠️  WARNING: Could not connect to Ollama at {LLMOllama.Url}");
+        Console.WriteLine($"Error: {ex.Message}\n");
+        Console.WriteLine("To use the AI chat feature, you need to:");
+        Console.WriteLine("1. Download Ollama from: https://ollama.ai/download");
+        Console.WriteLine("2. Install and run Ollama");
+        Console.WriteLine("3. Restart the Collector server application\n");
+        Console.WriteLine("The application will continue to run, but AI chat will not work until Ollama is running.\n");
+    }
 }
 
 // Set all file storage paths from configuration
@@ -209,6 +289,7 @@ app.MapHub<ChromeExtensionHub>("/chrome-extension");
 
 // Register worker routes
 WorkerRoutes.Register<VideoWorker>("video-worker");
+WorkerRoutes.Register<ChatWorker>("chat-worker");
 
 // Set WorkerHub context for worker-to-client communication
 Workers.SetHubContext(app.Services.GetRequiredService<IHubContext<WorkerHub>>());

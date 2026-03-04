@@ -95,6 +95,11 @@
   padding: 0.65em 1.2em 0.55em 1.2em;
 }
 
+.tool-bar button.icon,
+.tool-bar .button.icon {
+  padding: 0.45em 1.2em 0.55em 1.2em;
+}
+
 .tool-bar button .material-symbols-rounded,
 .tool-bar .button .material-symbols-rounded {
   margin: -0.15em 0.2em 0 -0.2em;
