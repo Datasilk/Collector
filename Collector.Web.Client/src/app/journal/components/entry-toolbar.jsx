@@ -481,7 +481,7 @@ export default function EntryToolbar({
                                 <Icon name="history" />
                             </button>
                             {showHistoryDropdown && (
-                                <div className="dropdown-menu" ref={historyDropdownRef}>
+                                <div className="history-dropdown-menu" ref={historyDropdownRef}>
                                     <div className="tool-bar pad-sm">
                                         <button
                                             onClick={handleCreateSnapshotClick}

@@ -2999,7 +2999,7 @@ body.scrolled .entry-header .add-module-container{
     position: relative;
 }
 
-.history-dropdown-container .dropdown-menu {
+.history-dropdown-container .history-dropdown-menu {
     position: absolute;
     top: 100%;
     right: 0;
@@ -3010,8 +3010,10 @@ body.scrolled .entry-header .add-module-container{
     box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     min-width: 250px;
     max-height: 400px;
+    bottom:auto;
     overflow-y: auto;
     z-index: 1000;
+    text-align:left;
 }
 
 .history-dropdown-container .dropdown-item {
