@@ -78,7 +78,7 @@ export default function ModuleList({
         document.removeEventListener('mousedown', handleClickOutsideModuleDropdown);
     };
 
-    const showModuleDropdownAtTop = () => {
+    const showModuleDropdownAtTop = (module) => {
         setCurrentModuleId(module.id);
         setShowModuleAboveDropdown(true);
         document.addEventListener('mousedown', handleClickOutsideModuleDropdown);
@@ -1453,6 +1453,7 @@ export default function ModuleList({
                         className={
                             `module module-${module.type?.replace(' ', '-') ?? ''} ` +
                             `module-id-${module.id} ${isEditing ? 'editable' : ''} ` +
+                            (module.className ? module.className + ' ' : '') + 
                             `${!showHoverOutline ? 'no-hover-outline' : ''} ` +
                             `${getWidthClass(module.width)} ` +
                             //`${module.right ? 'right' : ''} ` +
@@ -1493,7 +1494,7 @@ export default function ModuleList({
                                                         <button
                                                             className="icon"
                                                             ref={module.id == currentModuleId ? moduleDropdownButtonRef : null}
-                                                            onClick={showModuleDropdownAtTop}
+                                                            onClick={() => {showModuleDropdownAtTop(module)}}
                                                             title="Add new module above"
                                                         >
                                                             <Icon name="add" />

@@ -21,7 +21,8 @@ export default function TabsSettingsModal({ module, onUpdate }) {
     const handleSave = () => {
         const updatedModule = {
             ...module,
-            style: styleValue
+            style: styleValue,
+            className: styleValue === 1 ? 'side-menu' : ''
         };
 
         if (onUpdate) {

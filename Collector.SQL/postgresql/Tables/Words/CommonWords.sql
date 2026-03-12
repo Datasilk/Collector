@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS public."CommonWords"
+(
+    "word" VARCHAR(16) NOT NULL PRIMARY KEY
+);

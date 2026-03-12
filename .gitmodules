@@ -1,3 +1,6 @@
 [submodule "Charlotte"]
 	path = Charlotte
 	url = https://github.com/datasilk/Charlotte
+[submodule "Collector.SQL/postgresql/extensions/pgvector"]
+	path = Collector.SQL/postgresql/extensions/pgvector
+	url = https://github.com/pgvector/pgvector.git

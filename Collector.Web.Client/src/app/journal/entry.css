@@ -2347,6 +2347,7 @@ body.scrolled .entry-header .add-module-container{
 .tab-content {
     padding: 1.5em;
     min-height: 200px;
+    position:relative;
 }
 
 .editable .tab-content {
@@ -2355,8 +2356,19 @@ body.scrolled .entry-header .add-module-container{
 
 .tabs-module .add-module-container {
     position: relative;
-    width:100%;
     padding-bottom:1em;
+    float:right;
+    margin:0;
+}
+
+.module-tabs > .module-tab-container .box{
+    right:11em;
+    top:4.5em;
+}
+
+.module-tabs.side-menu > .module-tab-container .box{
+    right:11em;
+    top:0.5em;
 }
 
 .tabs-module .add-module-container button{

@@ -1,0 +1,11 @@
+CREATE TABLE IF NOT EXISTS public."Chats"
+(
+    "Id" UUID NOT NULL PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "AppUserId" UUID NOT NULL,
+    "Title" VARCHAR(128) NOT NULL,
+    "Created" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "Modified" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "Status" INT NOT NULL DEFAULT 1 --0=deleted, 1=active
+);
+ALTER TABLE public."Chats"
+    ADD CONSTRAINT "FK_Chats_AppUsers" FOREIGN KEY ("AppUserId") REFERENCES public."AppUsers"("Id");

@@ -421,11 +421,19 @@ export default function JournalEntryPage() {
             clearTimeout(saveTimerRef.current);
         }
         saveTimerRef.current = setTimeout(() => {
-            finishSaving(json);
+            finishSaving();
         }, 5000);
     };
 
-    const finishSaving = useCallback((json) => {
+    const finishSaving = useCallback(() => {
+        // Always use the latest state from entryJsonRef
+        const json = entryJsonRef.current;
+        
+        if (!json || !json.modules || json.modules.length === 0) {
+            console.warn('finishSaving: no valid data to save');
+            return;
+        }
+        
         setSaveStatus('saving');
         try {
             const contentString = JSON.stringify(json);
@@ -454,7 +462,7 @@ export default function JournalEntryPage() {
             console.error('Error saving entry content:', err);
             setSaveStatus('error');
         }
-    }, [entry, entryJson])
+    }, [entry])
     //#endregion
 
     //#region Entry Title
@@ -559,11 +567,14 @@ export default function JournalEntryPage() {
     };
 
     const handleUpdatedModule = (updatedModule) => {
+        // Create a new modules array to ensure saveEntryContent detects changes
         const updatedModules = [...entryJsonRef.current.modules];
         const index = updatedModules.findIndex(a => a.id == updatedModule.id);
         if (index > -1) {
             updatedModules[index] = updatedModule;
-            saveEntryContent({ ...entryJsonRef.current, modules: updatedModules });
+            const updatedJson = { ...entryJsonRef.current, modules: updatedModules };
+            // Update ref AFTER creating the new object so comparison works
+            saveEntryContent(updatedJson);
             checkEntryThumbnail(entryRef.current, updatedModules);
         }
     };
@@ -576,19 +587,19 @@ export default function JournalEntryPage() {
         const moduleIndex = entryJsonRef.current.modules.findIndex(module => module.id === targetModuleId);
         if (moduleIndex === -1) return;
 
+        // Create new array to preserve change detection
         const updatedModules = [...entryJsonRef.current.modules];
         updatedModules.splice(moduleIndex, 0, newModule);
-        const updatedEntryJson = {
-            ...entryJsonRef.current,
-            modules: updatedModules
-        };
+        const updatedJson = { ...entryJsonRef.current, modules: updatedModules };
 
-        saveEntryContent(updatedEntryJson);
+        saveEntryContent(updatedJson);
         checkEntryThumbnail(entryRef.current, updatedModules);
     }, [entryJsonRef]);
 
     const handleRemovedModule = useCallback((moduleId, updatedModules) => {
-        saveEntryContent({ ...entryJsonRef.current, modules: updatedModules });
+        // Create new object to preserve change detection
+        const updatedJson = { ...entryJsonRef.current, modules: updatedModules };
+        saveEntryContent(updatedJson);
     }, [entryJsonRef]);
     //#endregion
 

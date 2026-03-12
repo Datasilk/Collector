@@ -40,19 +40,28 @@ if %ERRORLEVEL% EQU 0 (
     echo ffprobe should have been installed with ffmpeg
 )
 
-REM Check for yt-dlp
+REM Check for yt-dlp and always update to latest version
 where yt-dlp >nul 2>&1
 if %ERRORLEVEL% EQU 0 (
     echo yt-dlp is already in PATH
-) else if exist "%TOOLS_DIR%yt-dlp.exe" (
-    echo yt-dlp found in application directory
 ) else (
-    echo Downloading yt-dlp...
-    powershell -Command "$ProgressPreference = 'SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe' -OutFile '%TOOLS_DIR%yt-dlp.exe'"
     if exist "%TOOLS_DIR%yt-dlp.exe" (
-        echo yt-dlp installed successfully
+        echo Updating yt-dlp to latest version...
+        "%TOOLS_DIR%yt-dlp.exe" --update
+        if %ERRORLEVEL% EQU 0 (
+            echo yt-dlp updated successfully
+        ) else (
+            echo yt-dlp update failed, downloading fresh copy...
+            powershell -Command "$ProgressPreference = 'SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe' -OutFile '%TOOLS_DIR%yt-dlp.exe'"
+        )
     ) else (
-        echo Failed to download yt-dlp
+        echo Downloading yt-dlp...
+        powershell -Command "$ProgressPreference = 'SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe' -OutFile '%TOOLS_DIR%yt-dlp.exe'"
+        if exist "%TOOLS_DIR%yt-dlp.exe" (
+            echo yt-dlp installed successfully
+        ) else (
+            echo Failed to download yt-dlp
+        )
     )
 )
 
