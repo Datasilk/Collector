@@ -26,6 +26,15 @@ builder.Host.UseSerilog((host, config) =>
                 && sv.Value is string s
                 && s.StartsWith("Microsoft"))
             .WriteTo.Console(outputTemplate: "{Message:lj}{NewLine}{Exception}")
+        )
+        // Write all logs to file with rolling daily files
+        .WriteTo.File(
+            path: "logs/collector-.log",
+            rollingInterval: RollingInterval.Day,
+            outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}",
+            retainedFileCountLimit: 30,
+            fileSizeLimitBytes: 104857600, // 100MB
+            rollOnFileSizeLimit: true
         );
 });
 

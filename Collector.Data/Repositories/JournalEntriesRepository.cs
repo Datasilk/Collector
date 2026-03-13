@@ -23,8 +23,8 @@ namespace Collector.Data.Repositories
         public Guid Add(JournalEntry journalEntry)
         {
             journalEntry.Id = Guid.NewGuid();
-            _dbConnection.Execute(@"INSERT INTO [dbo].[JournalEntries] 
-                ([Id], [JournalId], [ParentEntryId], [Title], [Description], [Url]) 
+            _dbConnection.Execute(@"INSERT INTO public.""JournalEntries"" 
+                (""Id"", ""JournalId"", ""ParentEntryId"", ""Title"", ""Description"", ""Url"") 
                 VALUES (@id, @journalId, @parentEntryId, @title, @description, @url)", 
                 new { 
                     id = journalEntry.Id,
@@ -39,60 +39,60 @@ namespace Collector.Data.Repositories
 
         public void Rename(Guid journalEntryId, string title)
         {
-            _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
-                SET [Title] = @title 
-                WHERE [Id] = @journalEntryId", 
+            _dbConnection.Execute(@"UPDATE public.""JournalEntries"" 
+                SET ""Title"" = @title 
+                WHERE ""Id"" = @journalEntryId", 
                 new { journalEntryId, title });
         }
 
         public void UpdateDescription(Guid journalEntryId, string description)
         {
-            _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
-                SET [Description] = @description 
-                WHERE [Id] = @journalEntryId", 
+            _dbConnection.Execute(@"UPDATE public.""JournalEntries"" 
+                SET ""Description"" = @description 
+                WHERE ""Id"" = @journalEntryId", 
                 new { journalEntryId, description });
         }
 
         public void Archive(Guid journalEntryId)
         {
-            _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
-                SET [Status] = 0 
-                WHERE [Id] = @journalEntryId", 
+            _dbConnection.Execute(@"UPDATE public.""JournalEntries"" 
+                SET ""Status"" = 0 
+                WHERE ""Id"" = @journalEntryId", 
                 new { journalEntryId });
         }
 
         public void Unarchive(Guid journalEntryId)
         {
-            _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
-                SET [Status] = 1 
-                WHERE [Id] = @journalEntryId", 
+            _dbConnection.Execute(@"UPDATE public.""JournalEntries"" 
+                SET ""Status"" = 1 
+                WHERE ""Id"" = @journalEntryId", 
                 new { journalEntryId });
         }
 
         public void Publish(Guid journalEntryId)
         {
-            _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
-                SET [Status] = 2 
-                WHERE [Id] = @journalEntryId", 
+            _dbConnection.Execute(@"UPDATE public.""JournalEntries"" 
+                SET ""Status"" = 2 
+                WHERE ""Id"" = @journalEntryId", 
                 new { journalEntryId });
         }
 
         public void Modify(Guid journalEntryId)
         {
-            _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
-                SET [Modified] = GETUTCDATE() 
-                WHERE [Id] = @journalEntryId", 
+            _dbConnection.Execute(@"UPDATE public.""JournalEntries"" 
+                SET ""Modified"" = NOW() AT TIME ZONE 'UTC' 
+                WHERE ""Id"" = @journalEntryId", 
                 new { journalEntryId });
         }
 
         public List<JournalEntry> GetAllByJournalId(int journalId)
         {
-            return _dbConnection.Query<JournalEntry>(@"SELECT je.*, parent.[Title] AS ParentEntryName
-                FROM [dbo].[JournalEntries] je
-                LEFT JOIN [dbo].[JournalEntries] parent ON je.[ParentEntryId] = parent.[Id]
-                WHERE je.[JournalId] = @journalId
-                AND je.[Status] > 0
-                ORDER BY je.[Created] DESC", 
+            return _dbConnection.Query<JournalEntry>(@"SELECT je.*, parent.""Title"" AS ParentEntryName
+                FROM public.""JournalEntries"" je
+                LEFT JOIN public.""JournalEntries"" parent ON je.""ParentEntryId"" = parent.""Id""
+                WHERE je.""JournalId"" = @journalId
+                AND je.""Status"" > 0
+                ORDER BY je.""Created"" DESC", 
                 new { journalId }).ToList();
         }
 

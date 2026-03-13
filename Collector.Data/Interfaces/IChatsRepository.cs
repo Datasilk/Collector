@@ -22,5 +22,6 @@ namespace Collector.Data.Interfaces
         // Chat Context (RAG)
         void StoreContext(Guid appUserId, Guid chatId, string content, float[] embedding, string metadata = null);
         List<(string Content, string Metadata, float Distance)> GetContext(Guid appUserId, float[] queryEmbedding, int topK = 5);
+        bool HasSimilarContext(Guid appUserId, float[] embedding, float similarityThreshold = 0.1f);
     }
 }

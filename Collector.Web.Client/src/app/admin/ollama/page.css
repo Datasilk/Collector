@@ -1,0 +1,36 @@
+.admin-ollama .badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.admin-ollama .badge.active {
+    background-color: #10b981;
+    color: white;
+}
+
+.admin-ollama .badge.inactive {
+    background-color: #f97316;
+    color: white;
+}
+
+.admin-ollama .help-text {
+    color: #6b7280;
+    font-size: 0.875rem;
+    margin-top: 0.5rem;
+}
+
+.admin-ollama .form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.admin-ollama .notes-cell {
+    max-width: 300px;
+    white-space: normal;
+    font-size: 0.875rem;
+    color: #6b7280;
+}

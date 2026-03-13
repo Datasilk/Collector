@@ -19,12 +19,13 @@ namespace Collector.Data.Repositories
 
         public Guid Add(Chat chat)
         {
-            return _dbConnection.QuerySingle<Guid>(@"
+            chat.Id = Guid.NewGuid();
+            _dbConnection.Execute(@"
                 INSERT INTO public.""Chats"" 
-                (""AppUserId"", ""Title"", ""Status"") 
-                VALUES (@AppUserId, @Title, @Status)
-                RETURNING ""Id""", 
+                (""Id"", ""AppUserId"", ""Title"", ""Status"") 
+                VALUES (@Id, @AppUserId, @Title, @Status)", 
                 chat);
+            return chat.Id;
         }
 
         public Chat GetById(Guid chatId)
@@ -84,12 +85,13 @@ namespace Collector.Data.Repositories
         // Chat History
         public Guid AddMessage(ChatHistory message)
         {
-            return _dbConnection.QuerySingle<Guid>(@"
+            message.Id = Guid.NewGuid();
+            _dbConnection.Execute(@"
                 INSERT INTO public.""ChatHistory"" 
-                (""ChatId"", ""Role"", ""Content"", ""Model"", ""Status"") 
-                VALUES (@ChatId, @Role, @Content, @Model, @Status)
-                RETURNING ""Id""", 
+                (""Id"", ""ChatId"", ""Role"", ""Content"", ""Model"", ""Status"") 
+                VALUES (@Id, @ChatId, @Role, @Content, @Model, @Status)", 
                 message);
+            return message.Id;
         }
 
         public List<ChatHistory> GetMessagesByChatId(Guid chatId)
@@ -128,14 +130,26 @@ namespace Collector.Data.Repositories
                 SELECT 
                     ""Content"",
                     ""Metadata"",
-                    VECTOR_DISTANCE('cosine', ""Embedding"", CAST(@embeddingJson AS VECTOR(768))) AS Distance
+                    (""Embedding"" <=> CAST(@embeddingJson AS VECTOR(768))) AS Distance
                 FROM public.""ChatContextChunks""
                 WHERE ""AppUserId"" = @appUserId
-                ORDER BY Distance ASC
+                ORDER BY ""Embedding"" <=> CAST(@embeddingJson AS VECTOR(768))
                 LIMIT @topK", 
                 new { topK, embeddingJson, appUserId });
 
             return results.Select(r => (r.Content, r.Metadata, r.Distance)).ToList();
+        }
+
+        public bool HasSimilarContext(Guid appUserId, float[] embedding, float similarityThreshold = 0.1f)
+        {
+            var embeddingJson = System.Text.Json.JsonSerializer.Serialize(embedding);
+            var minDistance = _dbConnection.ExecuteScalar<float?>(@"
+                SELECT MIN(""Embedding"" <=> CAST(@embeddingJson AS VECTOR(768))) AS Distance
+                FROM public.""ChatContextChunks""
+                WHERE ""AppUserId"" = @appUserId", 
+                new { embeddingJson, appUserId });
+
+            return minDistance.HasValue && minDistance.Value <= similarityThreshold;
         }
 
         private class ContextResult

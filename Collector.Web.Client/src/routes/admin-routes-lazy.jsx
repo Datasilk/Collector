@@ -5,6 +5,7 @@ const routes = [
     { path: '/admin',                   Element:lazy(() => import('@/app/admin/page')) },
     { path: '/admin/users',             Element:lazy(() => import('@/app/admin/users/page')) },
     { path: '/admin/users/edit/:id',    Element:lazy(() => import('@/app/admin/users/edit/page')) },
+    { path: '/admin/ollama',            Element:lazy(() => import('@/app/admin/ollama/page')) },
     { path: '/admin/domains',           Element:lazy(() => import('@/app/admin/domains/page')) },
     { path: '/admin/domains/edit/:id',  Element:lazy(() => import('@/app/admin/domains/page')) },
     { path: '/admin/downloads',         Element:lazy(() => import('@/app/admin/downloads/page')) },

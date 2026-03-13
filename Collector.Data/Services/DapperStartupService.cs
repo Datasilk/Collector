@@ -53,6 +53,9 @@ namespace Collector.Data.Services
             
             //Chat Tables
             builder.Services.AddTransient<IChatsRepository, ChatsRepository>();
+            
+            //Ollama Tables
+            builder.Services.AddTransient<IOllamaModelsRepository, OllamaModelsRepository>();
         }
     }
 }

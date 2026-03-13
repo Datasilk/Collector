@@ -68,6 +68,7 @@ export default function AdminLayout({ children }) {
                             <MenuItem label="Blacklists" path="blacklists" url="/admin/blacklists" icon="block"></MenuItem>
                             <MenuItem label="Whitelists" path="whitelists" url="/admin/whitelists" icon="beenhere"></MenuItem>
                             <MenuItem label="Users" path="users" url="/admin/users" icon="group"></MenuItem>
+                            <MenuItem label="Ollama" path="ollama" url="/admin/ollama" icon="smart_toy"></MenuItem>
                             <MenuItem label="Logout" path="logout" url="/login" onClick={handleLogOut} icon="logout"></MenuItem>
                         </ul>
                     </div>

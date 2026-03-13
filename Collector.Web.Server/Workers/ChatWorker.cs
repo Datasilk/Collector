@@ -17,13 +17,15 @@ namespace Collector.Web.Server.Workers
     public class ChatWorker : IWorker
     {
         private readonly IChatsRepository _chatsRepo;
+        private readonly IOllamaModelsRepository _ollamaModelsRepo;
         private readonly ILogger<ChatWorker> _logger;
         private readonly IHubContext<WorkerHub> _hubContext;
         private readonly OllamaApiClient _ollama;
 
-        public ChatWorker(IChatsRepository chatsRepo, ILogger<ChatWorker> logger, IHubContext<WorkerHub> hubContext, OllamaApiClient ollama)
+        public ChatWorker(IChatsRepository chatsRepo, IOllamaModelsRepository ollamaModelsRepo, ILogger<ChatWorker> logger, IHubContext<WorkerHub> hubContext, OllamaApiClient ollama)
         {
             _chatsRepo = chatsRepo;
+            _ollamaModelsRepo = ollamaModelsRepo;
             _logger = logger;
             _hubContext = hubContext;
             _ollama = ollama;
@@ -114,10 +116,30 @@ Rules:
                     _logger.LogWarning(ex, "ChatWorker: Failed to retrieve RAG context for user {AppUserId}", appUserId);
                 }
 
+                // Get active model from database, fallback to config
+                string activeModel = LLMOllama.Model;
+                try
+                {
+                    var dbModel = _ollamaModelsRepo.GetActive();
+                    if (dbModel != null)
+                    {
+                        activeModel = dbModel.Id;
+                        _logger.LogInformation("ChatWorker: Using active model from database: {Model}", activeModel);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("ChatWorker: No active model in database, using config fallback: {Model}", activeModel);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "ChatWorker: Failed to get active model from database, using config fallback: {Model}", activeModel);
+                }
+
                 // Build the full prompt with system and user messages
                 var request = new OllamaSharp.Models.GenerateRequest
                 {
-                    Model = LLMOllama.Model,
+                    Model = activeModel,
                     System = systemPrompt + contextPrompt,
                     Prompt = message,
                     Stream = false
@@ -228,38 +250,54 @@ Rules:
                     action = parsedResponse.Action
                 }, cancellationToken);
 
-                // Store user message and AI response as separate context chunks for future RAG retrieval
+                // Extract and store facts from conversation for future RAG retrieval
                 try
                 {
                     var userGuid = Guid.Parse(appUserId);
-                    if (messageEmbedding != null)
+                    var facts = await ExtractFactsFromConversationAsync(message, parsedResponse.Message, cancellationToken);
+                    
+                    if (facts != null && facts.Count > 0)
                     {
-                        // Store user message as context
-                        var userMetadata = JsonSerializer.Serialize(new
+                        int storedCount = 0;
+                        int duplicateCount = 0;
+                        
+                        foreach (var fact in facts)
                         {
-                            role = "user",
-                            timestamp = DateTime.UtcNow,
-                            messageId = userMessageId
-                        });
-                        _chatsRepo.StoreContext(userGuid, _chatId, message, messageEmbedding, userMetadata);
-
+                            // Generate embedding for the fact
+                            var factEmbedding = await GetEmbeddingAsync(new List<string>() { fact });
+                            
+                            // Check if similar fact already exists
+                            if (!_chatsRepo.HasSimilarContext(userGuid, factEmbedding, similarityThreshold: 0.1f))
+                            {
+                                var factMetadata = JsonSerializer.Serialize(new
+                                {
+                                    type = "fact",
+                                    timestamp = DateTime.UtcNow,
+                                    chatId = _chatId,
+                                    userMessageId = userMessageId,
+                                    assistantMessageId = assistantMessageId
+                                });
+                                
+                                _chatsRepo.StoreContext(userGuid, _chatId, fact, factEmbedding, factMetadata);
+                                storedCount++;
+                            }
+                            else
+                            {
+                                duplicateCount++;
+                            }
+                        }
+                        
+                        _logger.LogInformation("ChatWorker: Extracted {TotalFacts} facts, stored {StoredCount} new facts, skipped {DuplicateCount} duplicates for user {AppUserId}", 
+                            facts.Count, storedCount, duplicateCount, appUserId);
                     }
-                    
-                    // Store AI response as context
-                    var assistantEmbedding = await GetEmbeddingAsync(new List<string>() { parsedResponse.Message });
-                    var assistantMetadata = JsonSerializer.Serialize(new
+                    else
                     {
-                        role = "assistant",
-                        timestamp = DateTime.UtcNow,
-                        messageId = assistantMessageId
-                    });
-                    _chatsRepo.StoreContext(userGuid, _chatId, parsedResponse.Message, assistantEmbedding, assistantMetadata);
-                    
-                    _logger.LogInformation("ChatWorker: Stored 2 context chunks for user {AppUserId}", appUserId);
+                        _logger.LogInformation("ChatWorker: No facts extracted from conversation for user {AppUserId}", appUserId);
+                    }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "ChatWorker: Failed to store context chunks for user {AppUserId}", appUserId);
+                    _logger.LogWarning(ex, "ChatWorker: Failed to extract and store facts for user {AppUserId}", appUserId);
                 }
 
                 // Handle actions
@@ -291,6 +329,82 @@ Rules:
                 Input = text
             });
             return response.Embeddings[0];
+        }
+
+        private async Task<List<string>> ExtractFactsFromConversationAsync(string userMessage, string assistantMessage, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var systemPrompt = @"You are a fact extraction system. Extract key facts from conversations and return them as a JSON array of strings.
+
+Rules:
+- Extract only factual information, preferences, or important details
+- Each fact should be a complete, standalone statement
+- Ignore greetings and conversational filler
+- Return ONLY a JSON array of strings
+
+Example output:
+[""The user prefers dark mode"", ""The project uses PostgreSQL database"", ""The user is working on a chat feature""]";
+
+                var conversationPrompt = $@"User said: {userMessage}
+Assistant replied: {assistantMessage}
+
+Extract facts from this conversation:";
+
+                // Get active model from database, fallback to config
+                string activeModel = LLMOllama.Model;
+                try
+                {
+                    var dbModel = _ollamaModelsRepo.GetActive();
+                    if (dbModel != null)
+                    {
+                        activeModel = dbModel.Id;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "ChatWorker: Failed to get active model for fact extraction, using config fallback");
+                }
+
+                var request = new OllamaSharp.Models.GenerateRequest
+                {
+                    Model = activeModel,
+                    System = systemPrompt,
+                    Prompt = conversationPrompt,
+                    Stream = false,
+                    Format = "json"
+                };
+
+                var responseContent = "";
+                await foreach (var response in _ollama.GenerateAsync(request, cancellationToken))
+                {
+                    if (response?.Response != null)
+                    {
+                        responseContent += response.Response;
+                    }
+                }
+
+                // Clean up response - sometimes Ollama adds extra text
+                responseContent = responseContent.Trim();
+                
+                // Find JSON array in response
+                var startIndex = responseContent.IndexOf('[');
+                var endIndex = responseContent.LastIndexOf(']');
+                
+                if (startIndex >= 0 && endIndex > startIndex)
+                {
+                    responseContent = responseContent.Substring(startIndex, endIndex - startIndex + 1);
+                }
+
+                // Parse JSON array of facts
+                var facts = JsonSerializer.Deserialize<List<string>>(responseContent);
+                return facts ?? new List<string>();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "ChatWorker: Failed to extract facts from conversation");
+                return new List<string>();
+            }
         }
 
         private class OllamaResponse
