@@ -2,7 +2,7 @@ using System.Data;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using Collector.Data.Interfaces;
 using Collector.Data.Interfaces.Users;
 using Collector.Data.Repositories;
@@ -16,7 +16,7 @@ namespace Collector.Data.Services
         {
 
             //Database
-            builder.Services.AddTransient<IDbConnection>((sp) => new SqlConnection(builder.Configuration.GetConnectionString("Database")));
+            builder.Services.AddTransient<IDbConnection>((sp) => new NpgsqlConnection(builder.Configuration.GetConnectionString("Database")));
 
             //Auth Tables
             builder.Services.AddTransient<IAppUserRepository, AppUserRepository>();

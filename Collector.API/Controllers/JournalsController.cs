@@ -293,81 +293,9 @@ namespace Collector.API.Controllers
                 if (journal == null || journal.AppUserId != userId)
                     return Json(new ApiResponse { success = false, message = "Journal not found" });
 
-                // Get all modules for this journal
-                var modules = _modulesRepository.GetAllByJournalId(id);
                 
                 // Get user for encryption key
                 var user = await _userRepository.FindByGuidAsync(userId);
-                
-                // Populate JSON data for each module from entry files
-                foreach (var module in modules)
-                {
-                    try
-                    {
-                        var entry = _entriesRepository.GetById(new Guid(module.JournalEntryId.ToString()));
-                        if (entry != null)
-                        {
-                            var filePath = $"{entry.Id:N}.json";
-                            var content = Files.GetFile(Files.Paths.Journal, filePath);
-                            
-                            if (!string.IsNullOrEmpty(content))
-                            {
-                                // Decrypt if necessary
-                                if (entry.Encrypted && user != null && !string.IsNullOrEmpty(user.EncryptionKey))
-                                {
-                                    content = Sha256.Decrypt(content, user.EncryptionKey);
-                                }
-                                
-                                // Parse JSON and extract the specific module
-                                var jsonDoc = System.Text.Json.JsonDocument.Parse(content);
-                                if (jsonDoc.RootElement.TryGetProperty("modules", out var modulesArray))
-                                {
-                                    foreach (var jsonModule in modulesArray.EnumerateArray())
-                                    {
-                                        if (jsonModule.TryGetProperty("id", out var moduleIdProp))
-                                        {
-                                            string jsonModuleId = null;
-                                            
-                                            // Handle both string and number types in JSON
-                                            if (moduleIdProp.ValueKind == System.Text.Json.JsonValueKind.String)
-                                            {
-                                                jsonModuleId = moduleIdProp.GetString();
-                                            }
-                                            else if (moduleIdProp.ValueKind == System.Text.Json.JsonValueKind.Number)
-                                            {
-                                                jsonModuleId = moduleIdProp.GetInt32().ToString();
-                                            }
-                                            
-                                            // Compare module IDs
-                                            if (jsonModuleId == module.ModuleId)
-                                            {
-                                                // Get module type
-                                                if (jsonModule.TryGetProperty("type", out var moduleTypeProp))
-                                                {
-                                                    if (moduleTypeProp.ValueKind == System.Text.Json.JsonValueKind.String)
-                                                    {
-                                                        module.Type = moduleTypeProp.GetString();
-                                                    }
-                                                }
-                                                
-                                                // Convert the module back to JSON string
-                                                module.Json = jsonModule.GetRawText();
-                                                break;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        // If there's an error reading a specific module, continue with others
-                        module.Json = null;
-                    }
-                }
-                
-                journal.Modules = modules;
 
                 // Load journal layout
                 dynamic layout = null;

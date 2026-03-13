@@ -37,7 +37,7 @@ namespace Collector.Data.Repositories.Auth
 
         public async Task<IEnumerable<AppRole>> GetAll()
         {
-            string query = "SELECT * FROM AppRoles ORDER BY [Name]";
+            string query = @"SELECT * FROM public.""AppRoles"" ORDER BY ""Name""";
             return await _dbConnection.QueryAsync<AppRole>(query);
         }
 
@@ -48,7 +48,7 @@ namespace Collector.Data.Repositories.Auth
 
         public async Task<AppRole> FindByName(string name)
         {
-            string query = $"SELECT TOP 1 * FROM AppRoles WHERE [Name] = @Name";
+            string query = $@"SELECT * FROM public.""AppRoles"" WHERE ""Name"" = @Name LIMIT 1";
             return await _dbConnection.QueryFirstOrDefaultAsync<AppRole>(query, new { Name = name });
         }
     }

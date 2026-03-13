@@ -21,7 +21,7 @@ namespace Collector.Data.Repositories.Auth
 
         public async Task Add(AppUserTokens token)
         {
-            string query = "INSERT INTO AppUserTokens (Token, AppUserId, IsSpecialUser, SpecialUserName, Expiry, Created, IPAddress) VALUES (@Token, @AppUserId, @IsSpecialUser, @SpecialUserName, @Expiry, getutcdate(), @IPAddress)";
+            string query = "INSERT INTO public.\"AppUserTokens\" (\"Token\", \"AppUserId\", \"IsSpecialUser\", \"SpecialUserName\", \"Expiry\", \"Created\", \"IPAddress\") VALUES (@Token, @AppUserId, @IsSpecialUser, @SpecialUserName, @Expiry, NOW() AT TIME ZONE 'UTC', @IPAddress)";
             await _dbConnection.ExecuteAsync(query, token);
         }
 
@@ -32,37 +32,37 @@ namespace Collector.Data.Repositories.Auth
 
         public async Task ExpireAllTokens(Guid siteUserId)
         {
-            string query = "UPDATE AppUserTokens SET Expiry =  GETUTCDATE() WHERE AppUserId = @siteUserId";
+            string query = "UPDATE public.\"AppUserTokens\" SET \"Expiry\" = NOW() AT TIME ZONE 'UTC' WHERE \"AppUserId\" = @siteUserId";
             await _dbConnection.ExecuteAsync(query, new { siteUserId });
         }
 
         public async Task ExpireToken(string token)
         {
-            string query = "UPDATE AppUserTokens SET Expiry =  GETUTCDATE() WHERE token = @token";
+            string query = "UPDATE public.\"AppUserTokens\" SET \"Expiry\" = NOW() AT TIME ZONE 'UTC' WHERE \"Token\" = @token";
             await _dbConnection.ExecuteAsync(query, new { token });
         }
 
         public async Task ExtendRefreshToken(AppUserTokens token)
         {
-            string query = "UPDATE AppUserTokens SET Expiry = @Expiry WHERE Token = @Token";
+            string query = "UPDATE public.\"AppUserTokens\" SET \"Expiry\" = @Expiry WHERE \"Token\" = @Token";
             await _dbConnection.ExecuteAsync(query, token);
         }
 
         public async Task<AppUserTokens> FindByToken(string token)
         {
-            string query = "SELECT * FROM AppUserTokens WHERE Token = @token";
+            string query = "SELECT * FROM public.\"AppUserTokens\" WHERE \"Token\" = @token";
             return await _dbConnection.QueryFirstOrDefaultAsync<AppUserTokens>(query, new { token });
         }
 
         public async Task<AppUserTokens> FindByTokenIP(string token, string userIP)
         {
-            string query = "SELECT * FROM AppUserTokens WHERE Token = @token"; // AND IPAddress = @userIP";
+            string query = "SELECT * FROM public.\"AppUserTokens\" WHERE \"Token\" = @token"; // AND IPAddress = @userIP";
             return await _dbConnection.QueryFirstOrDefaultAsync<AppUserTokens>(query, new { token, userIP });
         }
 
         public async Task<bool> IsTokenUnique(string token)
         {
-            string query = "SELECT * FROM AppUserTokens WHERE Token = @token";
+            string query = "SELECT * FROM public.\"AppUserTokens\" WHERE \"Token\" = @token";
             var result = await _dbConnection.QueryFirstOrDefaultAsync<AppUserTokens>(query, new { token });
             if (result == null) return true;
             else return false;
@@ -70,7 +70,7 @@ namespace Collector.Data.Repositories.Auth
 
         public async Task<bool> IsTokenValid(string token)
         {
-            string query = "SELECT * FROM AppUserTokens WHERE Token = @token AND Expiry > GETUTCDATE()";
+            string query = "SELECT * FROM public.\"AppUserTokens\" WHERE \"Token\" = @token AND \"Expiry\" > NOW() AT TIME ZONE 'UTC'";
             var result = await _dbConnection.QueryFirstOrDefaultAsync<AppUserTokens>(query, new { token });
             if (result != null) return true;
             return false;

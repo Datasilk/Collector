@@ -20,8 +20,8 @@ namespace Collector.Data.Repositories
         public async Task<JournalCheckList> GetById(int id)
         {
             var sql = @"
-                SELECT * FROM JournalCheckLists WHERE Id = @Id;
-                SELECT * FROM JournalCheckListItems WHERE CheckListId = @Id ORDER BY Sort ASC;
+                SELECT * FROM public.""JournalCheckLists"" WHERE ""Id"" = @Id;
+                SELECT * FROM public.""JournalCheckListItems"" WHERE ""CheckListId"" = @Id ORDER BY ""Sort"" ASC;
             ";
             
             using (var multi = await _db.QueryMultipleAsync(sql, new { Id = id }))
@@ -39,11 +39,11 @@ namespace Collector.Data.Repositories
         public async Task<List<JournalCheckList>> GetByEntryId(Guid entryId)
         {
             var sql = @"
-                SELECT * FROM JournalCheckLists WHERE EntryId = @EntryId ORDER BY Created DESC;
-                SELECT i.* FROM JournalCheckListItems i
-                INNER JOIN JournalCheckLists c ON i.CheckListId = c.Id
-                WHERE c.EntryId = @EntryId
-                ORDER BY i.CheckListId, i.Sort ASC;
+                SELECT * FROM public.""JournalCheckLists"" WHERE ""EntryId"" = @EntryId ORDER BY ""Created"" DESC;
+                SELECT i.* FROM public.""JournalCheckListItems"" i
+                INNER JOIN public.""JournalCheckLists"" c ON i.""CheckListId"" = c.""Id""
+                WHERE c.""EntryId"" = @EntryId
+                ORDER BY i.""CheckListId"", i.""Sort"" ASC;
             ";
             
             using (var multi = await _db.QueryMultipleAsync(sql, new { EntryId = entryId }))
@@ -84,9 +84,9 @@ namespace Collector.Data.Repositories
         public async Task<int> Add(JournalCheckList checkList)
         {
             var sql = @"
-                INSERT INTO JournalCheckLists (AppUserId, EntryId, ThemeId, Title, Description, Status)
-                OUTPUT INSERTED.Id
-                VALUES (@AppUserId, @EntryId, @ThemeId, @Title, @Description, @Status)";
+                INSERT INTO public.""JournalCheckLists"" (""AppUserId"", ""EntryId"", ""ThemeId"", ""Title"", ""Description"", ""Status"")
+                VALUES (@AppUserId, @EntryId, @ThemeId, @Title, @Description, @Status)
+                RETURNING ""Id""";
             
             return await _db.QuerySingleAsync<int>(sql, checkList);
         }
@@ -94,12 +94,12 @@ namespace Collector.Data.Repositories
         public async Task<bool> Update(JournalCheckList checkList)
         {
             var sql = @"
-                UPDATE JournalCheckLists
-                SET ThemeId = @ThemeId,
-                    Title = @Title,
-                    Description = @Description,
-                    Status = @Status
-                WHERE Id = @Id";
+                UPDATE public.""JournalCheckLists""
+                SET ""ThemeId"" = @ThemeId,
+                    ""Title"" = @Title,
+                    ""Description"" = @Description,
+                    ""Status"" = @Status
+                WHERE ""Id"" = @Id";
             
             var rowsAffected = await _db.ExecuteAsync(sql, checkList);
             return rowsAffected > 0;
@@ -107,35 +107,35 @@ namespace Collector.Data.Repositories
 
         public async Task<bool> UpdateTitle(int id, string title)
         {
-            var sql = @"UPDATE JournalCheckLists SET Title = @Title WHERE Id = @Id";
+            var sql = @"UPDATE public.""JournalCheckLists"" SET ""Title"" = @Title WHERE ""Id"" = @Id";
             var rowsAffected = await _db.ExecuteAsync(sql, new { Id = id, Title = title });
             return rowsAffected > 0;
         }
 
         public async Task<bool> UpdateDescription(int id, string description)
         {
-            var sql = @"UPDATE JournalCheckLists SET Description = @Description WHERE Id = @Id";
+            var sql = @"UPDATE public.""JournalCheckLists"" SET ""Description"" = @Description WHERE ""Id"" = @Id";
             var rowsAffected = await _db.ExecuteAsync(sql, new { Id = id, Description = description });
             return rowsAffected > 0;
         }
 
         public async Task<bool> UpdateStatus(int id, int status)
         {
-            var sql = @"UPDATE JournalCheckLists SET Status = @Status WHERE Id = @Id";
+            var sql = @"UPDATE public.""JournalCheckLists"" SET ""Status"" = @Status WHERE ""Id"" = @Id";
             var rowsAffected = await _db.ExecuteAsync(sql, new { Id = id, Status = status });
             return rowsAffected > 0;
         }
 
         public async Task<bool> UpdateEntryId(int id, Guid entryId)
         {
-            var sql = @"UPDATE JournalCheckLists SET EntryId = @EntryId WHERE Id = @Id";
+            var sql = @"UPDATE public.""JournalCheckLists"" SET ""EntryId"" = @EntryId WHERE ""Id"" = @Id";
             var rowsAffected = await _db.ExecuteAsync(sql, new { Id = id, EntryId = entryId });
             return rowsAffected > 0;
         }
 
         public async Task<bool> Delete(int id)
         {
-            var sql = @"DELETE FROM JournalCheckLists WHERE Id = @Id";
+            var sql = @"DELETE FROM public.""JournalCheckLists"" WHERE ""Id"" = @Id";
             var rowsAffected = await _db.ExecuteAsync(sql, new { Id = id });
             return rowsAffected > 0;
         }

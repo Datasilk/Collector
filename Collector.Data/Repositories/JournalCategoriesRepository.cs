@@ -16,10 +16,10 @@ namespace Collector.Data.Repositories
 
         public int Add(JournalCategory journalCategory)
         {
-            return _dbConnection.QuerySingle<int>(@"INSERT INTO [dbo].[JournalCategories] 
-                ([AppUserId], [Title], [Color]) 
-                OUTPUT INSERTED.[Id]
-                VALUES (@appUserId, @title, @color)", 
+            return _dbConnection.QuerySingle<int>(@"INSERT INTO public.""JournalCategories"" 
+                (""AppUserId"", ""Title"", ""Color"") 
+                VALUES (@appUserId, @title, @color)
+                RETURNING ""Id""", 
                 new { 
                     appUserId = journalCategory.AppUserId, 
                     title = journalCategory.Title, 
@@ -29,15 +29,15 @@ namespace Collector.Data.Repositories
 
         public JournalCategory GetById(int journalCategoryId)
         {
-            return _dbConnection.QuerySingleOrDefault<JournalCategory>(@"SELECT * FROM [dbo].[JournalCategories] 
-                WHERE [Id] = @journalCategoryId", 
+            return _dbConnection.QuerySingleOrDefault<JournalCategory>(@"SELECT * FROM public.""JournalCategories"" 
+                WHERE ""Id"" = @journalCategoryId", 
                 new { journalCategoryId });
         }
 
         public List<JournalCategory> GetAllByUserId(Guid appUserId)
         {
-            return _dbConnection.Query<JournalCategory>(@"SELECT * FROM [dbo].[JournalCategories] 
-                WHERE [AppUserId] = @appUserId", 
+            return _dbConnection.Query<JournalCategory>(@"SELECT * FROM public.""JournalCategories"" 
+                WHERE ""AppUserId"" = @appUserId", 
                 new { appUserId }).ToList();
         }
         
@@ -47,19 +47,19 @@ namespace Collector.Data.Repositories
             var searchParam = !string.IsNullOrEmpty(search) ? $"%{search}%" : null;
             
             // Build the journal query with optional search
-            string journalQuery = @"SELECT * FROM [dbo].[Journals] WHERE [CategoryId] IN 
-                  (SELECT [Id] FROM [dbo].[JournalCategories] WHERE [AppUserId] = @appUserId)";
+            string journalQuery = @"SELECT * FROM public.""Journals"" WHERE ""CategoryId"" IN 
+                  (SELECT ""Id"" FROM public.""JournalCategories"" WHERE ""AppUserId"" = @appUserId)";
             
             if (!string.IsNullOrEmpty(search))
             {
-                journalQuery += " AND [Title] LIKE @searchParam";
+                journalQuery += @" AND ""Title"" LIKE @searchParam";
             }
             
             // Add sorting
             journalQuery += GetSortClause(sort);
             
             // Build the category query
-            string categoryQuery = @"SELECT * FROM [dbo].[JournalCategories] WHERE [AppUserId] = @appUserId";
+            string categoryQuery = @"SELECT * FROM public.""JournalCategories"" WHERE ""AppUserId"" = @appUserId";
             
             // Execute both queries
             using (var multi = _dbConnection.QueryMultiple(
@@ -99,47 +99,47 @@ namespace Collector.Data.Repositories
             switch (sort)
             {
                 case 0:
-                    return " ORDER BY [Title] ASC";
+                    return @" ORDER BY ""Title"" ASC";
                 case 1:
-                    return " ORDER BY [Title] DESC";
+                    return @" ORDER BY ""Title"" DESC";
                 case 2:
-                    return " ORDER BY [Created] DESC";
+                    return @" ORDER BY ""Created"" DESC";
                 case 3:
-                    return " ORDER BY [Created] ASC";
+                    return @" ORDER BY ""Created"" ASC";
                 default:
-                    return " ORDER BY [Title] ASC"; // Default sorting
+                    return @" ORDER BY ""Title"" ASC"; // Default sorting
             }
         }
 
         public void Rename(int journalCategoryId, string title)
         {
-            _dbConnection.Execute(@"UPDATE [dbo].[JournalCategories] 
-                SET [Title] = @title 
-                WHERE [Id] = @journalCategoryId", 
+            _dbConnection.Execute(@"UPDATE public.""JournalCategories"" 
+                SET ""Title"" = @title 
+                WHERE ""Id"" = @journalCategoryId", 
                 new { journalCategoryId, title });
         }
 
         public void ChangeColor(int journalCategoryId, string color)
         {
-            _dbConnection.Execute(@"UPDATE [dbo].[JournalCategories] 
-                SET [Color] = @color 
-                WHERE [Id] = @journalCategoryId", 
+            _dbConnection.Execute(@"UPDATE public.""JournalCategories"" 
+                SET ""Color"" = @color 
+                WHERE ""Id"" = @journalCategoryId", 
                 new { journalCategoryId, color });
         }
 
         public void Archive(int journalCategoryId)
         {
-            _dbConnection.Execute(@"UPDATE [dbo].[JournalCategories] 
-                SET [Status] = 2 
-                WHERE [Id] = @journalCategoryId", 
+            _dbConnection.Execute(@"UPDATE public.""JournalCategories"" 
+                SET ""Status"" = 2 
+                WHERE ""Id"" = @journalCategoryId", 
                 new { journalCategoryId });
         }
 
         public void Unarchive(int journalCategoryId)
         {
-            _dbConnection.Execute(@"UPDATE [dbo].[JournalCategories] 
-                SET [Status] = 0 
-                WHERE [Id] = @journalCategoryId", 
+            _dbConnection.Execute(@"UPDATE public.""JournalCategories"" 
+                SET ""Status"" = 0 
+                WHERE ""Id"" = @journalCategoryId", 
                 new { journalCategoryId });
         }
     }

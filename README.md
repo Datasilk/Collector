@@ -9,7 +9,7 @@ A web scraping platform for the AI era.
 `npm install`
 
 ### History
-I started this project in 2015 by building [Charlotte](https://github.com/Datasilk/Charlotte) along with a web UI in ASP.NET Core using C#. I've built this project from the ground up several times, eventually transforming it into a plugin for [Saber](https://github.com/Datasilk/Saber) (a website builder), and so now I am turning it into a set of tools. 
+I started this project in 2015 by building [Charlotte](https://github.com/Datasilk/Charlotte) along with a web UI in ASP.NET Core using C#. I've built this project from the ground up several times, and so now I am turning it into a set of tools enhanced by AI. 
 
 ## Setup Instructions
 * In command prompt, run the following commands:
@@ -23,8 +23,8 @@ npm install
 ```
 
 * Afterwards, open `Collector.sln` in Visual Studio
-* Build & Publish the `Collector.SQL` project to your SQL Server
-* Update the connection string in `Collector.Web.Server/appsettings.json` to point to your SQL Server
+* Follow instructions in (Collector.SQL/postgresql/README.md)[Collector.SQL] to deploy the database to PostgreSQL
+* Update the connection string in `Collector.Web.Server/appsettings.json` to point to your PostgreSQL database
 * Run the `Collector.Web.Server` project
 * In your web browser, navigate to https://localhost:7783
 * Click the Sign Up link and create your administrator account
@@ -53,9 +53,3 @@ Database project that defines all SQL Server artifacts under `Collector.SQL/dbo`
 
 ### Collector.Common
 A common .NET library that contains all the common functionality of the Collector App so that you can build your own app to collect data from the web.
-
-### Collector.YouTube
-A plugin for Command Center that allows the system to scrape the web for YouTube videos based on the user's needs.
-
-### Command Center
-A command-line tool that allows users to speak with an AI in real-time and utilize all of Collector's tools to gather, catalog, and parse intelligence from the web and beyond.

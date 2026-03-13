@@ -108,38 +108,38 @@ namespace Collector.Data.Repositories
             switch (sort)
             {
                 case "Title_asc":
-                    orderBy = "[Favorite] DESC, [Title] ASC";
+                    orderBy = @"""Favorite"" DESC, ""Title"" ASC";
                     break;
                 case "Title_desc":
-                    orderBy = "[Favorite] DESC, [Title] DESC";
+                    orderBy = @"""Favorite"" DESC, ""Title"" DESC";
                     break;
                 case "Created_asc":
-                    orderBy = "[Favorite] DESC, [Created] ASC";
+                    orderBy = @"""Favorite"" DESC, ""Created"" ASC";
                     break;
                 case "Created_desc":
-                    orderBy = "[Favorite] DESC, [Created] DESC";
+                    orderBy = @"""Favorite"" DESC, ""Created"" DESC";
                     break;
                 case "Modified_asc":
-                    orderBy = "[Favorite] DESC, [Modified] ASC";
+                    orderBy = @"""Favorite"" DESC, ""Modified"" ASC";
                     break;
                 case "Modified_desc":
-                    orderBy = "[Favorite] DESC, [Modified] DESC";
+                    orderBy = @"""Favorite"" DESC, ""Modified"" DESC";
                     break;
                 case "Status_asc":
-                    orderBy = "[Favorite] DESC, [Status] ASC";
+                    orderBy = @"""Favorite"" DESC, ""Status"" ASC";
                     break;
                 case "Status_desc":
-                    orderBy = "[Favorite] DESC, [Status] DESC";
+                    orderBy = @"""Favorite"" DESC, ""Status"" DESC";
                     break;
                 default:
-                    orderBy = "[Favorite] DESC, [Created] DESC";
+                    orderBy = @"""Favorite"" DESC, ""Created"" DESC";
                     break;
             }
 
-            var baseWhere = "je.[JournalId] = @journalId AND je.[Status] > 0";
+            var baseWhere = @"je.""JournalId"" = @journalId AND je.""Status"" > 0";
             if (!string.IsNullOrWhiteSpace(search))
             {
-                baseWhere += " AND (je.[Title] LIKE @search OR je.[Description] LIKE @search)";
+                baseWhere += @" AND (je.""Title"" LIKE @search OR je.""Description"" LIKE @search)";
             }
 
             var hasTags = tagIds != null && tagIds.Count > 0;
@@ -158,40 +158,40 @@ namespace Collector.Data.Repositories
             {
                 // Filter based on JournalEntryTags join, enforcing that entries contain ALL provided tags
                 var tagFilteredSubquery = $@"
-                    SELECT je.[Id]
-                    FROM [dbo].[JournalEntryTags] jet
-                    INNER JOIN [dbo].[JournalEntries] je ON je.[Id] = jet.[JournalEntryId]
+                    SELECT je.""Id""
+                    FROM public.""JournalEntryTags"" jet
+                    INNER JOIN public.""JournalEntries"" je ON je.""Id"" = jet.""JournalEntryId""
                     WHERE {baseWhere}
-                      AND jet.[TagId] IN @tagIds
-                    GROUP BY je.[Id]
-                    HAVING COUNT(DISTINCT jet.[TagId]) >= @tagCount";
+                      AND jet.""TagId"" IN @tagIds
+                    GROUP BY je.""Id""
+                    HAVING COUNT(DISTINCT jet.""TagId"") >= @tagCount";
 
                 countSql = $"SELECT COUNT(*) FROM ({tagFilteredSubquery}) AS matches";
 
                 dataSql = $@"
-                    SELECT je.*, parent.[Title] AS ParentEntryName
-                    FROM [dbo].[JournalEntryTags] jet
-                    INNER JOIN [dbo].[JournalEntries] je ON je.[Id] = jet.[JournalEntryId]
-                    LEFT JOIN [dbo].[JournalEntries] parent ON je.[ParentEntryId] = parent.[Id]
+                    SELECT je.*, parent.""Title"" AS ParentEntryName
+                    FROM public.""JournalEntryTags"" jet
+                    INNER JOIN public.""JournalEntries"" je ON je.""Id"" = jet.""JournalEntryId""
+                    LEFT JOIN public.""JournalEntries"" parent ON je.""ParentEntryId"" = parent.""Id""
                     WHERE {baseWhere}
-                      AND jet.[TagId] IN @tagIds
-                    GROUP BY je.[Id], je.[JournalId], je.[ParentEntryId], je.[Title], je.[Description], je.[Created], je.[Modified], je.[Status], je.[ChapterId], je.[Encrypted], je.[Thumbnail], je.[ThumbnailModuleId], je.[Favorite], je.[Url], parent.[Title]
-                    HAVING COUNT(DISTINCT jet.[TagId]) >= @tagCount
+                      AND jet.""TagId"" IN @tagIds
+                    GROUP BY je.""Id"", je.""JournalId"", je.""ParentEntryId"", je.""Title"", je.""Description"", je.""Created"", je.""Modified"", je.""Status"", je.""ChapterId"", je.""Encrypted"", je.""Thumbnail"", je.""ThumbnailModuleId"", je.""Favorite"", je.""Url"", parent.""Title""
+                    HAVING COUNT(DISTINCT jet.""TagId"") >= @tagCount
                     ORDER BY {orderBy}
-                    OFFSET @start ROWS FETCH NEXT @length ROWS ONLY";
+                    LIMIT @length OFFSET @start";
             }
             else
             {
                 // Simpler path when no tags are provided: query directly from JournalEntries
-                countSql = $"SELECT COUNT(*) FROM [dbo].[JournalEntries] je WHERE {baseWhere}";
+                countSql = $@"SELECT COUNT(*) FROM public.""JournalEntries"" je WHERE {baseWhere}";
 
                 dataSql = $@"
-                    SELECT je.*, parent.[Title] AS ParentEntryName
-                    FROM [dbo].[JournalEntries] je
-                    LEFT JOIN [dbo].[JournalEntries] parent ON je.[ParentEntryId] = parent.[Id]
+                    SELECT je.*, parent.""Title"" AS ParentEntryName
+                    FROM public.""JournalEntries"" je
+                    LEFT JOIN public.""JournalEntries"" parent ON je.""ParentEntryId"" = parent.""Id""
                     WHERE {baseWhere}
                     ORDER BY {orderBy}
-                    OFFSET @start ROWS FETCH NEXT @length ROWS ONLY";
+                    LIMIT @length OFFSET @start";
             }
 
             var parameters = new
@@ -216,84 +216,84 @@ namespace Collector.Data.Repositories
 
         public JournalEntry GetById(Guid journalEntryId)
         {
-            return _dbConnection.QuerySingleOrDefault<JournalEntry>(@"SELECT je.*, parent.[Title] AS ParentEntryName
-                FROM [dbo].[JournalEntries] je
-                LEFT JOIN [dbo].[JournalEntries] parent ON je.[ParentEntryId] = parent.[Id]
-                WHERE je.[Id] = @journalEntryId", 
+            return _dbConnection.QuerySingleOrDefault<JournalEntry>(@"SELECT je.*, parent.""Title"" AS ParentEntryName
+                FROM public.""JournalEntries"" je
+                LEFT JOIN public.""JournalEntries"" parent ON je.""ParentEntryId"" = parent.""Id""
+                WHERE je.""Id"" = @journalEntryId", 
                 new { journalEntryId });
         }
 
         public void UpdateJournalId(Guid journalEntryId, int journalId)
         {
-            _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
-                SET [JournalId] = @journalId, 
-                    [ParentEntryId] = (SELECT [EntryId] FROM [dbo].[Journals] WHERE [Id] = @journalId)
-                WHERE [Id] = @journalEntryId", 
+            _dbConnection.Execute(@"UPDATE public.""JournalEntries"" 
+                SET ""JournalId"" = @journalId, 
+                    ""ParentEntryId"" = (SELECT ""EntryId"" FROM public.""Journals"" WHERE ""Id"" = @journalId)
+                WHERE ""Id"" = @journalEntryId", 
                 new { journalEntryId, journalId });
         }
 
         public void UpdateLastModified(Guid journalEntryId)
         {
-            _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
-                SET [Modified] = GETUTCDATE() 
-                WHERE [Id] = @journalEntryId", 
+            _dbConnection.Execute(@"UPDATE public.""JournalEntries"" 
+                SET ""Modified"" = NOW() AT TIME ZONE 'UTC' 
+                WHERE ""Id"" = @journalEntryId", 
                 new { journalEntryId });
         }
 
         public void UpdateCreated(Guid journalEntryId, DateTime created)
         {
-            _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
-                SET [Created] = @created 
-                WHERE [Id] = @journalEntryId", 
+            _dbConnection.Execute(@"UPDATE public.""JournalEntries"" 
+                SET ""Created"" = @created 
+                WHERE ""Id"" = @journalEntryId", 
                 new { journalEntryId, created });
         }
 
         public void SetEncrypted(Guid journalEntryId, bool encrypted)
         {
-            _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
-                SET [Encrypted] = @encrypted
-                WHERE [Id] = @journalEntryId",
+            _dbConnection.Execute(@"UPDATE public.""JournalEntries"" 
+                SET ""Encrypted"" = @encrypted
+                WHERE ""Id"" = @journalEntryId",
                 new { journalEntryId, encrypted });
         }
 
         public void SetPublished(Guid journalEntryId, bool isPublished)
         {
             var status = isPublished ? 2 : 1; // 2 = Published, 1 = Active
-            _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
-                SET [Status] = @status
-                WHERE [Id] = @journalEntryId",
+            _dbConnection.Execute(@"UPDATE public.""JournalEntries"" 
+                SET ""Status"" = @status
+                WHERE ""Id"" = @journalEntryId",
                 new { journalEntryId, status });
         }
 
         public void SetFavorite(Guid journalEntryId, bool favorite)
         {
-            _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
-                SET [Favorite] = @favorite
-                WHERE [Id] = @journalEntryId",
+            _dbConnection.Execute(@"UPDATE public.""JournalEntries"" 
+                SET ""Favorite"" = @favorite
+                WHERE ""Id"" = @journalEntryId",
                 new { journalEntryId, favorite });
         }
 
         public void SetChapter(Guid journalEntryId, int? chapterId)
         {
-            _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
-                SET [ChapterId] = @chapterId
-                WHERE [Id] = @journalEntryId",
+            _dbConnection.Execute(@"UPDATE public.""JournalEntries"" 
+                SET ""ChapterId"" = @chapterId
+                WHERE ""Id"" = @journalEntryId",
                 new { journalEntryId, chapterId });
         }
 
         public void UpdateThumbnail(Guid journalEntryId, string thumbnail, string thumbnailModuleId = null)
         {
-            _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries] 
-                SET [Thumbnail] = @thumbnail, [ThumbnailModuleId] = @thumbnailModuleId
-                WHERE [Id] = @journalEntryId",
+            _dbConnection.Execute(@"UPDATE public.""JournalEntries"" 
+                SET ""Thumbnail"" = @thumbnail, ""ThumbnailModuleId"" = @thumbnailModuleId
+                WHERE ""Id"" = @journalEntryId",
                 new { journalEntryId, thumbnail, thumbnailModuleId });
         }
 
         public void SetParent(Guid journalEntryId, Guid? parentEntryId)
         {
-            _dbConnection.Execute(@"UPDATE [dbo].[JournalEntries]
-                SET [ParentEntryId] = @parentEntryId
-                WHERE [Id] = @journalEntryId",
+            _dbConnection.Execute(@"UPDATE public.""JournalEntries""
+                SET ""ParentEntryId"" = @parentEntryId
+                WHERE ""Id"" = @journalEntryId",
                 new { journalEntryId, parentEntryId });
         }
     }

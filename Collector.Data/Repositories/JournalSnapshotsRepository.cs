@@ -20,11 +20,10 @@ namespace Collector.Data.Repositories
         public int Add(JournalSnapshot snapshot)
         {
             var id = _dbConnection.ExecuteScalar<int>(@"
-                DECLARE @id INT = NEXT VALUE FOR [dbo].[SequenceJournalEntrySnapshots];
-                INSERT INTO [dbo].[JournalEntrySnapshots] 
-                ([Id], [EntryId], [JournalId], [ChapterId], [Title], [Description], [Created], [Modified], [Status], [Encrypted], [Thumbnail])
-                VALUES (@id, @entryId, @journalId, @chapterId, @title, @description, @created, @modified, @status, @encrypted, @thumbnail);
-                SELECT @id;", 
+                INSERT INTO public.""JournalEntrySnapshots"" 
+                (""Id"", ""EntryId"", ""JournalId"", ""ChapterId"", ""Title"", ""Description"", ""Created"", ""Modified"", ""Status"", ""Encrypted"", ""Thumbnail"")
+                VALUES (nextval('public.""SequenceJournalEntrySnapshots""'), @entryId, @journalId, @chapterId, @title, @description, @created, @modified, @status, @encrypted, @thumbnail)
+                RETURNING ""Id""", 
                 new { 
                     entryId = snapshot.EntryId,
                     journalId = snapshot.JournalId,
@@ -43,25 +42,25 @@ namespace Collector.Data.Repositories
         public JournalSnapshot GetById(int snapshotId)
         {
             return _dbConnection.QuerySingleOrDefault<JournalSnapshot>(@"
-                SELECT * FROM [dbo].[JournalEntrySnapshots] 
-                WHERE [Id] = @snapshotId", 
+                SELECT * FROM public.""JournalEntrySnapshots"" 
+                WHERE ""Id"" = @snapshotId", 
                 new { snapshotId });
         }
 
         public List<JournalSnapshot> GetAllByEntryId(Guid entryId)
         {
             return _dbConnection.Query<JournalSnapshot>(@"
-                SELECT * FROM [dbo].[JournalEntrySnapshots] 
-                WHERE [EntryId] = @entryId
-                ORDER BY [CreatedSnapshot] DESC", 
+                SELECT * FROM public.""JournalEntrySnapshots"" 
+                WHERE ""EntryId"" = @entryId
+                ORDER BY ""CreatedSnapshot"" DESC", 
                 new { entryId }).ToList();
         }
 
         public void Delete(int snapshotId)
         {
             _dbConnection.Execute(@"
-                DELETE FROM [dbo].[JournalEntrySnapshots] 
-                WHERE [Id] = @snapshotId", 
+                DELETE FROM public.""JournalEntrySnapshots"" 
+                WHERE ""Id"" = @snapshotId", 
                 new { snapshotId });
         }
     }

@@ -20,10 +20,10 @@ namespace Collector.Data.Repositories
         public int Add(JournalImage image)
         {
             var id = _dbConnection.QuerySingle<int>(@"
-                INSERT INTO [dbo].[JournalImages] 
-                ([JournalId], [JournalEntryId], [ModuleId], [Filename], [Width], [Height])
-                OUTPUT INSERTED.Id
-                VALUES (@JournalId, @JournalEntryId, @ModuleId, @Filename, @Width, @Height)", 
+                INSERT INTO public.""JournalImages"" 
+                (""JournalId"", ""JournalEntryId"", ""ModuleId"", ""Filename"", ""Width"", ""Height"")
+                VALUES (@JournalId, @JournalEntryId, @ModuleId, @Filename, @Width, @Height)
+                RETURNING ""Id""", 
                 image);
             return id;
         }
@@ -31,69 +31,69 @@ namespace Collector.Data.Repositories
         public JournalImage GetById(int id)
         {
             return _dbConnection.QuerySingleOrDefault<JournalImage>(@"
-                SELECT * FROM [dbo].[JournalImages] 
-                WHERE [Id] = @id", 
+                SELECT * FROM public.""JournalImages"" 
+                WHERE ""Id"" = @id", 
                 new { id });
         }
 
         public JournalImage GetByModuleId(Guid entryId, string moduleId)
         {
             return _dbConnection.QuerySingleOrDefault<JournalImage>(@"
-                SELECT * FROM [dbo].[JournalImages] 
-                WHERE [JournalEntryId] = @entryId 
-                AND [ModuleId] = @moduleId", 
+                SELECT * FROM public.""JournalImages"" 
+                WHERE ""JournalEntryId"" = @entryId 
+                AND ""ModuleId"" = @moduleId", 
                 new { entryId, moduleId });
         }
 
         public List<JournalImage> GetAllByEntryId(Guid entryId)
         {
             return _dbConnection.Query<JournalImage>(@"
-                SELECT * FROM [dbo].[JournalImages] 
-                WHERE [JournalEntryId] = @entryId", 
+                SELECT * FROM public.""JournalImages"" 
+                WHERE ""JournalEntryId"" = @entryId", 
                 new { entryId }).ToList();
         }
 
         public List<JournalImage> GetAllByJournalId(int journalId)
         {
             return _dbConnection.Query<JournalImage>(@"
-                SELECT * FROM [dbo].[JournalImages] 
-                WHERE [JournalId] = @journalId", 
+                SELECT * FROM public.""JournalImages"" 
+                WHERE ""JournalId"" = @journalId", 
                 new { journalId }).ToList();
         }
 
         public void Update(JournalImage image)
         {
             _dbConnection.Execute(@"
-                UPDATE [dbo].[JournalImages] 
-                SET [Filename] = @Filename, 
-                    [Width] = @Width, 
-                    [Height] = @Height 
-                WHERE [Id] = @Id", 
+                UPDATE public.""JournalImages"" 
+                SET ""Filename"" = @Filename, 
+                    ""Width"" = @Width, 
+                    ""Height"" = @Height 
+                WHERE ""Id"" = @Id", 
                 image);
         }
 
         public void Delete(int id)
         {
             _dbConnection.Execute(@"
-                DELETE FROM [dbo].[JournalImages] 
-                WHERE [Id] = @id", 
+                DELETE FROM public.""JournalImages"" 
+                WHERE ""Id"" = @id", 
                 new { id });
         }
 
         public void DeleteByModuleId(Guid entryId, string moduleId)
         {
             _dbConnection.Execute(@"
-                DELETE FROM [dbo].[JournalImages] 
-                WHERE [JournalEntryId] = @entryId 
-                AND [ModuleId] = @moduleId", 
+                DELETE FROM public.""JournalImages"" 
+                WHERE ""JournalEntryId"" = @entryId 
+                AND ""ModuleId"" = @moduleId", 
                 new { entryId, moduleId });
         }
 
         public void DeleteAllByEntryId(Guid entryId)
         {
             _dbConnection.Execute(@"
-                DELETE FROM [dbo].[JournalImages] 
-                WHERE [JournalEntryId] = @entryId", 
+                DELETE FROM public.""JournalImages"" 
+                WHERE ""JournalEntryId"" = @entryId", 
                 new { entryId });
         }
     }

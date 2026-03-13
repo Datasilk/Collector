@@ -22,10 +22,10 @@ namespace Collector.Data.Repositories.Auth
             _dbConnection = dbConnection;
             var attribute = typeof(AppUserRole).GetCustomAttributes(typeof(TableAttribute), true).FirstOrDefault() as TableAttribute;
             if (attribute != null)
-                _tableName = attribute.Name;
+                _tableName = $"public.\"{attribute.Name}\"";
             var rattribute = typeof(AppRole).GetCustomAttributes(typeof(TableAttribute), true).FirstOrDefault() as TableAttribute;
             if (rattribute != null)
-                _roleTableName = rattribute.Name;
+                _roleTableName = $"public.\"{rattribute.Name}\"";
         }
 
         public Task AddRoleAsync(Guid userId, string roleName)
@@ -40,13 +40,13 @@ namespace Collector.Data.Repositories.Auth
 
         public async Task<bool> HasRoleAsync(Guid userId, string roleName)
         {
-            string query = $"SELECT Count(*) FROM {_tableName} WHERE AppUserId = @userId AND [Name] = @roleName";
+            string query = $@"SELECT Count(*) FROM {_tableName} WHERE ""AppUserId"" = @userId AND ""Name"" = @roleName";
             return await _dbConnection.ExecuteScalarAsync<bool>(query, new { userId, roleName });
         }
 
         public async Task<IEnumerable<string>> GetUserRolesAsync(Guid userId)
         {
-            string query = $"SELECT r.[Name] FROM {_roleTableName} r join {_tableName} ur on ur.siteroleid = r.id WHERE ur.AppUserId = @userId";
+            string query = $@"SELECT r.""Name"" FROM {_roleTableName} r join {_tableName} ur on ur.""AppRoleId"" = r.""Id"" WHERE ur.""AppUserId"" = @userId";
             return await _dbConnection.QueryAsync<string>(query, new { userId });
         }
     }

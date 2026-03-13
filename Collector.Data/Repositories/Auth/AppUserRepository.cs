@@ -9,9 +9,9 @@ namespace Collector.Data.Repositories.Auth
 {
     public class AppUserRepository : IAppUserRepository, IDisposable
     {
-        private string _tableName = "[AppUsers]";
-        private string _userRoleTableName = "";
-        private string _roleTableName = "";
+        private string _tableName = "public.\"AppUsers\"";
+        private string _userRoleTableName = "public.\"AppUserRoles\"";
+        private string _roleTableName = "public.\"AppRoles\"";
 
         readonly IDbConnection _dbConnection;
         public AppUserRepository(IDbConnection dbConnection)
@@ -20,13 +20,13 @@ namespace Collector.Data.Repositories.Auth
 
             var attribute = typeof(AppUser).GetCustomAttributes(typeof(TableAttribute), true).FirstOrDefault() as TableAttribute;
             if (attribute != null)
-                _tableName = attribute.Name;
+                _tableName = $"public.\"{attribute.Name}\"";
             attribute = typeof(AppUserRole).GetCustomAttributes(typeof(TableAttribute), true).FirstOrDefault() as TableAttribute;
             if (attribute != null)
-                _userRoleTableName = attribute.Name;
+                _userRoleTableName = $"public.\"{attribute.Name}\"";
             attribute = typeof(AppRole).GetCustomAttributes(typeof(TableAttribute), true).FirstOrDefault() as TableAttribute;
             if (attribute != null)
-                _roleTableName = attribute.Name;
+                _roleTableName = $"public.\"{attribute.Name}\"";
         }
 
         public void Dispose()
@@ -38,18 +38,18 @@ namespace Collector.Data.Repositories.Auth
 
         public int GetTotalUsers()
         {
-            string query = @$"SELECT COUNT(*) FROM {_tableName} WHERE [Status]=1";
+            string query = @$"SELECT COUNT(*) FROM {_tableName} WHERE ""Status""=1";
             return _dbConnection.ExecuteScalar<int>(query);
         }
 
         public async Task<IEnumerable<AppUser>> GetAll()
         {
             string query = @$"SELECT *, (
-                SELECT MAX(Created) FROM AppUserTokens WHERE AppUserId = SU.Id
+                SELECT MAX(""Created"") FROM public.""AppUserTokens"" WHERE ""AppUserId"" = SU.""Id""
             ) AS LastLogin 
             FROM {_tableName} SU 
-            WHERE SU.[Status]=1 
-            ORDER BY [Email]";
+            WHERE SU.""Status""=1 
+            ORDER BY ""Email""";
             return await _dbConnection.QueryAsync<AppUser>(query);
         }
 
@@ -86,66 +86,65 @@ namespace Collector.Data.Repositories.Auth
                 SELECT COUNT(*)
                 FROM {_tableName} SU
                 LEFT JOIN (
-                    SELECT AppUserId, MIN(AppRoleId) AS RoleId
+                    SELECT ""AppUserId"", MIN(""AppRoleId"") AS RoleId
                     FROM {_userRoleTableName}
-                    GROUP BY AppUserId
-                ) AUR_MIN ON AUR_MIN.AppUserId = SU.Id
-                LEFT JOIN {_roleTableName} AR ON AR.Id = AUR_MIN.RoleId
-                WHERE SU.[Status]=1";
+                    GROUP BY ""AppUserId""
+                ) AUR_MIN ON AUR_MIN.""AppUserId"" = SU.""Id""
+                LEFT JOIN {_roleTableName} AR ON AR.""Id"" = AUR_MIN.RoleId
+                WHERE SU.""Status""=1";
 
             if (!string.IsNullOrEmpty(fullName))
             {
-                countQuery += " AND SU.FullName LIKE @FullName";
+                countQuery += @" AND SU.""FullName"" LIKE @FullName";
             }
 
             if (role > 0)
             {
-                countQuery += " AND AR.Id = @Role";
+                countQuery += @" AND AR.""Id"" = @Role";
             }
 
             // Main query with pagination
             string query = @$"
                 SELECT 
-                SU.Email, 
-                SU.FullName, 
-                SU.Id, 
-                SU.Status, 
-                SU.Created, 
-                (SELECT MAX(Created) FROM AppUserTokens WHERE AppUserId = SU.Id) AS LastLogin,
-                AR.Name AS RoleName,
-                AR.Id AS RoleId,
-                CASE WHEN AR.Id = 1 THEN 1 ELSE 0 END AS IsAdmin
+                SU.""Email"", 
+                SU.""FullName"", 
+                SU.""Id"", 
+                SU.""Status"", 
+                SU.""Created"", 
+                (SELECT MAX(""Created"") FROM public.""AppUserTokens"" WHERE ""AppUserId"" = SU.""Id"") AS LastLogin,
+                AR.""Name"" AS RoleName,
+                AR.""Id"" AS RoleId,
+                CASE WHEN AR.""Id"" = 1 THEN 1 ELSE 0 END AS IsAdmin
                 FROM {_tableName} SU
                 LEFT JOIN (
-                    SELECT AppUserId, MIN(AppRoleId) AS RoleId
+                    SELECT ""AppUserId"", MIN(""AppRoleId"") AS RoleId
                     FROM {_userRoleTableName}
-                    GROUP BY AppUserId
-                ) AUR_MIN ON AUR_MIN.AppUserId = SU.Id
-                LEFT JOIN {_roleTableName} AR ON AR.Id = AUR_MIN.RoleId
-                WHERE SU.[Status]=1";
+                    GROUP BY ""AppUserId""
+                ) AUR_MIN ON AUR_MIN.""AppUserId"" = SU.""Id""
+                LEFT JOIN {_roleTableName} AR ON AR.""Id"" = AUR_MIN.RoleId
+                WHERE SU.""Status""=1";
 
             if (!string.IsNullOrEmpty(fullName))
             {
-                query += " AND SU.FullName LIKE @FullName";
+                query += @" AND SU.""FullName"" LIKE @FullName";
             }
 
             if (role > 0)
             {
-                query += " AND AR.Id = @Role";
+                query += @" AND AR.""Id"" = @Role";
             }
 
             query += @$"
                 GROUP BY 
-                    SU.Email, 
-                    SU.FullName, 
-                    SU.Id, 
-                    SU.Status, 
-                    SU.Created, 
-                    AR.Name,
-                    AR.Id
+                    SU.""Email"", 
+                    SU.""FullName"", 
+                    SU.""Id"", 
+                    SU.""Status"", 
+                    SU.""Created"", 
+                    AR.""Name"",
+                    AR.""Id""
                 ORDER BY {sanitizedSort}
-                OFFSET @Offset ROWS
-                FETCH NEXT @PageSize ROWS ONLY";
+                LIMIT @PageSize OFFSET @Offset";
             try
             {
                 var parameters = new { FullName = $"%{fullName}%", Role = role, Offset = offset, PageSize = pageSize };
@@ -167,10 +166,10 @@ namespace Collector.Data.Repositories.Auth
         public async Task<AppUser> FindByGuidAsync(Guid userId, bool activeOnly = false)
         {
             string query = @$"SELECT su.*, sr.* FROM {_tableName} su 
-                LEFT JOIN {_userRoleTableName} sur on sur.AppUserId = su.Id
-                LEFT JOIN {_roleTableName} sr on sr.Id = sur.AppRoleId
-                WHERE su.Id = @userId";
-            if (activeOnly) query += " AND [Status] = @Status";
+                LEFT JOIN {_userRoleTableName} sur on sur.""AppUserId"" = su.""Id""
+                LEFT JOIN {_roleTableName} sr on sr.""Id"" = sur.""AppRoleId""
+                WHERE su.""Id"" = @userId";
+            if (activeOnly) query += @" AND su.""Status"" = @Status";
             AppUser user = null;
             await _dbConnection.QueryAsync<AppUser, AppRole, AppUser>(query,
                 (siteuser, role) =>
@@ -196,10 +195,10 @@ namespace Collector.Data.Repositories.Auth
         public async Task<AppUser> FindByUserEmailAsync(string emailAddress, bool activeOnly = true)
         {
             string query = @$"SELECT su.*, sr.* FROM {_tableName} su 
-                LEFT JOIN {_userRoleTableName} sur on sur.AppUserId = su.Id
-                LEFT JOIN {_roleTableName} sr on sr.Id = sur.AppRoleId
-                WHERE su.Email = @emailAddress";
-            if (activeOnly) query += " AND su.[Status] = @Status";
+                LEFT JOIN {_userRoleTableName} sur on sur.""AppUserId"" = su.""Id""
+                LEFT JOIN {_roleTableName} sr on sr.""Id"" = sur.""AppRoleId""
+                WHERE su.""Email"" = @emailAddress";
+            if (activeOnly) query += @" AND su.""Status"" = @Status";
 
             AppUser user = null;
             await _dbConnection.QueryAsync<AppUser, AppRole, AppUser>(query,
@@ -225,9 +224,9 @@ namespace Collector.Data.Repositories.Auth
         public async Task<AppUser> GetRolesByUserEmailAsync(string emailAddress)
         {
             string query = @$"SELECT su.*, sr.* FROM {_tableName} su 
-                LEFT JOIN {_userRoleTableName} sur on sur.AppUserId = su.Id
-                LEFT JOIN {_roleTableName} sr on sr.Id = sur.AppRoleId
-                WHERE su.Email = @emailAddress";
+                LEFT JOIN {_userRoleTableName} sur on sur.""AppUserId"" = su.""Id""
+                LEFT JOIN {_roleTableName} sr on sr.""Id"" = sur.""AppRoleId""
+                WHERE su.""Email"" = @emailAddress";
 
             AppUser user = null;
             await _dbConnection.QueryAsync<AppUser, AppRole, AppUser>(query,
@@ -253,14 +252,15 @@ namespace Collector.Data.Repositories.Auth
 
         public async Task<AppUser> Add(AppUser user)
         {
-            string query = @$"INSERT INTO {_tableName} (Id, Email, EmailConfirmed, FullName, PasswordHash, LockoutEnabled, [Status], PasswordResetTime, PasswordResetHash) 
-                OUTPUT INSERTED.* VALUES 
-                (newid(), @Email, @EmailConfirmed, @FullName, @PasswordHash, @LockoutEnabled, @Status, @PasswordResetTime, @PasswordResetHash)";
+            string query = @$"INSERT INTO {_tableName} (""Id"", ""Email"", ""EmailConfirmed"", ""FullName"", ""PasswordHash"", ""LockoutEnabled"", ""Status"", ""PasswordResetTime"", ""PasswordResetHash"") 
+                VALUES 
+                (gen_random_uuid(), @Email, @EmailConfirmed, @FullName, @PasswordHash, @LockoutEnabled, @Status, @PasswordResetTime, @PasswordResetHash)
+                RETURNING *";
             var newUser = await _dbConnection.QueryFirstOrDefaultAsync<AppUser>(query, user);
 
             foreach (var role in user.UserRoles.Where(x => x.AppRoleId != 0))
             {
-                await _dbConnection.ExecuteAsync($"INSERT INTO {_userRoleTableName} (AppUserId, AppRoleId) VALUES (@AppUserId, @AppRoleId)", new { AppUserId = newUser.Id, role.AppRoleId });
+                await _dbConnection.ExecuteAsync($@"INSERT INTO {_userRoleTableName} (""AppUserId"", ""AppRoleId"") VALUES (@AppUserId, @AppRoleId)", new { AppUserId = newUser.Id, role.AppRoleId });
             }
             return newUser;
         }
@@ -268,34 +268,34 @@ namespace Collector.Data.Repositories.Auth
         public void UpdateInfo(AppUser user)
         {
             string query = @$"UPDATE {_tableName} SET 
-                [Status] = @Status,
-                FullName = @FullName
-                WHERE Id = @Id";
+                ""Status"" = @Status,
+                ""FullName"" = @FullName
+                WHERE ""Id"" = @Id";
             _dbConnection.Execute(query, new { user.Id, user.Status, user.FullName });
         }
 
         public void UpdateEmail(AppUser user)
         {
             string query = @$"UPDATE {_tableName} SET 
-                [Email] = @Email
-                WHERE Id = @Id";
+                ""Email"" = @Email
+                WHERE ""Id"" = @Id";
             _dbConnection.Execute(query, new { user.Id, user.Status, user.FullName });
         }
 
         public async Task UpdateRole(Guid siteUserId, List<Guid> roleIds)
         {
             //Clear out existing roles
-            await _dbConnection.ExecuteAsync($"DELETE FROM {_userRoleTableName} WHERE AppUserId = @AppUserId", new { AppUserId = siteUserId });
+            await _dbConnection.ExecuteAsync($@"DELETE FROM {_userRoleTableName} WHERE ""AppUserId"" = @AppUserId", new { AppUserId = siteUserId });
             //add back selected role
             foreach (var role in roleIds)
             {
-                await _dbConnection.ExecuteAsync($"INSERT INTO {_userRoleTableName} (AppUserId, AppRoleId) VALUES (@AppUserId, @AppRoleId)", new { AppUserId = siteUserId, AppRoleId = role });
+                await _dbConnection.ExecuteAsync($@"INSERT INTO {_userRoleTableName} (""AppUserId"", ""AppRoleId"") VALUES (@AppUserId, @AppRoleId)", new { AppUserId = siteUserId, AppRoleId = role });
             }
         }
 
         public async Task<bool> UpdateLock(Guid UserId, bool lockUser)
         {
-            string query = @$"UPDATE {_tableName} SET [Status] = @Status WHERE Id = @UserId";
+            string query = @$"UPDATE {_tableName} SET ""Status"" = @Status WHERE ""Id"" = @UserId";
             int statusValue = lockUser ? 2 : 1;
             var affected = await _dbConnection.ExecuteAsync(query, new { Status = statusValue, UserId });
             return affected > 0;
@@ -303,19 +303,19 @@ namespace Collector.Data.Repositories.Auth
 
         public async Task ActivateAccount(AppUser user)
         {
-            string query = @$"UPDATE {_tableName} SET EmailConfirmed = 1 WHERE Id = @Id";
+            string query = @$"UPDATE {_tableName} SET ""EmailConfirmed"" = 1 WHERE ""Id"" = @Id";
             await _dbConnection.QueryAsync(query, new { user.Id });
         }
 
         public async Task UpdateFailedCount(AppUser user)
         {
-            string query = @$"UPDATE {_tableName} SET LockoutEnabled = @LockoutEnabled, AccessFailedCount = @AccessFailedCount WHERE Id = @Id";
+            string query = @$"UPDATE {_tableName} SET ""LockoutEnabled"" = @LockoutEnabled, ""AccessFailedCount"" = @AccessFailedCount WHERE ""Id"" = @Id";
             await _dbConnection.QueryAsync(query, user);
         }
 
         public async Task DeleteUserAsync(Guid userId)
         {
-            string query = $"UPDATE {_tableName} SET [Status] = @Status WHERE Id = @userId";
+            string query = $@"UPDATE {_tableName} SET ""Status"" = @Status WHERE ""Id"" = @userId";
             await _dbConnection.ExecuteAsync(query, new { Status = AppUserStatus.Deleted, UserId = userId });
         }
 
@@ -325,31 +325,31 @@ namespace Collector.Data.Repositories.Auth
 
         public async Task UpdatePassword(AppUser user)
         {
-            string query = @$"UPDATE {_tableName} SET PasswordHash = @PasswordHash, LockoutEnabled = 0, AccessFailedCount = 0 WHERE Id = @Id";
+            string query = @$"UPDATE {_tableName} SET ""PasswordHash"" = @PasswordHash, ""LockoutEnabled"" = 0, ""AccessFailedCount"" = 0 WHERE ""Id"" = @Id";
             await _dbConnection.QueryAsync(query, user);
         }
 
         public async Task<AppUser> UpdatePasswordResetHash(AppUser user)
         {
             string query = @$"UPDATE {_tableName} SET 
-            PasswordResetHash = @PasswordResetHash,
-            PasswordResetTime = @PasswordResetTime,
-            NewEmail = (CASE WHEN EXISTS(SELECT * FROM {_tableName} WHERE [Email]=@Email AND Id = @Id) THEN NULL ELSE @Email END)";
-            query += " WHERE Id = @Id";
+            ""PasswordResetHash"" = @PasswordResetHash,
+            ""PasswordResetTime"" = @PasswordResetTime,
+            ""NewEmail"" = (CASE WHEN EXISTS(SELECT * FROM {_tableName} WHERE ""Email""=@Email AND ""Id"" = @Id) THEN NULL ELSE @Email END)";
+            query += @" WHERE ""Id"" = @Id";
             await _dbConnection.QueryAsync(query, user);
             return user;
         }
 
         public async Task<AppUser> FindByPasswordResetHashAsync(string hashPassword, bool activeOnly = true)
         {
-            string query = $"SELECT * FROM {_tableName} WHERE PasswordResetHash = @hashPassword";
-            if (activeOnly) query += " AND [Status] = @Status";
+            string query = $@"SELECT * FROM {_tableName} WHERE ""PasswordResetHash"" = @hashPassword";
+            if (activeOnly) query += @" AND ""Status"" = @Status";
             return await _dbConnection.QueryFirstOrDefaultAsync<AppUser>(query, new { hashPassword, Status = AppUserStatus.Active });
         }
 
         public async Task<AppUser> UpdatePasswordHash(AppUser user)
         {
-            string query = @$"UPDATE {_tableName} SET PasswordHash = @PasswordHash, PasswordResetTime = @PasswordResetTime, PasswordResetHash = @PasswordResetHash, Email = CASE WHEN NewEmail IS NOT NULL THEN NewEmail ELSE Email END, NewEmail = NULL WHERE Id = @Id";
+            string query = @$"UPDATE {_tableName} SET ""PasswordHash"" = @PasswordHash, ""PasswordResetTime"" = @PasswordResetTime, ""PasswordResetHash"" = @PasswordResetHash, ""Email"" = CASE WHEN ""NewEmail"" IS NOT NULL THEN ""NewEmail"" ELSE ""Email"" END, ""NewEmail"" = NULL WHERE ""Id"" = @Id";
             await _dbConnection.QueryAsync(query, user);
             return user;
         }
@@ -360,17 +360,17 @@ namespace Collector.Data.Repositories.Auth
 
         public async Task<AppUser> FindByOneTimeLoginToken(string emailAuthToken, bool activeOnly = true)
         {
-            string query = $"SELECT * FROM {_tableName} WHERE OneTimeLoginToken = @emailAuthToken";
-            if (activeOnly) query += " AND [Status] = @Status";
+            string query = $@"SELECT * FROM {_tableName} WHERE ""OneTimeLoginToken"" = @emailAuthToken";
+            if (activeOnly) query += @" AND ""Status"" = @Status";
             return await _dbConnection.QueryFirstOrDefaultAsync<AppUser>(query, new { emailAuthToken, Status = AppUserStatus.Active });
         }
 
         public async Task<AppUser> UpdateOneTimeLoginToken(AppUser user)
         {
             string query = @$"UPDATE {_tableName} SET 
-            OneTimeLoginToken = @OneTimeLoginToken,
-            OneTimeLoginExpiry = @OneTimeLoginExpiry";
-            query += " WHERE Id = @Id";
+            ""OneTimeLoginToken"" = @OneTimeLoginToken,
+            ""OneTimeLoginExpiry"" = @OneTimeLoginExpiry";
+            query += @" WHERE ""Id"" = @Id";
             await _dbConnection.QueryAsync(query, user);
             return user;
         }
@@ -383,9 +383,9 @@ namespace Collector.Data.Repositories.Auth
         public void UpdateEncryption(Guid id, string key, string type)
         {
             string query = @$"UPDATE {_tableName} SET 
-                EncryptionKey = @key,
-                EncryptionType = @type
-                WHERE Id = @id";
+                ""EncryptionKey"" = @key,
+                ""EncryptionType"" = @type
+                WHERE ""Id"" = @id";
             _dbConnection.Execute(query, new { id, key, type });
         }
 
