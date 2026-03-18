@@ -8,6 +8,7 @@ import EntriesListSettingsModal from './entries-list/entries-list-settings-modal
 import EntriesListFilter from './entries-list/entries-list-filter';
 import EntriesListPaging from './entries-list/entries-list-paging';
 import NewEntry from '../components/new-entry';
+import './entries-list.css';
 
 export default function EntriesListModule({ module, journalId, entryId, entry, chapters, isEditable = false, tabButtons, onUpdate }) {
     const navigate = useNavigate();

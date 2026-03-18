@@ -836,66 +836,67 @@ body.scrolled .entry-header .add-module-container{
 
 .entry-modules .note.grey,
 .ck-style-grid__button__preview .note.grey{
-    border-color:#b2b2b2;
-    background-color: #eaeaea;
+    border-color: var(--note-grey-border);
+    background-color: var(--note-grey-bg);
+    color: var(--note-grey-text);
 }
 
 .entry-modules .note.red,
 .ck-style-grid__button__preview .note.red{
-    border-color:#fd7f7f;
-    background-color: #fbe5e5;
-    color:#730101;
+    border-color: var(--note-red-border);
+    background-color: var(--note-red-bg);
+    color: var(--note-red-text);
 }
 
 .entry-modules .note.orange,
 .ck-style-grid__button__preview .note.orange{
-    border-color:#f7b045;
-    background-color: #fbefe5;
-    color:#953800;
+    border-color: var(--note-orange-border);
+    background-color: var(--note-orange-bg);
+    color: var(--note-orange-text);
 }
 
 .entry-modules .note.yellow,
 .ck-style-grid__button__preview .note.yellow{
-    border-color:#ffdc41;
-    background-color: #fbf4e5;
-    color:#c86c00;
+    border-color: var(--note-yellow-border);
+    background-color: var(--note-yellow-bg);
+    color: var(--note-yellow-text);
 }
 
 .entry-modules .note.green,
 .ck-style-grid__button__preview .note.green{
-    border-color:#9ac27f;
-    background-color: #dbead5;
-    color:#235d10;
+    border-color: var(--note-green-border);
+    background-color: var(--note-green-bg);
+    color: var(--note-green-text);
 }
 
 .entry-modules .note.blue,
 .ck-style-grid__button__preview .note.blue{
-    border-color:#7f97fd;
-    background-color: #e5edfb;
-    color:#1e33b5;
+    border-color: var(--note-blue-border);
+    background-color: var(--note-blue-bg);
+    color: var(--note-blue-text);
 }
 
 .entry-modules .note.purple,
 .ck-style-grid__button__preview .note.purple{
-    border-color:#b183ff;
-    background-color: #eae5fb;
-    color:#5503d1;
+    border-color: var(--note-purple-border);
+    background-color: var(--note-purple-bg);
+    color: var(--note-purple-text);
 }
 
 .entry-modules .note.pink,
 .ck-style-grid__button__preview .note.pink{
-    border-color:#ff83c9;
-    background-color: #fbe5f4;
-    color:#c50061;
+    border-color: var(--note-pink-border);
+    background-color: var(--note-pink-bg);
+    color: var(--note-pink-text);
 }
 
 .entry-modules .information,
 .ck-style-grid__button__preview .information{
     border-style:solid;
     border-width:2px;
-    color:#007da2;
-    border-color:#7bc9eb;
-    background-color: #dfeff7;
+    color: var(--info-text);
+    border-color: var(--info-border);
+    background-color: var(--info-bg);
     padding:0.5em;
     border-radius:0.5em;
     display:inline-block;
@@ -914,23 +915,21 @@ body.scrolled .entry-header .add-module-container{
     vertical-align:middle;
     line-height:1;
     width:1em;
-    color:#008ecb;
+    color: var(--info-icon);
 }
-
-
 
 .entry-modules .warning,
 .ck-style-grid__button__preview .warning{
     border-style:solid;
     border-width:2px;
-    border-color:#f7b045;
-    background-color: #fbefe5;
+    border-color: var(--warning-border);
+    background-color: var(--warning-bg);
     padding:0.5em;
     border-radius:0.5em;
     display:inline-block;
     width:100%;
     overflow:hidden;
-    color:#e86e00;
+    color: var(--warning-text);
 }
 
 .entry-modules .warning::before,
@@ -944,21 +943,21 @@ body.scrolled .entry-header .add-module-container{
     vertical-align:middle;
     line-height:1;
     width:1em;
-    color:#ff6d08;
+    color: var(--warning-icon);
 }
 
 .entry-modules .error,
 .ck-style-grid__button__preview .error{
     border-style:solid;
     border-width:2px;
-    border-color:#fd7f7f;
-    background-color: #fbe5e5;
+    border-color: var(--error-border);
+    background-color: var(--error-bg);
     padding:0.5em;
     border-radius:0.5em;
     display:inline-block;
     width:100%;
     overflow:hidden;
-    color:#bb2c2c;
+    color: var(--error-text);
 }
 
 .entry-modules .error::before,
@@ -972,7 +971,7 @@ body.scrolled .entry-header .add-module-container{
     vertical-align:middle;
     line-height:1;
     width:1em;
-    color:#e81212;
+    color: var(--error-icon);
 }
 
 .entry-modules .button.outline,

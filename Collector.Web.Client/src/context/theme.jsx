@@ -12,8 +12,11 @@ export const ThemeProvider = ({ children }) => {
     // Save theme to localStorage
     localStorage.setItem('collector:theme', theme);
     
-    // Update body className
-    document.body.className = theme;
+    // Update body className - remove existing theme classes and add new one
+    const themeClasses = ['light', 'dark'];
+    const currentClasses = document.body.className.split(' ').filter(cls => cls.trim() !== '');
+    const nonThemeClasses = currentClasses.filter(cls => !themeClasses.includes(cls));
+    document.body.className = [...nonThemeClasses, theme].join(' ');
     
     // Dynamically load the appropriate theme CSS file
     const existingThemeLink = document.getElementById('theme-stylesheet');

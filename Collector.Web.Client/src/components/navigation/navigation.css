@@ -371,9 +371,13 @@ body.scrolled .nav-container .notification-dot {
   font-size: 1.3em;
   color: var(--nav-menu-icon);
 }
+.user-menu-item.theme-toggle > span{
+  flex:auto;
+}
 
-.user-menu-item.theme-toggle span {
-  flex: 1;
+.user-menu-item.theme-toggle > .material-symbols-rounded {
+  width:1.25em;
+  flex:none;
 }
 
 .user-menu-item.theme-toggle .toggle-switch-container {

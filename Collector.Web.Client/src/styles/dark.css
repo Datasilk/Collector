@@ -191,7 +191,7 @@
   
   /* === ENTRY TOOLBAR === */
   --entry-toolbar-bg: rgba(60, 50, 90, 1);
-  --entry-toolbar-gradient: linear-gradient(to bottom, rgba(40, 35, 60, 1) 80%, rgba(40, 35, 60, 0));
+  --entry-toolbar-gradient: linear-gradient(to bottom, rgba(26, 26, 26, 1) 80%, rgba(26, 26, 26, 0));
   --entry-toolbar-text: rgba(255, 255, 255, 0.87);
   --entry-toolbar-border: #4a4060;
   --entry-toolbar-button-bg: rgba(80, 70, 110, 1);
@@ -260,4 +260,52 @@
   --status-private-text: #4db6ac;
   --status-deleted-bg: #4a2d2d;
   --status-deleted-text: #e57373;
+  
+  /* === TABLE === */
+  --table-header-bg: #3a3050;
+  --table-header-text: #9b8ef7;
+  --table-header-hover-bg: #4a4060;
+  --table-row-odd-bg: #242424;
+  --table-row-even-bg: #2d2d2d;
+  --table-row-hover-bg: #3a3050;
+  
+  /* === NOTES === */
+  --note-grey-border: #5a5a5a;
+  --note-grey-bg: #2d2d2d;
+  --note-grey-text: #b3b3b3;
+  --note-red-border: #8b4545;
+  --note-red-bg: #3a2525;
+  --note-red-text: #ff9999;
+  --note-orange-border: #8b6a3a;
+  --note-orange-bg: #3a2f20;
+  --note-orange-text: #ffb366;
+  --note-yellow-border: #8b8040;
+  --note-yellow-bg: #3a3620;
+  --note-yellow-text: #ffe066;
+  --note-green-border: #5a7a4a;
+  --note-green-bg: #2a3a25;
+  --note-green-text: #a3d98f;
+  --note-blue-border: #4a5a8b;
+  --note-blue-bg: #25293a;
+  --note-blue-text: #99b3ff;
+  --note-purple-border: #6a4a8b;
+  --note-purple-bg: #2d253a;
+  --note-purple-text: #c299ff;
+  --note-pink-border: #8b4a7a;
+  --note-pink-bg: #3a2535;
+  --note-pink-text: #ff99d9;
+  
+  /* === ALERT BOXES === */
+  --info-border: #4a6a8b;
+  --info-bg: #25323a;
+  --info-text: #66c2e6;
+  --info-icon: #4db8e6;
+  --warning-border: #8b6a3a;
+  --warning-bg: #3a2f20;
+  --warning-text: #ffb366;
+  --warning-icon: #ff9933;
+  --error-border: #8b4545;
+  --error-bg: #3a2525;
+  --error-text: #ff9999;
+  --error-icon: #ff6666;
 }
