@@ -8,7 +8,7 @@
 }
 
 .pagination-info {
-    color: #666;
+    color: var(--global-text-muted);
     font-size: 0.9em;
     text-align: center;
     margin-top: 0.5em;
@@ -40,5 +40,5 @@
 }
 
 .pagination .active{
-    border-color:#00aef9;
+    border-color:var(--link-text);
 }

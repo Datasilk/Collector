@@ -39,6 +39,8 @@ set "PGSERVICE_STOPPED="
 call :derive_pg_services "%PGROOT%"
 call :stop_postgres_service
 
+call :ensure_nmake_available
+
 rem Build and install pgvector extension
 pushd "%PGVECTOR_DIR%"
 call nmake /F Makefile.win
@@ -117,3 +119,33 @@ if errorlevel 1 (
 )
 set "PGSERVICE_STOPPED="
 goto :eof
+
+:ensure_nmake_available
+nmake /? >nul 2>&1
+if not errorlevel 1 goto :eof
+
+echo [INFO] nmake not found. Attempting to install Visual Studio Build Tools (including VC tools)...
+set "VS_BUILDTOOLS_URL=https://aka.ms/vs/17/release/vs_buildtools.exe"
+set "VS_BUILDTOOLS_EXE=%TEMP%\vs_buildtools.exe"
+
+if not exist "%VS_BUILDTOOLS_EXE%" (
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri '%VS_BUILDTOOLS_URL%' -OutFile '%VS_BUILDTOOLS_EXE%'" || (
+        echo [ERROR] Failed to download Visual Studio Build Tools installer.
+        exit /b 1
+    )
+)
+
+echo [INFO] Installing Visual Studio Build Tools prerequisites (this may take several minutes)...
+"%VS_BUILDTOOLS_EXE%" --quiet --wait --norestart --nocache --installPath "%ProgramFiles(x86)%\Microsoft Visual Studio\2022\BuildTools" --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended
+if errorlevel 1 (
+    echo [ERROR] Visual Studio Build Tools installation failed. Install them manually and rerun this script.
+    exit /b 1
+)
+
+call "%ProgramFiles(x86)%\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat" >nul 2>&1
+if errorlevel 1 (
+    echo [WARN] Unable to locate vcvars64.bat automatically. Ensure nmake is available before rerunning.
+    exit /b 1
+)
+
+exit /b 0

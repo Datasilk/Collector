@@ -11,7 +11,7 @@
     left:0;
 }
 .tooltip-overlay > div{
-    background-color:rgba(0,0,0,0.5);
+    background-color:var(--modal-overlay-bg);
 }
 
 .tooltip-overlay .overlay-top, 
@@ -31,13 +31,13 @@
 .tooltip{
     top:42px;
     position:absolute;
-    background-color:#fcfbe4;
+    background-color:var(--container-bg);
     width:500px;
     padding:1.5em;
     white-space: wrap;
     overflow:hidden;
     border-radius:1em;
-    box-shadow:2px 2px 10px rgba(0,0,0,0.15);
+    box-shadow:var(--global-shadow-md);
 }
 
 .tooltip .text{

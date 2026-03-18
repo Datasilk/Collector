@@ -28,7 +28,7 @@
     overflow-x:hidden;
     max-height:20em;
     scrollbar-width: thin;
-    scrollbar-color: #7763ed transparent;
+    scrollbar-color: var(--link-text) transparent;
 }
 
 .journal-layout .tree-view-scrollable::-webkit-scrollbar{
@@ -40,12 +40,12 @@
 }
 
 .journal-layout .tree-view-scrollable::-webkit-scrollbar-thumb{
-    background:#7763ed;
+    background:var(--link-text);
     border-radius:4px;
 }
 
 .journal-layout .tree-view-scrollable::-webkit-scrollbar-thumb:hover{
-    background:#6347ff;
+    background:var(--link-hover-text);
 }
 
 .journal-layout .treeview-journal .tree-view-label{
@@ -93,7 +93,7 @@
 }
 
 .journal-layout .sidebar-top > .tool-bar{
-    background-color:rgba(230, 225, 248, 1);
+    background-color:var(--entry-toolbar-bg);
     height:3.4em;
     padding:0.5em 1em;
     width:100%;
@@ -101,7 +101,7 @@
 }
 
 body.scrolled .journal-layout .sidebar-top > .tool-bar{
-    background-color:rgba(230, 225, 248, 0);
+    background-color:transparent;
 }
 
 .journal-tree .tree-view {
@@ -109,16 +109,16 @@ body.scrolled .journal-layout .sidebar-top > .tool-bar{
 }
 
 .journal-tree .treeview-category .tree-view-header {
-    background-color: #dedbf4;
+    background-color: var(--journal-tab-bg);
     padding:0.25em 0.25em 0.25em 0.5em;
 }
 
 .journal-tree .treeview-category > .tree-view-item:hover {
-    background-color: #cfc8ff;
+    background-color: var(--journal-tab-hover-bg);
 }
 
 .journal-tree .treeview-category > .tree-view-item > .tree-view-header:hover {
-    background-color: #cfc8ff;
+    background-color: var(--journal-tab-hover-bg);
 }
 
 .journal-tree .treeview-category .edit-icon{
@@ -140,7 +140,7 @@ body.scrolled .journal-layout .sidebar-top > .tool-bar{
 }
 
 .journal-tree .treeview-journal .tree-view-header {
-    background-color: #f5f5f5;
+    background-color: var(--treeview-bg);
     padding:0.25em;
 }
 
@@ -151,7 +151,7 @@ body.scrolled .journal-layout .sidebar-top > .tool-bar{
     left: 0;
     width: 1em;
     height: 100%;
-    background-color: #7763ed;
+    background-color: var(--journal-tab-indicator);
 }
 
 .journal-tree .treeview-journal .tree-view-label:hover a{
@@ -159,14 +159,14 @@ body.scrolled .journal-layout .sidebar-top > .tool-bar{
 }
 
 .journal-tree .tree-view-icon {
-    background-color: #c3bcf4;
-    color:#555;
+    background-color: var(--treeview-bg);
+    color:var(--treeview-icon);
     font-size:1.25em;
 }
 
 .journal-tree .tree-view-icon:hover {
-    background-color: #a395ff;
-    color:#555;
+    background-color: var(--treeview-hover-bg);
+    color:var(--treeview-icon);
 }
 
 .journal-tree > .tool-bar{
@@ -190,11 +190,13 @@ body.scrolled .journal-layout .sidebar-top > .tool-bar{
     text-align:center;
     position:relative;
     left:-1.5em;
-    border:2px dashed rgba(119, 99, 237, 0.5);
+    border:2px dashed var(--link-text);
+    opacity: 0.5;
 }
 
 .journal-layout .journals-treeview-footer .button.add-journal:hover{
-    border:2px solid rgba(119, 99, 237, 1);
+    border:2px solid var(--link-text);
+    opacity: 1;
 }
 
 .journal-layout .journals-treeview-footer .button.add-journal i {
@@ -209,11 +211,13 @@ body.scrolled .journal-layout .sidebar-top > .tool-bar{
     position:relative;
     left:-0.7em;
     text-align:center;
-    border:2px dashed rgba(119, 99, 237, 0.5);
+    border:2px dashed var(--link-text);
+    opacity: 0.5;
 }
 
 .journal-layout .button.add-category:hover{
-    border:2px solid rgba(119, 99, 237, 1);
+    border:2px solid var(--link-text);
+    opacity: 1;
 }
 
 /* Modal Form Styles */
@@ -275,11 +279,11 @@ body.scrolled .journal-layout .sidebar-top > .tool-bar{
     position: absolute;
     top: 100%;
     left: 0;
-    background: #ffffff;
+    background: var(--nav-menu-bg);
     border-radius: 0.5em;
     margin-top: 4px;
     overflow: hidden;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--global-shadow-lg);
     z-index: 1000;
     width: fit-content;
 }
@@ -300,8 +304,8 @@ body.scrolled .journal-layout .sidebar-top > .tool-bar{
 }
 
 .entry-type-dropdown .dropdown-item:hover {
-    background-color: #e8dfff;
-    color:#5b44e6;
+    background-color: var(--nav-menu-hover-bg);
+    color:var(--link-hover-text);
 }
 
 .entry-type-dropdown .dropdown-item .material-symbols-rounded {

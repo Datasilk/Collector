@@ -9,6 +9,7 @@ import Routing from './routes/routing';
 import { SessionProvider } from './context/session';
 import { WorkerHubProvider } from './context/workerhub';
 import { VideoPiPProvider } from './context/videopip';
+import { ThemeProvider } from './context/theme';
 import { addSvg } from './helpers/svg';
 import Chat from './components/chat/chat';
 
@@ -49,16 +50,18 @@ function App() {
   };
 
   return (
-    <Router>
-      <SessionProvider>
-        <WorkerHubProvider>
-          <VideoPiPProvider>
-            <Routing />
-            <Chat />
-          </VideoPiPProvider>
-        </WorkerHubProvider>
-      </SessionProvider>
-    </Router>
+    <ThemeProvider>
+      <Router>
+        <SessionProvider>
+          <WorkerHubProvider>
+            <VideoPiPProvider>
+              <Routing />
+              <Chat />
+            </VideoPiPProvider>
+          </WorkerHubProvider>
+        </SessionProvider>
+      </Router>
+    </ThemeProvider>
   );
 }
 

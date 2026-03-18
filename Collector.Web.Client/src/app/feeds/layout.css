@@ -7,11 +7,11 @@
 
 .feeds-navigation {
   padding: 1rem;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--container-border);
 }
 
 .feeds-nav a {
-  color: #007bff;
+  color: var(--link-text);
   text-decoration: none;
   margin-right: 1rem;
 }

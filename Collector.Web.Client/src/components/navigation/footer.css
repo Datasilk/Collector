@@ -1,6 +1,6 @@
 .main-footer {
-  background-color: #f8f9fa;
+  background-color: var(--container-header-bg);
   padding: 1.5rem;
   text-align: center;
-  color: #6c757d;
+  color: var(--global-text-muted);
 }

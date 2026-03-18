@@ -3,9 +3,8 @@
   line-height: 1.5;
   font-weight: 400;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  color: var(--global-text);
+  background-color: var(--global-bg);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -30,11 +29,11 @@ main {
 }
 
 tr:nth-child(even) {
-  background: #F2F2F2;
+  background: var(--table-row-even-bg);
 }
 
 tr:nth-child(odd) {
-  background: #FFF;
+  background: var(--table-row-odd-bg);
 }
 
 th,
@@ -45,12 +44,12 @@ td {
 
 a {
   font-weight: 500;
-  color: #7763ed;
+  color: var(--link-text);
   text-decoration: inherit;
 }
 
 a:hover {
-  color: #535bf2;
+  color: var(--link-hover-text);
 }
 
 body {
@@ -96,7 +95,8 @@ button, .button {
   display:inline-block;
   border-radius: 8px;
   border: 2px solid transparent;
-  background-color: #222;
+  background-color: var(--button-bg);
+  color: var(--button-text);
   padding: 0.65em 1.2em 0.55em 1.2em;
   font-size: 1em;
   font-weight: 500;
@@ -106,8 +106,23 @@ button, .button {
   margin: 0 0 0 0.5em;
 }
 
+button.icon, .button.icon {
+  padding: 0.45em 0.8em 0.55em 0.8em;
+}
+
+button .material-symbols-rounded,
+.button .material-symbols-rounded {
+  margin: -0.15em 0.2em 0 -0.2em;
+  vertical-align: middle;
+}
+
+button.icon .material-symbols-rounded,
+.button.icon .material-symbols-rounded {
+  margin: -0.15em 0;
+}
+
 button:hover, .button:hover {
-  background-color: #666;
+  background-color: var(--button-hover-bg);
 }
 
 button:focus,
@@ -116,29 +131,20 @@ button:focus-visible,
   outline: 4px auto -webkit-focus-ring-color;
 }
 
-button.after .material-symbols-rounded,
-.button.after .material-symbols-rounded {
-  margin: -0.15em -0.3em 0 0.3em !important;
-}
-
-.material-symbols-rounded {
-  vertical-align: middle;
-}
-
 button:focus, .button:focus{outline:none;}
 
 button.faded, .button.faded{opacity:0.5;}
 button.faded:hover, .button.faded:hover{opacity:1}
 
 button.cancel, .button.cancel {
-  background-color: #525252;
-  color: #eee;
+  background-color: var(--button-cancel-bg);
+  color: var(--button-cancel-text);
 }
 
 button.cancel:hover, button.cancel:active,
 .button.cancel:hover, .button.cancel:active {
-  background-color: #3b3b3b;
-  color: #eee;
+  background-color: var(--button-cancel-hover-bg);
+  color: var(--button-cancel-text);
 }
 
 button.stretch, .button.stretch{
@@ -164,8 +170,8 @@ hr{
 }
 
 .error-msg {
-  background-color: #ffd1d1;
-  color: #dd0000;
+  background-color: var(--error-bg);
+  color: var(--error-text);
   border-radius: 0.5em;
   padding: 0.25em 0.5em 0.25em 2em;
   margin: 1em 0;
@@ -181,33 +187,33 @@ hr{
 }
 
 .error-close:hover {
-  color: #ff0000;
+  color: var(--error-close-hover);
   opacity: 1;
 }
 
 .status-active {
-    background-color: #e8f5e9;
-    color: #2e7d32;
+    background-color: var(--status-active-bg);
+    color: var(--status-active-text);
 }
 
 .status-published {
-    background-color: #e3f2fd;
-    color: #1565c0;
+    background-color: var(--status-published-bg);
+    color: var(--status-published-text);
 }
 
 .status-archived {
-    background-color: #f5f5f5;
-    color: #616161;
+    background-color: var(--status-archived-bg);
+    color: var(--status-archived-text);
 }
 
 .status-private {
-    background-color: #c5f2e0;
-    color: #059a77;
+    background-color: var(--status-private-bg);
+    color: var(--status-private-text);
 }
 
 .status-deleted {
-    background-color: #ffebee;
-    color: #c62828;
+    background-color: var(--status-deleted-bg);
+    color: var(--status-deleted-text);
 }
 
 .loading {
@@ -259,55 +265,7 @@ hr{
   transform-origin: center;
 }
 
-
-/* light mode ----------------------------------------- */
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-
-  a:hover {
-    color: #3428ff;
-  }
-
-  button, .button {
-    background-color: #7763ed;
-    color: #fff;
-  }
-
-  button:hover, .button:hover {
-    background-color: #552be1;
-    color: #fff;
-  }
-}
-
-/* dark mode ----------------------------------------- */
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-
-  a:hover {
-    color: #3428ff;
-  }
-
-  input, textarea, select{
-    color:#333;
-    background-color:#fff;
-  }
-
-  button, .button {
-    background-color: #7763ed;
-    color: #fff;
-  }
-
-  button:hover, .button:hover {
-    background-color: #552be1;
-    color: #fff;
-  }
-}
+/* Theme-specific styles are now loaded via light.css or dark.css */
 
 /* Global PiP Video Container */
 .global-pip-container {
@@ -315,10 +273,10 @@ hr{
     bottom: 20px;
     right: 20px;
     width: 400px;
-    background: #000;
+    background: var(--video-bg);
     border-radius: 8px;
     overflow: hidden;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--global-shadow-lg);
     z-index: 10000;
 }
 
@@ -389,7 +347,7 @@ hr{
     top: 0;
     left: 0;
     height: 100%;
-    background: #7763ed;
+    background: var(--video-seek-progress);
     border-radius: 2px;
     z-index: 2;
 }
@@ -486,7 +444,7 @@ hr{
 }
 
 .global-pip-container .fullscreen-button:hover {
-    color: #b9adff;
+    color: var(--link-hover-text);
 }
 
 /* Global PiP Fullscreen */

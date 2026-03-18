@@ -1,6 +1,6 @@
 .admin .body{
   width:100%;
-  background-color: #f5f5f5;
+  background-color: var(--global-bg);
 }
 
 .admin-form{padding:2em;}
@@ -10,8 +10,8 @@
 .admin .sidebar {
     width: 100%;
     max-width: 13em;
-    background-color: #393939;
-    color: #dedede;
+    background-color: var(--admin-header-bg);
+    color: var(--admin-header-text);
     padding: 0.5em 0 0 0;
     text-align: left;
   }
@@ -30,13 +30,13 @@
   }
   
   .admin .sidebar li:hover {
-    background-color: #634891;
+    background-color: var(--nav-menu-hover-bg);
   }
   
   .admin .sidebar li a {
     padding: 0.8em 3em 0.8em 1.5em;
     display: inline-block;
-    color: #fff;
+    color: var(--nav-menu-text);
   }
   
   .admin .sidebar li .material-symbols-rounded {

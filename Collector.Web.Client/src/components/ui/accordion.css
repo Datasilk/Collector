@@ -1,12 +1,12 @@
 .accordion {
     border-radius: 6px;
-    background: #fff;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    background: var(--container-bg);
+    box-shadow: var(--global-shadow-sm);
     margin: 1em 0;
 }
 
 .accordion-item {
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--container-border);
 }
 
 .accordion-item:last-child {
@@ -17,7 +17,7 @@
     cursor: pointer;
     padding: 1em 1.5em;
     font-weight: 500;
-    background: #dedbf4;
+    background: var(--tabs-bg);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -27,7 +27,7 @@
 }
 
 .accordion-title:hover, .accordion-item.open .accordion-title {
-    background: #d3c3e6;
+    background: var(--tabs-hover-bg);
 }
 
 .accordion-arrow {
@@ -42,7 +42,7 @@
 
 .accordion-content {
     padding: 1em 1.5em;
-    background: #fff;
+    background: var(--container-bg);
     animation: accordion-fade-in 0.3s;
 }
 

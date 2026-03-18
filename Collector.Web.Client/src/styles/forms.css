@@ -36,7 +36,7 @@ form .form-group,
 }
 
 .form-group label {
-    color: #4a4a4a;
+    color: var(--input-label);
     margin-bottom: 0.35rem;
     font-size: 0.9rem;
     float:left;
@@ -47,7 +47,7 @@ form .form-group,
 }
 
 .form-group .note {
-    color: #4a4a4a;
+    color: var(--input-label);
     margin-bottom: 0.35rem;
     font-size: 0.9rem;
     padding-left:0.5rem;

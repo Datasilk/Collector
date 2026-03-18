@@ -1,29 +1,24 @@
 # Collector
 A web scraping platform for the AI era.
 
-## Installation
-`git clone https://github.com/Datasilk/Collector`
-`git submodule init`
-`git submodule update --init`
-`cd Collector/Collector.App`
-`npm install`
-
 ### History
 I started this project in 2015 by building [Charlotte](https://github.com/Datasilk/Charlotte) along with a web UI in ASP.NET Core using C#. I've built this project from the ground up several times, and so now I am turning it into a set of tools enhanced by AI. 
 
 ## Setup Instructions
-* In command prompt, run the following commands:
+* In command prompt, execute the following commands:
 
 ```bash
 git clone https://github.com/Datasilk/Collector
-git submodule init
-git submodule update --init
-cd Collector/Collector.Web.Client
-npm install
+```
+
+* Then, open "x64 Native Tools Command Prompt for VS" (run as administrator) and navigate to the newly cloned Collector directory
+* Run the following command:
+
+```bash
+setup
 ```
 
 * Afterwards, open `Collector.sln` in Visual Studio
-* Follow instructions in (Collector.SQL/postgresql/README.md)[Collector.SQL] to deploy the database to PostgreSQL
 * Update the connection string in `Collector.Web.Server/appsettings.json` to point to your PostgreSQL database
 * Run the `Collector.Web.Server` project
 * In your web browser, navigate to https://localhost:7783

@@ -1,9 +1,9 @@
 .dash-header {
     width: 100%;
     padding: 10px;
-    background-color: #e7e7e7;
+    background-color: var(--container-header-bg);
     box-sizing: border-box;
-    border-bottom: 2px solid #dcdcdc;
+    border-bottom: 2px solid var(--container-border);
 }
 
 .dash-header::after {

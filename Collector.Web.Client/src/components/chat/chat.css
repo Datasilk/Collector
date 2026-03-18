@@ -19,22 +19,22 @@
     width: 56px;
     height: 56px;
     border-radius: 50%;
-    background-color: rgba(0, 0, 0, 0.7);
-    color: white;
+    background-color: var(--chat-fab-bg);
+    color: var(--chat-fab-text);
     border: none;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--chat-fab-shadow);
     transition: all 0.3s ease;
     z-index: 10000;
 }
 
 .chat-fab:hover {
-    background-color: rgba(0, 0, 0, 0.85);
+    background-color: var(--chat-fab-hover-bg);
     transform: scale(1.05);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    box-shadow: var(--chat-fab-hover-shadow);
 }
 
 .chat-fab .material-symbols-rounded {
@@ -56,9 +56,9 @@
 .chat-window {
     width: 360px;
     height: 500px;
-    background: white;
+    background: var(--chat-window-bg);
     border-radius: 12px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--chat-window-shadow);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -83,8 +83,8 @@
 
 /* Chat Header */
 .chat-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+    background: var(--chat-header-bg);
+    color: var(--chat-header-text);
     padding: 12px 16px;
     display: flex;
     justify-content: space-between;

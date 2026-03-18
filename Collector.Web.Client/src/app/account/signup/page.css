@@ -9,8 +9,8 @@
 }
 
 .signup-button {
-  background: #2c2c2c;
-  color: white;
+  background: var(--button-bg);
+  color: var(--button-text);
   border: none;
   padding: 1rem;
   border-radius: 4px;
@@ -22,24 +22,24 @@
 }
 
 .signup-button:hover {
-  background: #1a1a1a;
+  background: var(--button-hover-bg);
 }
 
 .login-link {
   text-align: center;
   margin-top: 1.5rem;
-  color: #666;
+  color: var(--global-text-muted);
 }
 
 .login-link a {
-  color: #FF6B00;
+  color: var(--link-text);
   text-decoration: none;
   font-weight: 500;
   transition: color 0.2s ease;
 }
 
 .login-link a:hover {
-  color: #ff7b1a;
+  color: var(--link-hover-text);
 }
 
 .invite {
@@ -53,7 +53,7 @@
 .plan{
   display: grid;
   grid-template-columns: 35% 65%;
-  border-bottom: 2px dashed #cccccc;
+  border-bottom: 2px dashed var(--global-border);
 }
 
 .plan-body ul{
@@ -83,7 +83,7 @@
 
 .plan-actions label{
   padding:0.5em 1em;
-  border:2px solid #b080fe;
+  border:2px solid var(--link-text);
   border-radius:2em;
   cursor:pointer;
   font-size:1.1rem;
@@ -92,8 +92,8 @@
 .plan-actions label span{
   display:inline-block;
   padding:0 0.25em 0 0;
-  fill:#b080fe;
-  color:#b080fe;
+  fill:var(--link-text);
+  color:var(--link-text);
   height:1em;
   position: relative;
   top: -0.05em;
@@ -101,7 +101,7 @@
 }
 
 .plan-actions label:hover{
-  border-color:#8f4bfc;
+  border-color:var(--link-hover-text);
 }
 
 .plan-actions .is-checked label{

@@ -34,8 +34,8 @@
     font-size: 14px;
     font-weight: bold;
     border-radius: 2px;
-    background-color: #f0f0f0;
-    color: #555;
+    background-color: var(--treeview-bg);
+    color: var(--treeview-icon);
     transition: background-color 0.2s;
 }
 

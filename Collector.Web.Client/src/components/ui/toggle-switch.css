@@ -29,7 +29,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: #b59ef0;
+    background-color: var(--button-cancel-bg);
     transition: .3s;
     border-radius: 24px;
     outline: 2px solid transparent;
@@ -49,11 +49,11 @@
 
 /* Using the same purple color as buttons in layout.css */
 .toggle-switch input:checked + .slider {
-    background-color: #7763ed;
+    background-color: var(--link-text);
 }
 
 .toggle-switch input:focus + .slider {
-    box-shadow: 0 0 1px #7763ed;
+    box-shadow: 0 0 1px var(--link-text);
 }
 
 .toggle-switch input:checked + .slider:before {
@@ -64,6 +64,7 @@
     font-size: 0.9rem;
     user-select: none;
     margin-right: 0.5em;
+    color: var(--toggle-label-text);
 }
 
 /* Style for when toggle is in a toolbar */
@@ -78,9 +79,9 @@
 
 /* Hover effect similar to toolbar buttons */
 .toggle-switch:hover .slider {
-    outline: 2px solid #7763ed;
+    outline: 2px solid var(--link-text);
 }
 
 .toggle-switch input:checked:hover + .slider {
-    background-color: #7763ed;
+    background-color: var(--link-text);
 }

@@ -1,0 +1,263 @@
+/* Light Theme CSS Variables - Organized by UI Element */
+:root {
+  /* === GLOBAL === */
+  --global-bg: #ffffff;
+  --global-text: #213547;
+  --global-text-muted: #666;
+  --global-border: #ddd;
+  --global-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --global-shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --global-shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.15);
+  
+  /* === NAVIGATION === */
+  --nav-bg: #ffffff;
+  --nav-text: #2c2c2c;
+  --nav-text-hover: #000000;
+  --nav-border-selected: #b46fff;
+  --nav-border-hover: #cfa1ff;
+  --nav-logo-color: #7763ed;
+  --nav-account-bg: #f5f5f5;
+  --nav-account-border: #e0e0e0;
+  --nav-account-icon: #757575;
+  --nav-account-hover-bg: #ececec;
+  --nav-account-hover-border: #bdbdbd;
+  --nav-menu-bg: #fff;
+  --nav-menu-text: #222;
+  --nav-menu-hover-bg: #f5f5f5;
+  --nav-menu-border: rgba(0,0,0,0.07);
+  --nav-menu-icon: #555;
+  --nav-notification-bg: transparent;
+  --nav-notification-icon: #757575;
+  --nav-notification-hover-bg: #f5f5f5;
+  --nav-notification-hover-icon: #555;
+  --nav-notification-dot: #e53935;
+  --nav-notification-dot-border: #fff;
+  --nav-notification-popup-bg: #fff;
+  --nav-notification-popup-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  --nav-notification-empty-text: #888;
+  
+  /* === BUTTONS === */
+  --button-bg: #7763ed;
+  --button-text: #fff;
+  --button-hover-bg: #535bf2;
+  --button-cancel-bg: #525252;
+  --button-cancel-text: #eee;
+  --button-cancel-hover-bg: #3b3b3b;
+  
+  /* === INPUTS === */
+  --input-bg: #ffffff;
+  --input-text: #333;
+  --input-border: #ddd;
+  --input-border-focus: #646cff;
+  --input-placeholder: #999;
+  --input-disabled-bg: #f5f5f5;
+  --input-disabled-text: #999;
+  --input-label: #4a4a4a;
+  
+  /* === ADMIN SIDEBAR === */
+  --admin-header-bg: #e7e7e7;
+  --admin-header-border: #dcdcdc;
+  --admin-header-text: #213547;
+  --admin-tab-bg: #d2dfd3;
+  --admin-tab-selected-bg: #f5f5f5;
+  --admin-gradient: linear-gradient(180deg,rgba(0,0,0,0) 0%, rgba(0,0,0,0) 65%, rgba(0,0,0,0.05) 100%);
+  
+  /* === JOURNAL === */
+  --journal-sidebar-bg: #ffffff;
+  --journal-sidebar-text: #213547;
+  --journal-sidebar-border: #ddd;
+  --journal-entry-bg: #ffffff;
+  --journal-entry-text: #213547;
+  --journal-entry-border: #e0e0e0;
+  
+  /* === CHAT WINDOW === */
+  --chat-fab-bg: rgba(0, 0, 0, 0.7);
+  --chat-fab-hover-bg: rgba(0, 0, 0, 0.85);
+  --chat-fab-text: #fff;
+  --chat-fab-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --chat-fab-hover-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  --chat-window-bg: #fff;
+  --chat-window-border: #e0e0e0;
+  --chat-window-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  --chat-header-bg: #f5f5f5;
+  --chat-header-text: #333;
+  --chat-header-border: #e0e0e0;
+  --chat-message-user-bg: #7763ed;
+  --chat-message-user-text: #fff;
+  --chat-message-ai-bg: #f0f0f0;
+  --chat-message-ai-text: #333;
+  --chat-input-bg: #fff;
+  --chat-input-border: #e0e0e0;
+  
+  /* === MODAL === */
+  --modal-overlay-bg: rgba(0, 0, 0, 0.3);
+  --modal-bg: #efefef;
+  --modal-text: #213547;
+  --modal-shadow: 5px 5px 25px rgba(0,0,0,0.15);
+  --modal-border: #ddd;
+  
+  /* === ERROR MESSAGE === */
+  --error-bg: #ffd1d1;
+  --error-text: #dd0000;
+  --error-border: #ffb3b3;
+  --error-close-hover: #ff0000;
+  
+  /* === CKEDITOR STYLE === */
+  --ckeditor-bg: #ffffff;
+  --ckeditor-text: #213547;
+  --ckeditor-border: #ddd;
+  --ckeditor-toolbar-bg: #f5f5f5;
+  --ckeditor-toolbar-border: #e0e0e0;
+  --ckeditor-button-hover-bg: #e0e0e0;
+  
+  /* === TREEVIEW === */
+  --treeview-bg: #ffffff;
+  --treeview-text: #213547;
+  --treeview-hover-bg: #f5f5f5;
+  --treeview-selected-bg: #e3f2fd;
+  --treeview-selected-text: #1565c0;
+  --treeview-border: #e0e0e0;
+  --treeview-icon: #666;
+  
+  /* === TABS === */
+  --tabs-bg: #f5f5f5;
+  --tabs-text: #666;
+  --tabs-hover-bg: #e0e0e0;
+  --tabs-selected-bg: #ffffff;
+  --tabs-selected-text: #213547;
+  --tabs-border: #ddd;
+  
+  /* === CONTAINER === */
+  --container-bg: #ffffff;
+  --container-border: #e0e0e0;
+  --container-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --container-header-bg: #f9f9f9;
+  --container-header-text: #213547;
+  
+  /* === LOADING === */
+  --loading-spinner: #7763ed;
+  --loading-text: #666;
+  --loading-bg: rgba(255, 255, 255, 0.9);
+  
+  /* === TABLE === */
+  --table-header-bg: #f5f5f5;
+  --table-header-text: #213547;
+  --table-row-even-bg: #f2f2f2;
+  --table-row-odd-bg: #ffffff;
+  --table-row-hover-bg: #e8f4fd;
+  --table-border: #ddd;
+  --table-text: #213547;
+  
+  /* === STATUS BADGES === */
+  --status-active-bg: #e8f5e9;
+  --status-active-text: #2e7d32;
+  --status-published-bg: #e3f2fd;
+  --status-published-text: #1565c0;
+  --status-archived-bg: #f5f5f5;
+  --status-archived-text: #616161;
+  --status-private-bg: #c5f2e0;
+  --status-private-text: #059a77;
+  --status-deleted-bg: #ffebee;
+  --status-deleted-text: #c62828;
+  
+  /* === WORKER/PROGRESS === */
+  --worker-bg: #f0f0f0;
+  --worker-icon-bg: #f0f0f0;
+  --worker-icon-text: #666;
+  --worker-video-icon-bg: #e3f2fd;
+  --worker-video-icon-text: #1976d2;
+  --worker-title-text: #333;
+  --worker-status-text: #888;
+  --worker-progress-bg: #e0e0e0;
+  --worker-progress-fill: linear-gradient(90deg, #7c4dff, #536dfe);
+  --worker-percent-text: #666;
+  
+  /* === LINKS === */
+  --link-text: #7763ed;
+  --link-hover-text: #535bf2;
+  
+  /* === VIDEO PLAYER === */
+  --video-bg: #000;
+  --video-controls-bg: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  --video-button-bg: rgba(0, 0, 0, 0.6);
+  --video-button-hover-bg: rgba(0, 0, 0, 0.8);
+  --video-button-text: #fff;
+  --video-seek-bg: rgba(255, 255, 255, 0.3);
+  --video-seek-progress: #7763ed;
+  --video-seek-buffered: rgba(255, 255, 255, 0.4);
+  --video-time-text: #fff;
+  --video-volume-slider-bg: rgba(255, 255, 255, 0.3);
+  --video-volume-thumb: #fff;
+  
+  /* === ENTRY TOOLBAR === */
+  --entry-toolbar-bg: rgba(230, 225, 248, 1);
+  --entry-toolbar-gradient: linear-gradient(to bottom, rgba(245, 245, 245, 1) 80%, rgba(245, 245, 245, 0));
+  --entry-toolbar-text: #213547;
+  --entry-toolbar-border: #e0e0e0;
+  --entry-toolbar-button-bg: #dedbf4;
+  --entry-toolbar-button-hover-bg: #d3c3e6;
+  --entry-toolbar-button-text: #213547;
+  --entry-toolbar-icon: #7763ed;
+  
+  /* === JOURNAL TAB MENU === */
+  --journal-tab-bg: #f5f5f5;
+  --journal-tab-text: #666;
+  --journal-tab-hover-bg: #e8e8e8;
+  --journal-tab-selected-bg: #ffffff;
+  --journal-tab-selected-text: #213547;
+  --journal-tab-border: #ddd;
+  --journal-tab-indicator: #7763ed;
+  
+  /* === CODE BLOCKS === */
+  --code-bg: #d5dbeb;
+  --code-text: #333;
+  --code-border: #8ca2ee;
+  
+  /* === IMAGE GALLERY === */
+  --image-gallery-bg: #f9f9f9;
+  --image-gallery-empty-bg: transparent;
+  --image-gallery-empty-border: rgba(123, 97, 255, 0.7);
+  --image-gallery-empty-text: #9ca3c1;
+  --image-gallery-meta-text: #5b5f7c;
+  --image-gallery-thumbnail-border: rgba(123, 97, 255, 0.15);
+  --image-gallery-thumbnail-hover-border: rgba(123, 97, 255, 0.45);
+  --image-gallery-thumbnail-selected-border: #7b61ff;
+  --image-gallery-thumbnail-selected-shadow: rgba(123, 97, 255, 0.25);
+  --image-gallery-thumbnail-bg: rgba(245, 245, 255, 0.6);
+  --image-gallery-thumbnail-delete-bg: rgba(17, 19, 30, 0.85);
+  --image-gallery-thumbnail-delete-text: #fff;
+  --image-gallery-grid-item-bg: rgba(245, 245, 255, 0.6);
+  --image-gallery-grid-item-border: rgba(123, 97, 255, 0.15);
+  --image-gallery-grid-item-hover-border: rgba(123, 97, 255, 0.45);
+  --image-gallery-thumbnails-icon-border: rgba(123, 97, 255, 0.65);
+  --image-gallery-thumbnails-icon-text: #7763ed;
+  --image-gallery-uploading-text: #666;
+  
+  /* === PDF VIEWER === */
+  --pdf-viewport-bg: #f5f5f5;
+  --pdf-loading-text: #444;
+  
+  /* === CALENDAR === */
+  --calendar-day-bg: #ffffff;
+  --calendar-day-border: #e0e0e0;
+  --calendar-day-hover-bg: #f5f5f5;
+  --calendar-today-bg: #e3f2fd;
+  --calendar-today-border: #42a5f5;
+  --calendar-crossed-bg: #f5f5f5;
+  --calendar-crossed-text: #999;
+  
+  /* === TOGGLE SWITCH === */
+  --toggle-label-text: #213547;
+  
+  /* === STATUS INDICATORS === */
+  --status-active-bg: #e8f5e9;
+  --status-active-text: #2e7d32;
+  --status-published-bg: #e3f2fd;
+  --status-published-text: #1565c0;
+  --status-archived-bg: #f5f5f5;
+  --status-archived-text: #616161;
+  --status-private-bg: #c5f2e0;
+  --status-private-text: #059a77;
+  --status-deleted-bg: #ffebee;
+  --status-deleted-text: #c62828;
+}

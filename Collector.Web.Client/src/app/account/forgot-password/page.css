@@ -6,8 +6,8 @@
   }
   
   .forgot-button {
-    background: #2c2c2c;
-    color: white;
+    background: var(--button-bg);
+    color: var(--button-text);
     border: none;
     padding: 1rem;
     border-radius: 4px;
@@ -19,5 +19,5 @@
   }
   
   .forgot-button:hover {
-    background: #1a1a1a;
+    background: var(--button-hover-bg);
   }

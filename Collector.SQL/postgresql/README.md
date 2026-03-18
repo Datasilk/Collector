@@ -9,6 +9,7 @@ Before running any build scripts, make sure you have the following installed loc
 1. **PostgreSQL** (native Windows installer). The script will attempt to find the latest version under:
    - `C:\Program Files\PostgreSQL`
    - `C:\Program Files (x86)\PostgreSQL`
+   - **Important**: Add the PostgreSQL `bin` folder to your system `PATH` environment variable (e.g., `C:\Program Files\PostgreSQL\18\bin`). This ensures `psql` and other PostgreSQL tools are accessible from the command line.
 
 2. **Microsoft Visual Studio** with **C++ build tools**.
    - The script uses `nmake`, so C++ support (MSVC toolchain) must be installed.

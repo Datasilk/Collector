@@ -3,10 +3,12 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import './navigation.css';
 //components
 import Icon from '@/components/ui/icon';
+import ToggleSwitch from '@/components/ui/toggle-switch';
 import workers from './workers';
 //context
 import { useSession } from '@/context/session';
 import { useWorkerHub } from '@/context/workerhub';
+import { useTheme } from '@/context/theme';
 
 const Navigation = () => {
   //context
@@ -14,6 +16,7 @@ const Navigation = () => {
   const navigate = useNavigate();
   const { user, logout } = useSession();
   const { getWorkers, progressAll, subscribe } = useWorkerHub();
+  const { theme, toggleTheme } = useTheme();
 
   //state
   const [section, setSection] = useState('');
@@ -169,6 +172,15 @@ const Navigation = () => {
               </>}
               <li className="user-menu-item">
                 <Link to="/account"><Icon name="person" /> My Account</Link>
+              </li>
+              <li className="user-menu-item theme-toggle">
+                <Icon name="dark_mode" />
+                <span>Dark Mode</span>
+                <ToggleSwitch 
+                  checked={theme === 'dark'} 
+                  onChange={toggleTheme}
+                  name="theme-toggle"
+                />
               </li>
               <li className="user-menu-item">
                 <Link to="/login" onClick={handleLogOut}>
