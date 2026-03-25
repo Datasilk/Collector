@@ -17,24 +17,22 @@
 
 .modal {
     background-color: var(--modal-bg);
-    border-radius: var(--modal-border-radius);
+    border-radius: 8px;
     box-sizing: border-box;
-    min-width: var(--modal-min-width);
-    padding: var(--modal-padding);
+    min-width: 400px;
+    padding: 2em;
     margin: 0 auto;
-    box-shadow: var(--modal-shadow);
-    max-height: var(--modal-max-height);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    max-height: 80vh;
     overflow-y: auto;
-    max-width:var(--modal-max-width);
+    max-width: 600px;
     z-index:10000;
 }
 
 .modal.wide {
-    min-width: var(--modal-wide-min-width);
-    max-width: var(--modal-wide-max-width);
-    width: var(--modal-wide-width);
-    max-height: var(--modal-wide-max-height);
-    padding: var(--modal-wide-padding);
+    min-width: 800px;
+    max-width: 1200px;
+    width: 90%;
     max-height: 90vh;
     padding: 1.5em;
 }

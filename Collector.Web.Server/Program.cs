@@ -298,8 +298,8 @@ app.UseStaticFiles(new StaticFileOptions
 // Map controllers
 app.MapControllers();
 
-// SPA fallback to index.html for React app
-app.MapFallbackToFile("index.html");
+// SPA fallback to index.html for React app (exclude API routes)
+app.MapFallbackToFile("{*path:regex(^(?!api/).*$)}", "index.html");
 
 Console.WriteLine(
     "Collector Web Server {0} started.",

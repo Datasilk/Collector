@@ -185,7 +185,7 @@ body.scrolled .entry-header  .add-module-container{
 }
 
 .toggle-switch-edit-entry{
-    background-color:var(--entry-toolbar-button-bg);
+    background-color:var(--entry-toolbar-toggle-bg);
     border-radius:1em;
     padding:0.5em;
     color:var(--link-text);
@@ -1029,11 +1029,12 @@ body.scrolled .entry-header .add-module-container{
     font-family: 'Courier New', Courier, monospace !important;
 }
 
-.entry-modules pre{    
+.entry-modules pre,
+.ck-content pre{    
     padding: 1em;
-    color: var(--code-text);
-    background-color: var(--code-bg);
-    border: 1px solid var(--code-border);
+    color: var(--code-text) !important;
+    background-color: var(--code-bg) !important;
+    border: 1px solid var(--code-border) !important;
     text-align: left;
     direction: ltr;
     tab-size: 4;
@@ -2155,6 +2156,98 @@ body.scrolled .entry-header .add-module-container{
     background-color: rgba(119, 99, 237, 0.7);
     height: 0.3125em;
     border-radius: 0.2em;
+}
+
+/* Quality Selector */
+.quality-selector {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.quality-button {
+    background: rgba(0, 0, 0, 0.5) !important;
+    border-radius: 1.25em !important;
+    padding: 0 0.75em !important;
+    height: 2.5em !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.5em !important;
+    position: relative;
+    cursor: pointer !important;
+}
+
+.quality-button::before {
+    content: '';
+    position: absolute;
+    top: 0.2em;
+    left: 0.2em;
+    right: 0.2em;
+    bottom: 0.2em;
+    background: rgba(255, 255, 255, 0);
+    border-radius: 1.25em;
+    transition: background 0.2s ease;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.quality-button > * {
+    position: relative;
+    z-index: 1;
+}
+
+.quality-button:hover::before {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.quality-label {
+    font-size: 0.875em;
+    font-weight: 500;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.quality-menu {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    margin-bottom: 0.5em;
+    background: rgba(28, 28, 28, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 0.5em;
+    padding: 0.5em;
+    min-width: 10em;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+}
+
+.quality-option {
+    width: 100%;
+    padding: 0.75em 1em !important;
+    background: transparent !important;
+    border: none !important;
+    color: white !important;
+    text-align: left !important;
+    cursor: pointer !important;
+    border-radius: 0.25em !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    font-size: 0.875em;
+    transition: background 0.2s ease;
+}
+
+.quality-option:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.quality-option.active {
+    background: rgba(119, 99, 237, 0.3) !important;
+    color: var(--link-text) !important;
+}
+
+.quality-option .material-symbols-rounded {
+    font-size: 1.2em;
 }
 
 /* History Dropdown */

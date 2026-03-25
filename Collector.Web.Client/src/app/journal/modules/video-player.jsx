@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
+import Hls from 'hls.js';
 //components
 import Icon from '@/components/ui/icon';
 import Input from '@/components/forms/input';
@@ -48,6 +49,14 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
     const [isPiPMode, setIsPiPMode] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [pendingDownloadUrl, setPendingDownloadUrl] = useState(null);
+    const [useHls, setUseHls] = useState(false);
+    const [hlsPath, setHlsPath] = useState(null);
+    const [isGeneratingHls, setIsGeneratingHls] = useState(false);
+    const [hlsGenerationProgress, setHlsGenerationProgress] = useState(0);
+    const [hlsGenerationStatus, setHlsGenerationStatus] = useState('');
+    const [currentQuality, setCurrentQuality] = useState('auto');
+    const [availableQualities, setAvailableQualities] = useState([]);
+    const [showQualityMenu, setShowQualityMenu] = useState(false);
 
     //refs
     const fileInputRef = useRef(null);
@@ -65,12 +74,15 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
     const registerPipVideoRef = useRef(null); // Track registerPipVideo for unmount
     const clearPipVideoRef = useRef(null); // Track clearPipVideo for restoration
     const currentTimeRef = useRef(0); // Track current playback time for PiP
+    const hlsRef = useRef(null);
+    const qualityMenuRef = useRef(null);
 
     //context
     const session = useSession();
-    const { uploadVideo, deleteVideo, generateThumbnail } = Videos(session);
+    const { uploadVideo, deleteVideo, generateThumbnail, generateHls } = Videos(session);
     const { checkYouTubeCookies } = Cookies(session);
     const { call: callWorker, getWorkers, subscribe, requestProgress } = useWorkerHub();
+    const hlsWorkerIdRef = useRef(null);
     const { pipVideo, registerPipVideo, clearPipVideo, pausePipVideo, getPipVideoState } = useVideoPiP();
 
     // Keep refs updated
@@ -483,6 +495,232 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         ensureThumbnail();
     }, [module.videoId, module.thumbnailPath, module.downloaded]);
 
+    // Initialize HLS player when video is ready
+    useEffect(() => {
+        if (!videoRef.current || !module.videoId || !hasLoadedOnce) return;
+
+        const initHls = async () => {
+            // Check if HLS is already available
+            // HLS path structure: {entryId}/{videoGuid}/hls/
+            if (module.videoPath) {
+                const pathParts = module.videoPath.split('/');
+                const videoFileName = pathParts[pathParts.length - 1];
+                const videoGuid = videoFileName.replace('.mp4', '');
+                const hlsDir = `${pathParts[0]}/${videoGuid}/hls`;
+                const masterPlaylistUrl = `${apiBasePath()}/video/hls/${hlsDir}/master.m3u8`;
+                
+                // Check if HLS playlist exists
+                try {
+                    const response = await fetch(masterPlaylistUrl, { method: 'HEAD' });
+                    if (response.ok) {
+                        setHlsPath(hlsDir);
+                        setUseHls(true);
+                        return;
+                    } else {
+                        // HLS doesn't exist for this older video - trigger generation
+                        triggerHlsGeneration();
+                    }
+                } catch (err) {
+                    console.log('Error checking HLS availability:', err);
+                    // Trigger generation on error too (likely 404)
+                    triggerHlsGeneration();
+                }
+            }
+        };
+
+        const triggerHlsGeneration = async () => {
+            if (isGeneratingHls || !module.videoPath) return;
+            
+            // Check if a worker already exists for this video path
+            try {
+                const workers = await getWorkers();
+                
+                const existingWorker = workers.find(w => {
+                    return w.route === 'video-worker' && w.url === window.location.href;
+                });
+                
+                if (existingWorker) {
+                    setIsGeneratingHls(true);
+                    hlsWorkerIdRef.current = existingWorker.workerId;
+                    
+                    // Subscribe to existing worker
+                    await subscribe(existingWorker.workerId, ({ eventName, payload }) => {
+                        handleWorkerEvent(eventName, payload);
+                    });
+                    
+                    // Request current progress
+                    await requestProgress(existingWorker.workerId);
+                    return;
+                }
+            } catch (err) {
+                console.error('Error checking for existing workers:', err);
+            }
+            
+            setIsGeneratingHls(true);
+            setHlsGenerationProgress(0);
+            setHlsGenerationStatus('Starting HLS generation...');
+            
+            try {
+                const workerId = await callWorker('video-worker', 'GenerateHlsForExistingVideo', {
+                    videoPath: module.videoPath
+                }, ({ eventName, payload }) => {
+                    handleWorkerEvent(eventName, payload);
+                }, module.id, window.location.href);
+                hlsWorkerIdRef.current = workerId;
+                
+                // Immediately check if worker is tracked
+                setTimeout(async () => {
+                    const workers = await getWorkers();
+                }, 1000);
+            } catch (err) {
+                console.error('Failed to trigger HLS generation:', err);
+                setIsGeneratingHls(false);
+                setHlsGenerationStatus('Failed to start HLS generation');
+            }
+        };
+
+        initHls();
+    }, [module.videoId, module.videoPath, hasLoadedOnce]);
+
+    // Setup HLS.js player
+    useEffect(() => {
+        if (!useHls || !hlsPath || !videoRef.current) return;
+
+        const video = videoRef.current;
+        // hlsPath already includes the full path with /hls at the end
+        const masterPlaylistUrl = `${apiBasePath()}/video/hls/${hlsPath}/master.m3u8`;
+
+        // Check if HLS is supported
+        if (Hls.isSupported()) {
+            const hls = new Hls({
+                enableWorker: true,
+                lowLatencyMode: false,
+                backBufferLength: 90,
+                maxBufferLength: 30,
+                maxMaxBufferLength: 600,
+                // Start with higher bandwidth estimate (5 Mbps) for better initial quality
+                abrEwmaDefaultEstimate: 5000000,
+                // More aggressive quality switching
+                abrBandWidthFactor: 0.95,
+                abrBandWidthUpFactor: 0.7,
+                // Start at a higher quality level
+                startLevel: -1, // -1 means auto, but will use abrEwmaDefaultEstimate
+                // Faster quality adaptation
+                abrEwmaFastLive: 3,
+                abrEwmaSlowLive: 9
+            });
+
+            hlsRef.current = hls;
+
+            hls.loadSource(masterPlaylistUrl);
+            hls.attachMedia(video);
+
+            hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+                const qualities = data.levels.map((level, index) => ({
+                    index,
+                    height: level.height,
+                    bitrate: level.bitrate,
+                    label: `${level.height}p`
+                }));
+                const allQualities = [{ index: -1, label: 'Auto' }, ...qualities];
+                setAvailableQualities(allQualities);
+            });
+
+            hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
+                if (currentQuality === 'auto') {
+                    const level = hls.levels[data.level];
+                }
+            });
+
+            hls.on(Hls.Events.ERROR, (event, data) => {
+                if (data.fatal) {
+                    switch (data.type) {
+                        case Hls.ErrorTypes.NETWORK_ERROR:
+                            console.error('HLS network error, trying to recover...');
+                            hls.startLoad();
+                            break;
+                        case Hls.ErrorTypes.MEDIA_ERROR:
+                            console.error('HLS media error, trying to recover...');
+                            hls.recoverMediaError();
+                            break;
+                        default:
+                            console.error('HLS fatal error, falling back to regular video');
+                            setUseHls(false);
+                            break;
+                    }
+                }
+            });
+
+            return () => {
+                hls.destroy();
+                hlsRef.current = null;
+            };
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            // Native HLS support (Safari)
+            video.src = masterPlaylistUrl;
+        } else {
+            console.warn('HLS not supported, falling back to regular video');
+            setUseHls(false);
+        }
+    }, [useHls, hlsPath]);
+
+    // Handle quality selection
+    const handleQualityChange = (qualityIndex) => {
+        if (!hlsRef.current) return;
+
+        if (qualityIndex === -1) {
+            hlsRef.current.currentLevel = -1;
+            setCurrentQuality('auto');
+        } else {
+            hlsRef.current.currentLevel = qualityIndex;
+            const level = hlsRef.current.levels[qualityIndex];
+            setCurrentQuality(`${level.height}p`);
+        }
+        setShowQualityMenu(false);
+    };
+
+    // Close quality menu when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (qualityMenuRef.current && !qualityMenuRef.current.contains(event.target)) {
+                setShowQualityMenu(false);
+            }
+        };
+
+        if (showQualityMenu) {
+            document.addEventListener('mousedown', handleClickOutside);
+            return () => document.removeEventListener('mousedown', handleClickOutside);
+        }
+    }, [showQualityMenu]);
+
+    // Generate HLS playlist on demand
+    const handleGenerateHls = async () => {
+        if (!module.videoId || isGeneratingHls) return;
+
+        setIsGeneratingHls(true);
+        session.showModal(() => (
+            <Modal title="Generating Adaptive Streaming" hideButtons={true}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '20px' }}>
+                    <Icon name="progress_activity" className="spin" />
+                    <span>Generating multiple quality versions for adaptive streaming...</span>
+                </div>
+            </Modal>
+        ));
+
+        try {
+            const response = await generateHls(module.videoId);
+            if (response.data?.success && response.data?.data?.hlsPath) {
+                setHlsPath(response.data.data.hlsPath);
+                setUseHls(true);
+            }
+        } catch (err) {
+            console.error('Error generating HLS:', err);
+        } finally {
+            setIsGeneratingHls(false);
+            session.hideModal();
+        }
+    };
+
     const handleSaveThumbnailAtPosition = async () => {
         if (!module.videoId || !videoRef.current) return;
 
@@ -710,6 +948,15 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                 setDownloadProgress(100);
                 setVideoUrl('');
                 setHasLoadedOnce(true);
+                
+                // Set HLS path if available and trigger re-initialization
+                if (data.hlsPath) {
+                    setHlsPath(data.hlsPath);
+                    setUseHls(true);
+                    // Force re-render to trigger HLS initialization
+                    setHasLoadedOnce(false);
+                    setTimeout(() => setHasLoadedOnce(true), 100);
+                }
                 break;
             }
             case 'DownloadError': {
@@ -718,6 +965,49 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                 setIsDownloading(false);
                 setDownloadProgress(0);
                 setDownloadStatus('');
+                setVideoUrl('');
+                break;
+            }
+            case 'HlsGenerationProgress': {
+                const { progress, status } = payload || {};
+                if (typeof progress === 'number') {
+                    setHlsGenerationProgress(progress);
+                }
+                if (status) {
+                    setHlsGenerationStatus(status);
+                }
+                break;
+            }
+            case 'HlsGenerationComplete': {
+                const data = payload || {};
+                setIsGeneratingHls(false);
+                setHlsGenerationProgress(100);
+                setHlsGenerationStatus('HLS generation complete!');
+                
+                // Set HLS path and enable HLS
+                if (data.hlsPath) {
+                    setHlsPath(data.hlsPath);
+                    setUseHls(true);
+                }
+                
+                // Clear progress after a delay
+                setTimeout(() => {
+                    setHlsGenerationProgress(0);
+                    setHlsGenerationStatus('');
+                }, 3000);
+                break;
+            }
+            case 'HlsGenerationError': {
+                const { message } = payload || {};
+                console.error('HLS generation error:', message);
+                setIsGeneratingHls(false);
+                setHlsGenerationStatus(message || 'Failed to generate HLS playlist');
+                
+                // Clear error after a delay
+                setTimeout(() => {
+                    setHlsGenerationProgress(0);
+                    setHlsGenerationStatus('');
+                }, 5000);
                 break;
             }
             default:
@@ -1407,12 +1697,47 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                             onClick={handleVideoClick}
                             style={isFullscreen ? { width: '100%', height: '100%', objectFit: 'contain' } : undefined}
                         >
-                            <source
-                                src={module.videoId ? apiBasePath() + `/video/${module.videoId}` : apiBasePath() + `/video/${module.videoPath}`}
-                                type="video/mp4"
-                            />
+                            {!useHls && (
+                                <source
+                                    src={module.videoId ? apiBasePath() + `/video/${module.videoId}` : apiBasePath() + `/video/${module.videoPath}`}
+                                    type="video/mp4"
+                                />
+                            )}
                             Your browser does not support the video tag.
                         </video>
+
+                        {/* HLS Generation Progress Bar (for older videos) */}
+                        {isGeneratingHls && (
+                            <div style={{
+                                position: 'absolute',
+                                top: '10px',
+                                left: '10px',
+                                width: '20%',
+                                minWidth: '150px',
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                borderRadius: '4px',
+                                padding: '8px',
+                                zIndex: 10
+                            }}>
+                                <div style={{ fontSize: '11px', color: '#fff', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {hlsGenerationStatus}
+                                </div>
+                                <div style={{ position: 'relative', height: '4px', backgroundColor: 'rgba(255, 255, 255, 0.2)', borderRadius: '2px', overflow: 'hidden' }}>
+                                    <div style={{ 
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: 0,
+                                        height: '100%',
+                                        width: `${hlsGenerationProgress}%`,
+                                        backgroundColor: '#4CAF50',
+                                        transition: 'width 0.3s ease'
+                                    }} />
+                                </div>
+                                <div style={{ fontSize: '10px', color: '#aaa', marginTop: '4px', textAlign: 'right' }}>
+                                    {hlsGenerationProgress}%
+                                </div>
+                            </div>
+                        )}
 
                         <div className={`video-controls ${!showControls ? 'hidden' : ''}`}>
                             <div
@@ -1490,6 +1815,33 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                                         }}
                                     />
                                 </div>
+
+                                {useHls && availableQualities.length > 0 && (
+                                    <div className="quality-selector" ref={qualityMenuRef}>
+                                        <button 
+                                            className="quality-button" 
+                                            onClick={() => setShowQualityMenu(!showQualityMenu)}
+                                            title="Video quality"
+                                        >
+                                            <Icon name="settings" />
+                                            <span className="quality-label">{currentQuality}</span>
+                                        </button>
+                                        {showQualityMenu && (
+                                            <div className="quality-menu">
+                                                {availableQualities.map((quality) => (
+                                                    <button
+                                                        key={quality.index}
+                                                        className={`quality-option ${currentQuality === quality.label.toLowerCase() ? 'active' : ''}`}
+                                                        onClick={() => handleQualityChange(quality.index)}
+                                                    >
+                                                        {quality.label}
+                                                        {currentQuality === quality.label.toLowerCase() && <Icon name="check" />}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
                                 <button className="fullscreen-button" onClick={toggleFullscreen}>
                                     <Icon name="fullscreen" />

@@ -77,6 +77,7 @@ async function initialize() {
   
   addLog('info', 'Extension initializing...');
   await loadState();
+  addLog('info', `Extension ready. Authenticated: ${state.isAuthenticated}`);
 }
 
 async function loadState() {

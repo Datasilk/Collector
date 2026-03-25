@@ -82,24 +82,24 @@
 }
 
 /* Dark Mode Support for CKEditor */
-@media (prefers-color-scheme: dark) {
+body.dark {
     /* Toolbar */
     .ck.ck-toolbar {
-        background: var(--container-bg, #242424) !important;
-        border-color: var(--container-border, #3a3a3a) !important;
+        background: var(--container-bg) !important;
+        border-color: var(--container-border) !important;
     }
     
     /* Buttons */
     .ck.ck-button,
     .ck.ck-button.ck-off {
-        background: transparent !important;
-        color: var(--global-text, rgba(255, 255, 255, 0.87)) !important;
+        background: transparent;
+        color: var(--global-text);
     }
     
     .ck.ck-button:hover,
     .ck.ck-button.ck-on {
-        background: #5a4a8a !important;
-        color: var(--global-text, rgba(255, 255, 255, 0.87)) !important;
+        background: #5a4a8a;
+        color: var(--global-text);
     }
     
     .ck.ck-button.ck-disabled {
@@ -107,80 +107,103 @@
     }
     
     /* Dropdowns */
-    .ck.ck-dropdown__panel {
-        background: var(--nav-menu-bg, #2d2d2d) !important;
-        border-color: var(--container-border, #3a3a3a) !important;
+    .ck.ck-dropdown__panel, .ck.ck-list {
+        background: var(--nav-menu-bg) !important;
+        border-color: var(--container-border) !important;
     }
     
     .ck.ck-list__item {
-        color: var(--global-text, rgba(255, 255, 255, 0.87)) !important;
+        color: var(--global-text) !important;
+        background: var(--nav-menu-bg) !important;
+    }
+    
+    .ck.ck-list__item .ck.ck-button {
+        background: var(--nav-menu-bg) !important;
+        color: var(--global-text) !important;
+    }
+    
+    .ck.ck-list__item .ck-button__label {
+        color: var(--global-text) !important;
     }
     
     .ck.ck-list__item:hover {
-        background: var(--nav-menu-hover-bg, #3a3a3a) !important;
+        background: var(--nav-menu-hover-bg) !important;
+    }
+    
+    .ck.ck-list__item:hover .ck.ck-button {
+        background: var(--nav-menu-hover-bg) !important;
     }
     
     .ck.ck-list__item.ck-on {
-        background: var(--nav-menu-hover-bg, #3a3a3a) !important;
-        color: var(--link-text, #9b8ef7) !important;
+        background: var(--nav-menu-hover-bg) !important;
+        color: var(--link-text) !important;
+    }
+    
+    .ck.ck-list__item.ck-on .ck.ck-button {
+        background: var(--nav-menu-hover-bg) !important;
+        color: var(--link-text) !important;
+    }
+    
+    .ck.ck-list__item.ck-on .ck-button__label {
+        color: var(--link-text) !important;
     }
     
     /* Input fields */
     .ck.ck-input,
     .ck.ck-input-text {
-        background: var(--input-bg, #1a1a1a) !important;
-        border-color: var(--input-border, #3a3a3a) !important;
-        color: var(--global-text, rgba(255, 255, 255, 0.87)) !important;
+        background: var(--input-bg) !important;
+        border-color: var(--input-border) !important;
+        color: var(--global-text) !important;
     }
     
     /* Labels */
     .ck.ck-label {
-        color: var(--global-text, rgba(255, 255, 255, 0.87)) !important;
+        color: var(--global-text) !important;
     }
     
     /* Balloon panels */
     .ck.ck-balloon-panel {
-        background: var(--nav-menu-bg, #2d2d2d) !important;
-        border-color: var(--container-border, #3a3a3a) !important;
+        background: var(--nav-menu-bg) !important;
+        border-color: var(--container-border) !important;
     }
     
     /* Tooltips */
     .ck.ck-tooltip__text {
-        background: var(--nav-menu-bg, #2d2d2d) !important;
-        color: var(--global-text, rgba(255, 255, 255, 0.87)) !important;
+        background: var(--nav-menu-bg) !important;
+        color: var(--global-text) !important;
     }
     
     /* Separator */
     .ck.ck-toolbar__separator {
-        background: var(--container-border, #3a3a3a) !important;
+        background: var(--container-border) !important;
     }
     
     /* Color picker */
     .ck.ck-color-grid__tile {
-        border-color: var(--container-border, #3a3a3a) !important;
+        border-color: var(--container-border) !important;
     }
     
     /* Table */
     .ck.ck-insert-table-dropdown__grid {
-        border-color: var(--container-border, #3a3a3a) !important;
+        border-color: var(--container-border) !important;
     }
     
     .ck.ck-insert-table-dropdown-grid-box {
-        border-color: var(--container-border, #3a3a3a) !important;
+        border-color: var(--container-border) !important;
     }
     
     .ck.ck-insert-table-dropdown-grid-box.ck-on {
-        background: var(--link-text, #9b8ef7) !important;
+        background: var(--link-text) !important;
     }
     
     /* Special characters grid */
     .ck.ck-character-grid__tile {
         background: transparent !important;
-        color: var(--global-text, rgba(255, 255, 255, 0.87)) !important;
+        color: var(--global-text) !important;
     }
     
     .ck.ck-character-grid__tile:hover {
-        background: var(--nav-menu-hover-bg, #3a3a3a) !important;
+        background: var(--nav-menu-hover-bg) !important;
     }
     
     /* Heading dropdown */
@@ -190,22 +213,22 @@
     .ck.ck-heading_heading4,
     .ck.ck-heading_heading5,
     .ck.ck-heading_heading6 {
-        color: var(--global-text, rgba(255, 255, 255, 0.87)) !important;
+        color: var(--global-text) !important;
     }
     
     /* Icon colors */
     .ck.ck-icon {
-        color: var(--global-text, rgba(255, 255, 255, 0.87)) !important;
+        color: var(--global-text) !important;
     }
     
     .ck.ck-button:hover .ck-icon,
     .ck.ck-button.ck-on .ck-icon {
-        color: var(--global-text, rgba(255, 255, 255, 0.87)) !important;
+        color: var(--global-text) !important;
     }
     
     /* Fix line-height plugin icon color */
     .ck.ck-icon svg,
     .ck.ck-icon svg * {
-        fill: var(--global-text, rgba(255, 255, 255, 0.87)) !important;
+        fill: var(--global-text) !important;
     }
 }

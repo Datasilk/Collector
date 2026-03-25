@@ -554,5 +554,265 @@ namespace Collector.Common
         }
 
         #endregion
+
+        #region HLS Adaptive Streaming
+
+        /// <summary>
+        /// Generates HLS playlist and multiple quality variants for adaptive streaming
+        /// </summary>
+        public static async Task<bool> GenerateHlsPlaylist(string videoFullPath, string hlsOutputDirectory, int timeoutSeconds = 300, Action<int, string> onProgress = null)
+        {
+            try
+            {
+                if (!File.Exists(videoFullPath))
+                {
+                    Console.WriteLine($"Video file not found: {videoFullPath}");
+                    return false;
+                }
+
+                if (!Directory.Exists(hlsOutputDirectory))
+                {
+                    Directory.CreateDirectory(hlsOutputDirectory);
+                }
+
+                // Get video metadata to determine available qualities
+                var (width, height, duration) = await GetVideoMetadata(videoFullPath);
+                if (width == 0 || height == 0)
+                {
+                    Console.WriteLine("Failed to get video metadata");
+                    return false;
+                }
+
+                // Define quality variants based on source resolution
+                var variants = GetQualityVariants(width, height);
+                if (variants.Count == 0)
+                {
+                    Console.WriteLine("No quality variants available");
+                    return false;
+                }
+
+                // Generate each quality variant (dynamically divided by variant count)
+                var variantPlaylists = new List<(string name, int bandwidth, int width, int height, string playlist)>();
+                var variantIndex = 0;
+                var progressPerVariant = 100.0 / variants.Count;
+                
+                foreach (var variant in variants)
+                {
+                    var variantDir = Path.Combine(hlsOutputDirectory, variant.name);
+                    Directory.CreateDirectory(variantDir);
+                    var playlistPath = Path.Combine(variantDir, "playlist.m3u8");
+                    var baseProgress = variantIndex * progressPerVariant;
+                    var success = await GenerateHlsVariant(videoFullPath, variantDir, variant.width, variant.height, variant.bitrate, timeoutSeconds, (variantProgress) =>
+                    {
+                        var overallProgress = (int)(baseProgress + (variantProgress * progressPerVariant / 100.0));
+                        onProgress?.Invoke(overallProgress, $"Encoding {variant.name} ({variantProgress:F0}%)...");
+                    });
+                    
+                    if (success)
+                    {
+                        variantPlaylists.Add((variant.name, variant.bitrate * 1000, variant.width, variant.height, $"{variant.name}/playlist.m3u8"));
+                    }
+                    
+                    variantIndex++;
+                }
+
+                if (variantPlaylists.Count == 0)
+                {
+                    Console.WriteLine("Failed to generate any quality variants");
+                    return false;
+                }
+
+                // Generate master playlist
+                var masterPlaylistPath = Path.Combine(hlsOutputDirectory, "master.m3u8");
+                await GenerateMasterPlaylist(masterPlaylistPath, variantPlaylists);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error generating HLS playlist: {ex.Message}");
+                return false;
+            }
+        }
+
+        private static List<(string name, int width, int height, int bitrate)> GetQualityVariants(int sourceWidth, int sourceHeight)
+        {
+            var variants = new List<(string name, int width, int height, int bitrate)>();
+
+            // Define quality presets (name, width, height, bitrate in kbps)
+            var presets = new[]
+            {
+                ("360p", 640, 360, 800),
+                ("480p", 854, 480, 1400),
+                ("720p", 1280, 720, 2800),
+                ("1080p", 1920, 1080, 5000)
+            };
+
+            // Only include qualities at or below source resolution
+            foreach (var preset in presets)
+            {
+                if (preset.Item2 <= sourceWidth && preset.Item3 <= sourceHeight)
+                {
+                    variants.Add(preset);
+                }
+            }
+
+            // Always include at least one quality (lowest)
+            if (variants.Count == 0 && presets.Length > 0)
+            {
+                variants.Add(presets[0]);
+            }
+
+            return variants;
+        }
+
+        private static async Task<bool> GenerateHlsVariant(string videoFullPath, string outputDir, int width, int height, int bitrateKbps, int timeoutSeconds, Action<double> onProgress = null)
+        {
+            try
+            {
+                Console.WriteLine($"GenerateHlsVariant called:");
+                Console.WriteLine($"  videoFullPath: {videoFullPath}");
+                Console.WriteLine($"  outputDir: {outputDir}");
+                Console.WriteLine($"  Video exists: {File.Exists(videoFullPath)}");
+                Console.WriteLine($"  Output dir exists: {Directory.Exists(outputDir)}");
+
+                var playlistPath = Path.Combine(outputDir, "playlist.m3u8");
+                var segmentPattern = Path.Combine(outputDir, "segment%03d.ts");
+
+                Console.WriteLine($"  playlistPath: {playlistPath}");
+                Console.WriteLine($"  segmentPattern: {segmentPattern}");
+
+                // FFmpeg command for HLS generation with specific quality
+                var arguments = $"-y -i \"{videoFullPath}\" " +
+                    $"-vf scale={width}:{height} " +
+                    $"-c:v libx264 -preset fast -crf 23 -b:v {bitrateKbps}k -maxrate {bitrateKbps * 1.5}k -bufsize {bitrateKbps * 2}k " +
+                    $"-c:a aac -b:a 128k -ac 2 " +
+                    $"-progress pipe:1 " +
+                    $"-f hls -hls_time 6 -hls_list_size 0 -hls_segment_filename \"{segmentPattern}\" " +
+                    $"\"{playlistPath}\"";
+
+                Console.WriteLine($"FFmpeg command: ffmpeg {arguments}");
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "ffmpeg",
+                    Arguments = arguments,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using (var process = Process.Start(startInfo))
+                {
+                    if (process == null)
+                    {
+                        Console.WriteLine("Failed to start ffmpeg process for HLS variant");
+                        return false;
+                    }
+
+                    // Get video duration for progress calculation
+                    var (_, _, videoDuration) = await GetVideoMetadata(videoFullPath);
+
+                    // Read output asynchronously and parse progress
+                    var stderrTask = Task.Run(async () =>
+                    {
+                        var stderr = new StringBuilder();
+                        var buffer = new char[4096];
+                        int bytesRead;
+                        while ((bytesRead = await process.StandardError.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                        {
+                            stderr.Append(buffer, 0, bytesRead);
+                        }
+                        return stderr.ToString();
+                    });
+
+                    var stdoutTask = Task.Run(async () =>
+                    {
+                        var stdout = new StringBuilder();
+                        string line;
+                        var reader = process.StandardOutput;
+                        while ((line = await reader.ReadLineAsync()) != null)
+                        {
+                            stdout.AppendLine(line);
+                            
+                            // Parse progress from FFmpeg output
+                            if (line.StartsWith("out_time_ms=") && videoDuration > 0)
+                            {
+                                var timeMs = line.Replace("out_time_ms=", "");
+                                if (long.TryParse(timeMs, out long ms))
+                                {
+                                    var currentSeconds = ms / 1000000.0;
+                                    var progress = Math.Min(100, (currentSeconds / videoDuration) * 100);
+                                    Console.WriteLine($"  {width}x{height} encoding progress: {progress:F1}% ({currentSeconds:F1}s / {videoDuration:F1}s)");
+                                    
+                                    // Report progress to callback
+                                    onProgress?.Invoke(progress);
+                                }
+                            }
+                        }
+                        return stdout.ToString();
+                    });
+
+                    var timeoutTask = Task.Delay(timeoutSeconds * 1000);
+                    var processTask = process.WaitForExitAsync();
+                    var completedTask = await Task.WhenAny(processTask, timeoutTask);
+
+                    if (completedTask == timeoutTask)
+                    {
+                        Console.WriteLine($"HLS variant generation timed out after {timeoutSeconds} seconds");
+                        try { process.Kill(); } catch { }
+                        return false;
+                    }
+
+                    var stderr = await stderrTask;
+                    var stdout = await stdoutTask;
+
+                    Console.WriteLine($"FFmpeg exit code: {process.ExitCode}");
+                    if (!string.IsNullOrEmpty(stdout))
+                    {
+                        Console.WriteLine($"FFmpeg stdout: {stdout}");
+                    }
+                    if (!string.IsNullOrEmpty(stderr))
+                    {
+                        Console.WriteLine($"FFmpeg stderr: {stderr}");
+                    }
+
+                    var success = process.ExitCode == 0 && File.Exists(playlistPath);
+                    if (!success)
+                    {
+                        Console.WriteLine($"HLS variant generation failed. Exit code: {process.ExitCode}, Playlist exists: {File.Exists(playlistPath)}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Successfully generated HLS variant at {playlistPath}");
+                    }
+                    return success;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Exception during HLS variant generation: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                return false;
+            }
+        }
+
+        private static async Task GenerateMasterPlaylist(string masterPlaylistPath, List<(string name, int bandwidth, int width, int height, string playlist)> variants)
+        {
+            var content = new StringBuilder();
+            content.AppendLine("#EXTM3U");
+            content.AppendLine("#EXT-X-VERSION:3");
+
+            foreach (var variant in variants)
+            {
+                content.AppendLine($"#EXT-X-STREAM-INF:BANDWIDTH={variant.bandwidth},RESOLUTION={variant.width}x{variant.height}");
+                content.AppendLine(variant.playlist);
+            }
+
+            await File.WriteAllTextAsync(masterPlaylistPath, content.ToString());
+        }
+
+        #endregion
     }
 }

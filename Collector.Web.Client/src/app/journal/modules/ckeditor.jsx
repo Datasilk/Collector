@@ -55,6 +55,7 @@ import {
 } from 'ckeditor5';
 import 'ckeditor5/ckeditor5.css';
 import { LineHeight } from '@rickx/ckeditor5-line-height'
+import { marked } from 'marked';
 // AI Generator plugin
 import defineAIGeneratorPlugin from './ckeditor/ai-generator';
 import AIGeneratorModal from './ckeditor/ai-generator-modal';
@@ -696,200 +697,30 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                 elem.innerHTML = '';
                 elem.appendChild(container);
 
-                /*
-                // Strip unwanted attributes on paste while preserving block structure
+                // Add markdown paste handler
                 editor.plugins.get('ClipboardPipeline').on('contentInsertion', (evt, data) => {
-                    const content = data.content;
-                    const allowedAttributes = [
-                        'linkHref',
-                        'highlight',
-                        'bold',
-                        'italic',
-                        'underline',
-                        'strikethrough',
-                        'code',
-                        'subscript',
-                        'superscript',
-                        'alignment',
-                        'indent',
-                        'blockIndent',
-                        'listType',
-                        'listIndent',
-                        'listItemId',
-                        'tableCellWidth',
-                        'colspan',
-                        'rowspan',
-                        'htmlAttributes',
-                        'htmlContentAttributes'
-                    ];
-
-                    const allowedStyleProperties = new Set([
-                        'color',
-                        'background-color',
-                        'font-family',
-                        'line-height',
-                        'text-align',
-                        'font-size'
-                    ]);
-
-                    const sanitizeStyleMap = (styleObj) => {
-                        if (!styleObj || typeof styleObj !== 'object') return null;
-
-                        const sanitized = Object.keys(styleObj).reduce((result, key) => {
-                            const normalizedKey = key.trim().toLowerCase();
-                            if (allowedStyleProperties.has(normalizedKey)) {
-                                result[key] = styleObj[key];
-                            }
-                            return result;
-                        }, {});
-
-                        return Object.keys(sanitized).length ? sanitized : null;
-                    };
-
-                    // Process the model fragment to remove unwanted attributes
-                    editor.model.change(writer => {
-                        const sanitizeElementStyles = (element) => {
-                            if (!element || typeof element.getAttribute !== 'function') return;
-
-                            // Styles can be stored inside htmlAttributes when using GeneralHtmlSupport
-                            const htmlAttributes = element.getAttribute('htmlAttributes');
-                            if (htmlAttributes && typeof htmlAttributes === 'object') {
-                                const sanitizedStyles = sanitizeStyleMap(htmlAttributes.styles);
-
-                                if (sanitizedStyles) {
-                                    writer.setAttribute('htmlAttributes', {
-                                        ...htmlAttributes,
-                                        styles: sanitizedStyles
-                                    }, element);
-                                } else if (htmlAttributes.styles) {
-                                    const updatedHtmlAttributes = { ...htmlAttributes };
-                                    delete updatedHtmlAttributes.styles;
-
-                                    if (Object.keys(updatedHtmlAttributes).length) {
-                                        writer.setAttribute('htmlAttributes', updatedHtmlAttributes, element);
-                                    } else {
-                                        writer.removeAttribute('htmlAttributes', element);
-                                    }
-                                }
-                            }
-
-                            // Some plugins may store inline style attr directly on the element
-                            if (typeof element.hasAttribute === 'function' && element.hasAttribute('style')) {
-                                const inlineStyles = element.getAttribute('style');
-                                const sanitizedInline = sanitizeStyleMap(inlineStyles);
-
-                                if (sanitizedInline) {
-                                    writer.setAttribute('style', sanitizedInline, element);
-                                } else {
-                                    writer.removeAttribute('style', element);
-                                }
-                            }
-                        };
-
-                        // Recursive function to process element and all its children
-                        const processElement = (element) => {
-                            // Check if element has getAttributeKeys method (it's a model element)
-                            if (element && element.getAttributeKeys) {
-                                sanitizeElementStyles(element);
-
-                                // Get all attributes
-                                const attributes = Array.from(element.getAttributeKeys());
-
-                                // Remove all attributes except essential CKEditor ones
-                                attributes.forEach(attr => {
-                                    // Keep only CKEditor's internal attributes and allowed styles
-                                    if (!attr.startsWith('html') && !allowedAttributes.includes(attr)) {
-                                        writer.removeAttribute(attr, element);
-                                    }
-                                });
-
-                                // Process all children recursively
-                                if (typeof element.getChildren === 'function') {
-                                    for (const child of element.getChildren()) {
-                                        processElement(child);
-                                    }
-                                }
-                            }
-                        };
-
-                        const range = writer.createRangeIn(content);
-                        for (const item of range.getItems()) {
-                            processElement(item);
-                        }
-                    });
-                }, { priority: 'high' });
-                */
-
-                // Add line breaks after htmlDivParagraph elements after content is inserted
-                let isPasting = false;
-                editor.plugins.get('ClipboardPipeline').on('inputTransformation', () => {
-                    isPasting = true;
-                }, { priority: 'highest' });
-
-                editor.model.document.on('change:data', () => {
-                    if (!isPasting) return;
-                    isPasting = false;
-
-                    editor.model.change(writer => {
-                        const root = editor.model.document.getRoot();
-                        const range = writer.createRangeIn(root);
-                        const textNodesToProcess = [];
-                        const htmlDivParagraphs = [];
-
-                        // Find all text nodes with \n and htmlDivParagraph elements
-                        for (const item of range.getItems()) {
-                            if (item && item.data && item.data.indexOf('\n') >= 0) {
-                                textNodesToProcess.push(item);
-                            }
-                            if (item && item.name === 'htmlDivParagraph') {
-                                htmlDivParagraphs.push(item);
-                            }
-                        }
-
-                        // Replace \n with softBreak in text nodes
-                        // Process in reverse order to avoid index shifting issues
-                        for (let i = textNodesToProcess.length - 1; i >= 0; i--) {
-                            const textNode = textNodesToProcess[i];
-                            const parent = textNode.parent;
-                            if (!parent) continue;
-                            
-                            const text = textNode.data;
-                            const parts = text.split('\n');
-
-                            if (parts.length > 1) {
-                                // Get position before the text node
-                                const insertPosition = writer.createPositionBefore(textNode);
-                                
-                                // Remove the original text node
-                                writer.remove(textNode);
-
-                                // Insert text parts with softBreak elements between them
-                                let currentPosition = insertPosition;
-                                for (let j = 0; j < parts.length; j++) {
-                                    const part = parts[j];
-                                    if (part.length > 0) {
-                                        writer.insertText(part, currentPosition);
-                                        currentPosition = currentPosition.getShiftedBy(part.length);
-                                    }
-                                    // Don't add softBreak after the last part
-                                    if (j < parts.length - 1) {
-                                        writer.insert(writer.createElement('softBreak'), currentPosition);
-                                        currentPosition = currentPosition.getShiftedBy(1);
-                                    }
-                                }
-                            }
-                        }
-
-                        // Insert line breaks after each htmlDivParagraph
-                        htmlDivParagraphs.forEach(element => {
-                            const parent = element.parent;
-                            if (parent) {
-                                const position = writer.createPositionAfter(element);
-                                writer.insert(writer.createElement('softBreak'), position);
-                            }
+                    const dataTransfer = data.dataTransfer;
+                    const plainText = dataTransfer.getData('text/plain');
+                    const htmlContent = dataTransfer.getData('text/html');
+                    
+                    // Only process if there's plain text, no HTML, and it looks like markdown
+                    if (plainText && !htmlContent && isMarkdown(plainText)) {
+                        // Convert markdown to HTML
+                        const html = marked.parse(plainText, { breaks: true, gfm: true });
+                        
+                        // Convert HTML to view fragment
+                        const viewFragment = editor.data.processor.toView(html);
+                        const modelFragment = editor.data.toModel(viewFragment);
+                        
+                        // Insert the converted content
+                        editor.model.change(writer => {
+                            editor.model.insertContent(modelFragment, editor.model.document.selection);
                         });
-                    });
-                });
+                        
+                        // Stop the default paste behavior
+                        evt.stop();
+                    }
+                }, { priority: 'high' });
 
                 editor.model.document.on('change:data', handleDataChange);
                 editor.editing.view.document.on('keydown', handleKeyDown);
@@ -940,6 +771,36 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
     const handleCloseAIModal = () => {
         inModal.current = false; // Set inModal ref to false when closing modal
         setShowAIModal(false);
+    };
+
+    // Helper function to detect if content is markdown
+    const isMarkdown = (text) => {
+        // Check for common markdown patterns
+        const markdownPatterns = [
+            /^#{1,6}\s/m,           // Headers
+            /\*\*.*\*\*/,           // Bold
+            /__.*__/,               // Bold (alternative)
+            /\*.*\*/,               // Italic
+            /_.*_/,                 // Italic (alternative)
+            /^\s*[-*+]\s/m,        // Unordered lists
+            /^\s*\d+\.\s/m,        // Ordered lists
+            /\[.*\]\(.*\)/,        // Links
+            /^>\s/m,                // Blockquotes
+            /`{1,3}[^`]*`{1,3}/,   // Code blocks/inline code
+            /^---$/m,               // Horizontal rules
+            /^\|.*\|$/m            // Tables
+        ];
+        
+        // Count how many patterns match
+        let matchCount = 0;
+        for (const pattern of markdownPatterns) {
+            if (pattern.test(text)) {
+                matchCount++;
+            }
+        }
+        
+        // If 2 or more markdown patterns are found, consider it markdown
+        return matchCount >= 2;
     };
 
     const handleContentGenerated = (userInput, generatedContent) => {

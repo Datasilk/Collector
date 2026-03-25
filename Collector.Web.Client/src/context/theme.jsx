@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import lightTheme from '@/styles/light.css?url';
+import darkTheme from '@/styles/dark.css?url';
 
 const ThemeContext = createContext();
 
@@ -27,7 +29,7 @@ export const ThemeProvider = ({ children }) => {
     const link = document.createElement('link');
     link.id = 'theme-stylesheet';
     link.rel = 'stylesheet';
-    link.href = `/src/styles/${theme}.css`;
+    link.href = theme === 'dark' ? darkTheme : lightTheme;
     document.head.appendChild(link);
   }, [theme]);
 

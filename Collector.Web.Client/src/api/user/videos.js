@@ -28,6 +28,9 @@ const Videos = (args) => Api({...args, useToken:true}).endpoints(({api}) => {
         generateThumbnail: (videoId, seekPosition = null) => {
             const params = seekPosition !== null ? `?seekPosition=${Math.floor(seekPosition)}` : '';
             return api.get(`/video/generate-thumbnail/${videoId}${params}`);
+        },
+        generateHls: (videoId) => {
+            return api.post(`/video/generate-hls/${videoId}`);
         }
     };
 });

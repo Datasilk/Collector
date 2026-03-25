@@ -198,6 +198,7 @@
   --entry-toolbar-button-hover-bg: rgba(100, 85, 130, 1);
   --entry-toolbar-button-text: rgba(255, 255, 255, 0.87);
   --entry-toolbar-icon: #b8a9ff;
+  --entry-toolbar-toggle-bg:#6551a1;
   
   /* === JOURNAL TAB MENU === */
   --journal-tab-bg: #2d2d2d;

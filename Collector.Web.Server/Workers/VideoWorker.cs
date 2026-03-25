@@ -46,6 +46,73 @@ namespace Collector.Web.Server.Workers
             await SendWorkerMessage(appUserId, workerId, "DownloadProgress", new { progress, status, title }, CancellationToken.None);
         }
 
+        public async Task GenerateHlsForExistingVideo(string appUserId, Guid workerId, string videoPath, CancellationToken cancellationToken)
+        {
+            try
+            {
+                lock (_stateLock)
+                {
+                    _currentProgress = 0;
+                    _currentStatus = "Starting HLS generation...";
+                }
+                await SendWorkerMessage(appUserId, workerId, "HlsGenerationProgress", new { progress = _currentProgress, status = _currentStatus }, CancellationToken.None);
+
+                var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoPath);
+
+                if (!File.Exists(videoFullPath))
+                {
+                    _logger.LogError("Video file not found for HLS generation: {VideoPath}", videoPath);
+                    await SendWorkerMessage(appUserId, workerId, "HlsGenerationError", new { message = "Video file not found" }, CancellationToken.None);
+                    return;
+                }
+
+                var videoDirectory = Path.GetDirectoryName(videoFullPath);
+                var videoFileNameWithoutExt = Path.GetFileNameWithoutExtension(videoFullPath);
+                var hlsFolder = Path.Combine(videoDirectory, videoFileNameWithoutExt, "hls");
+
+                if (!Directory.Exists(hlsFolder))
+                {
+                    Directory.CreateDirectory(hlsFolder);
+                }
+
+                _logger.LogInformation("Generating HLS playlist for existing video: {VideoPath}", videoPath);
+
+                var success = await Common.Videos.GenerateHlsPlaylist(videoFullPath, hlsFolder, timeoutSeconds: 600, onProgress: (hlsProgress, status) =>
+                {
+                    // For existing videos, use HLS progress directly (0-100%)
+                    lock (_stateLock)
+                    {
+                        _currentProgress = hlsProgress;
+                        _currentStatus = status;
+                    }
+                    SendWorkerMessage(appUserId, workerId, "HlsGenerationProgress", new { progress = _currentProgress, status = _currentStatus }, CancellationToken.None).Wait();
+                });
+
+                if (success)
+                {
+                    var hlsRelativePath = Path.Combine(Path.GetDirectoryName(videoPath), videoFileNameWithoutExt, "hls");
+                    _logger.LogInformation("Successfully generated HLS playlist at {HlsPath}", hlsRelativePath);
+                    
+                    lock (_stateLock)
+                    {
+                        _currentProgress = 100;
+                        _currentStatus = "HLS generation complete!";
+                    }
+                    await SendWorkerMessage(appUserId, workerId, "HlsGenerationComplete", new { hlsPath = hlsRelativePath.Replace("\\", "/") }, CancellationToken.None);
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to generate HLS playlist for {VideoPath}", videoPath);
+                    await SendWorkerMessage(appUserId, workerId, "HlsGenerationError", new { message = "Failed to generate HLS playlist" }, CancellationToken.None);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Exception during HLS generation for existing video");
+                await SendWorkerMessage(appUserId, workerId, "HlsGenerationError", new { message = ex.Message }, CancellationToken.None);
+            }
+        }
+
         public async Task DownloadVideo(string appUserId, Guid workerId, string url, int journalId, string entryId, string moduleId, CancellationToken cancellationToken)
         {
             try
@@ -180,7 +247,7 @@ namespace Collector.Web.Server.Workers
                     _currentProgress = 90;
                     _currentStatus = "Generating preview thumbnail...";
                 }
-                await SendWorkerMessage(appUserId, workerId, "DownloadProgress", new { progress = _currentProgress, status = _currentStatus }, cancellationToken);
+                await SendWorkerMessage(appUserId, workerId, "DownloadProgress", new { progress = _currentProgress, status = _currentStatus }, CancellationToken.None);
 
                 var thumbnailFileName = $"{Path.GetFileNameWithoutExtension(fileName)}_thumb.jpg";
                 var thumbnailRelativePath = Path.Combine(entryId, thumbnailFileName);
@@ -188,7 +255,7 @@ namespace Collector.Web.Server.Workers
 
                 lock (_stateLock)
                 {
-                    _currentProgress = 92;
+                    _currentProgress = 70;
                     _currentStatus = "Processing video metadata...";
                 }
                 await SendWorkerMessage(appUserId, workerId, "DownloadProgress", new { progress = _currentProgress, status = _currentStatus }, cancellationToken);
@@ -209,9 +276,12 @@ namespace Collector.Web.Server.Workers
                     _logger.LogError(ex, "Failed to get video file size for {VideoPath}", videoFullPath);
                 }
 
+                // Generate HLS playlist for adaptive streaming (70-90%)
+                var hlsPath = await GenerateHlsPlaylist(relativePath, cancellationToken, appUserId, workerId);
+
                 lock (_stateLock)
                 {
-                    _currentProgress = 95;
+                    _currentProgress = 90;
                     _currentStatus = "Generating seek preview thumbnails...";
                 }
                 await SendWorkerMessage(appUserId, workerId, "DownloadProgress", new { progress = _currentProgress, status = _currentStatus }, cancellationToken);
@@ -225,6 +295,7 @@ namespace Collector.Web.Server.Workers
                     id = videoId,
                     videoPath = relativePath.Replace("\\", "/"),
                     thumbnailPath = thumbnailSuccess ? thumbnailRelativePath.Replace("\\", "/") : null,
+                    hlsPath = hlsPath?.Replace("\\", "/"),
                     width,
                     height,
                     duration,
@@ -235,7 +306,7 @@ namespace Collector.Web.Server.Workers
                     _currentProgress = 100;
                     _currentStatus = "Complete!";
                 }
-                await SendWorkerMessage(appUserId, workerId, "DownloadProgress", new { progress = _currentProgress, status = _currentStatus }, cancellationToken);
+                await SendWorkerMessage(appUserId, workerId, "DownloadProgress", new { progress = _currentProgress, status = _currentStatus }, CancellationToken.None);
             }
             catch (OperationCanceledException)
             {
@@ -352,7 +423,7 @@ namespace Collector.Web.Server.Workers
                     _logger.LogInformation("Final video file already exists, skipping download: {Path}", videoFullPath);
                     lock (_stateLock)
                     {
-                        _currentProgress = 90;
+                        _currentProgress = 70;
                         _currentStatus = "Video already processed...";
                     }
                     await SendWorkerMessage(appUserId, workerId, "DownloadProgress", new { progress = _currentProgress, status = _currentStatus }, CancellationToken.None);
@@ -369,7 +440,7 @@ namespace Collector.Web.Server.Workers
             var videoExists = await IsFileFullyDownloaded(videoTempPath);
             var audioExists = await IsFileFullyDownloaded(audioTempPath);
 
-            // Download video stream (0-40%) if not already downloaded
+            // Download video stream (0-35%) if not already downloaded
             // Use flexible format: best video, prefer mp4 but accept any
             if (!videoExists)
             {
@@ -377,37 +448,37 @@ namespace Collector.Web.Server.Workers
                 {
                     _currentStatus = "Downloading video stream...";
                 }
-                await DownloadStream(url, videoTempPath, "bestvideo*[ext=mp4]/bestvideo*/best[ext=mp4]/best", 0, 40, cancellationToken, appUserId, workerId);
+                await DownloadStream(url, videoTempPath, "bestvideo*[ext=mp4]/bestvideo*/bestvideo", 0, 35, cancellationToken, appUserId, workerId);
             }
             else
             {
                 _logger.LogInformation("Video stream already downloaded, skipping: {Path}", videoTempPath);
                 lock (_stateLock)
                 {
-                    _currentProgress = 40;
+                    _currentProgress = 35;
                     _currentStatus = "Video stream already downloaded...";
                 }
                 await SendWorkerMessage(appUserId, workerId, "DownloadProgress", new { progress = _currentProgress, status = _currentStatus }, CancellationToken.None);
             }
 
-            // Download audio stream (40-80%) if not already downloaded
+            // Download audio stream (35-60%) if not already downloaded
             // Use flexible format: best audio, prefer m4a but accept any
             if (!audioExists)
             {
                 lock (_stateLock)
                 {
-                    _currentProgress = 40;
+                    _currentProgress = 35;
                     _currentStatus = "Downloading audio stream...";
                 }
                 await SendWorkerMessage(appUserId, workerId, "DownloadProgress", new { progress = _currentProgress, status = _currentStatus }, CancellationToken.None);
-                await DownloadStream(url, audioTempPath, "bestaudio*[ext=m4a]/bestaudio*/bestaudio", 40, 80, cancellationToken, appUserId, workerId);
+                await DownloadStream(url, audioTempPath, "bestaudio*[ext=m4a]/bestaudio*/bestaudio", 35, 60, cancellationToken, appUserId, workerId);
             }
             else
             {
                 _logger.LogInformation("Audio stream already downloaded, skipping: {Path}", audioTempPath);
                 lock (_stateLock)
                 {
-                    _currentProgress = 80;
+                    _currentProgress = 60;
                     _currentStatus = "Audio stream already downloaded...";
                 }
                 await SendWorkerMessage(appUserId, workerId, "DownloadProgress", new { progress = _currentProgress, status = _currentStatus }, CancellationToken.None);
@@ -416,7 +487,7 @@ namespace Collector.Web.Server.Workers
             // Check if we have both files
             if (File.Exists(videoTempPath) && File.Exists(audioTempPath))
             {
-                // Merge with ffmpeg (80-90%)
+                // Merge with ffmpeg (60-70%)
                 await MergeWithFfmpeg(videoTempPath, audioTempPath, videoFullPath, cancellationToken, appUserId, workerId);
 
                 // Clean up temp files
@@ -627,7 +698,7 @@ namespace Collector.Web.Server.Workers
 
             lock (_stateLock)
             {
-                _currentProgress = 80;
+                _currentProgress = 60;
                 _currentStatus = "Merging video & audio...";
             }
             await SendWorkerMessage(appUserId, workerId, "DownloadProgress", new { progress = _currentProgress, status = _currentStatus }, CancellationToken.None);
@@ -666,9 +737,8 @@ namespace Collector.Web.Server.Workers
                             {
                                 var currentSeconds = ms / 1000000.0; // out_time_ms is in microseconds
                                 var mergeProgress = Math.Min(100, (currentSeconds / duration) * 100);
-                                // Merge phase: 80-90%
-                                var mappedProgress = 80 + (int)Math.Round((10.0 / 100.0) * mergeProgress);
-
+                                // Merge phase: 60-70%
+                                var mappedProgress = 60 + (int)Math.Round(10.0 * mergeProgress);
                                 if (mappedProgress != lastSentProgress)
                                 {
                                     lastSentProgress = mappedProgress;
@@ -795,7 +865,7 @@ namespace Collector.Web.Server.Workers
                     Directory.CreateDirectory(previewFolder);
                 }
 
-                // Calculate total thumbnails for progress tracking (95-99%)
+                // Calculate total thumbnails for progress tracking (90-100%)
                 var totalThumbnails = (int)Math.Ceiling(duration / 10.0);
                 var thumbnailIndex = 0;
 
@@ -822,10 +892,10 @@ namespace Collector.Web.Server.Workers
 
                     await GenerateThumbnail(videoRelativePath, previewRelativePath, null, 160, 90, true, second, cancellationToken);
 
-                    // Update progress (95-99%)
+                    // Update progress (90-100%)
                     thumbnailIndex++;
                     var thumbnailProgress = (double)thumbnailIndex / totalThumbnails;
-                    var mappedProgress = 95 + (int)Math.Round(4.0 * thumbnailProgress);
+                    var mappedProgress = 90 + (int)Math.Round(10.0 * thumbnailProgress);
                     lock (_stateLock)
                     {
                         _currentProgress = mappedProgress;
@@ -836,6 +906,60 @@ namespace Collector.Web.Server.Workers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Exception during seek preview thumbnail generation in VideoWorker");
+            }
+        }
+
+        private async Task<string> GenerateHlsPlaylist(string videoRelativePath, CancellationToken cancellationToken, string appUserId, Guid workerId)
+        {
+            try
+            {
+                var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoRelativePath);
+
+                if (!File.Exists(videoFullPath))
+                {
+                    _logger.LogError("Video file not found for HLS generation: {VideoPath}", videoFullPath);
+                    return null;
+                }
+
+                var videoDirectory = Path.GetDirectoryName(videoFullPath);
+                var videoFileNameWithoutExt = Path.GetFileNameWithoutExtension(videoFullPath);
+                var hlsFolder = Path.Combine(videoDirectory, videoFileNameWithoutExt, "hls");
+
+                if (!Directory.Exists(hlsFolder))
+                {
+                    Directory.CreateDirectory(hlsFolder);
+                }
+
+                _logger.LogInformation("Generating HLS playlist for {VideoPath}", videoRelativePath);
+
+                var success = await Common.Videos.GenerateHlsPlaylist(videoFullPath, hlsFolder, timeoutSeconds: 600, onProgress: (hlsProgress, status) =>
+                {
+                    // Map HLS progress (0-100%) to overall download progress (70-90%)
+                    var mappedProgress = 70 + (int)(hlsProgress * 0.20);
+                    lock (_stateLock)
+                    {
+                        _currentProgress = mappedProgress;
+                        _currentStatus = status;
+                    }
+                    SendWorkerMessage(appUserId, workerId, "DownloadProgress", new { progress = _currentProgress, status = _currentStatus }, CancellationToken.None).Wait();
+                });
+
+                if (success)
+                {
+                    var hlsRelativePath = Path.Combine(Path.GetDirectoryName(videoRelativePath), videoFileNameWithoutExt, "hls");
+                    _logger.LogInformation("Successfully generated HLS playlist at {HlsPath}", hlsRelativePath);
+                    return hlsRelativePath;
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to generate HLS playlist for {VideoPath}", videoRelativePath);
+                    return null;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Exception during HLS playlist generation in VideoWorker");
+                return null;
             }
         }
     }

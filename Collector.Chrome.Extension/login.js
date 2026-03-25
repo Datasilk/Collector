@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     serverUrlInput.value = stored.serverUrl;
   } else {
     // Default to localhost for development
-    serverUrlInput.value = 'https://localhost:7001';
+    serverUrlInput.value = 'https://localhost:7781';
   }
 
   form.addEventListener('submit', async (e) => {

@@ -501,5 +501,88 @@ namespace Collector.API.Controllers
                 return Json(new ApiResponse { success = false, message = ex.Message });
             }
         }
+
+        [Authorize]
+        [HttpPost("/video/generate-hls/{id}")]
+        public async Task<IActionResult> GenerateHlsPlaylist(int id)
+        {
+            try
+            {
+                var video = await _videoRepo.GetById(id);
+                if (video == null)
+                {
+                    return Json(new ApiResponse { success = false, message = "Video not found" });
+                }
+
+                var videoPath = Path.Combine(video.JournalEntryId.ToString(), video.Filename);
+                var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoPath);
+
+                if (!System.IO.File.Exists(videoFullPath))
+                {
+                    return Json(new ApiResponse { success = false, message = "Video file not found" });
+                }
+
+                // Create HLS directory structure
+                var videoFileNameWithoutExt = Path.GetFileNameWithoutExtension(video.Filename);
+                var hlsDir = Path.Combine(video.JournalEntryId.ToString(), videoFileNameWithoutExt, "hls");
+                var hlsFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), hlsDir);
+
+                // Generate HLS playlist and variants
+                var success = await Common.Videos.GenerateHlsPlaylist(videoFullPath, hlsFullPath, timeoutSeconds: 600);
+
+                if (!success)
+                {
+                    return Json(new ApiResponse { success = false, message = "Failed to generate HLS playlist" });
+                }
+
+                return Json(new ApiResponse
+                {
+                    success = true,
+                    data = new { hlsPath = hlsDir.Replace("\\", "/") }
+                });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpGet("/video/hls/{*path}")]
+        public IActionResult GetHlsContent(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                return NotFound();
+            }
+
+            try
+            {
+                var fullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), path);
+
+                if (!System.IO.File.Exists(fullPath))
+                {
+                    return NotFound("HLS content not found");
+                }
+
+                var ext = Path.GetExtension(path)?.ToLowerInvariant();
+                var contentType = ext switch
+                {
+                    ".m3u8" => "application/vnd.apple.mpegurl",
+                    ".ts" => "video/mp2t",
+                    _ => "application/octet-stream"
+                };
+
+                // Add CORS headers for HLS streaming
+                Response.Headers.Add("Access-Control-Allow-Origin", "*");
+                Response.Headers.Add("Access-Control-Allow-Methods", "GET, OPTIONS");
+                Response.Headers.Add("Access-Control-Allow-Headers", "Range");
+
+                return PhysicalFile(fullPath, contentType, enableRangeProcessing: true);
+            }
+            catch (Exception ex)
+            {
+                return NotFound($"HLS content not found: {path}");
+            }
+        }
     }
 }
