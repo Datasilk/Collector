@@ -197,7 +197,9 @@ body.scrolled .entry-header  .add-module-container{
     font-size: 0.85rem;
     font-weight: 500;
     animation: fadeIn 0.3s ease;
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
     margin-right: 1em;
 }
 
@@ -1087,6 +1089,10 @@ body.scrolled .entry-header .add-module-container{
     color: var(--pdf-loading-text);
 }
 
+.image-module .image-preview img{
+    width:100%;
+}
+
 .image-gallery-main {
     background: var(--image-gallery-bg);
     border-radius: 1em;
@@ -1741,6 +1747,52 @@ body.scrolled .entry-header .add-module-container{
 .video-player-module .or{
     vertical-align: middle;
     padding:0.5em 0 0 0;
+}
+
+.hls-generation-overlay {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    width: 20%;
+    min-width: 150px;
+    max-width: 250px;
+    background-color: rgba(0, 0, 0, 0.8);
+    border-radius: 4px;
+    padding: 8px;
+    z-index: 10;
+}
+
+.hls-generation-overlay .hls-status-text {
+    font-size: 11px;
+    color: #fff;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.hls-generation-overlay .hls-progress-bar {
+    position: relative;
+    height: 4px;
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.hls-generation-overlay .hls-progress-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background-color: #7763ed;
+    transition: width 0.3s ease;
+}
+
+.hls-generation-overlay .hls-progress-percent {
+    font-size: 10px;
+    color: #aaa;
+    margin-top: 4px;
+    text-align: right;
 }
 
 /* Custom Video Player Controls */
@@ -2636,5 +2688,41 @@ body.scrolled .entry-header .add-module-container{
 
 .generate-content-resume{
     text-align:center;
+    width:100%;
+}
+
+/* Checklist Module Styles */
+.checklist-item .form-group {
+    margin: 0;
+    display: inline-block;
+    width: 100%;
+}
+
+.checklist-item label{
+    display:inline-block;
+    width:100%;
+}
+
+.checklist-item .checklist-item-label{
+    display:inline-block;
+    padding:0.15em;
+    width:calc(100% - 3em);
+}
+
+.checklist-item .checkbox-input{
+    width:2em;
+    width: 1.2em;
+    height: 1.2em;
+    cursor: pointer;
+}
+
+.checklist-item .checkbox-label{
+    display:inline-block;
+    width:calc(100% - 3em);
+}
+
+.checklist-item .checkbox-label input{
+    padding:0.25em;
+    font-size:0.9rem;
     width:100%;
 }

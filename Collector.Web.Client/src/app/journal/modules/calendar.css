@@ -1,6 +1,6 @@
 .calendar-module {
     padding: 1em;
-    background: #fff;
+    background: var(--calendar-module-bg);
     border-radius: 4px;
 }
 
@@ -10,14 +10,14 @@
     justify-content: space-between;
     margin-bottom: 1em;
     padding-bottom: 0.5em;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid var(--calendar-header-border);
 }
 
 .calendar-title {
     margin: 0;
     font-size: 1.5em;
     font-weight: 600;
-    color: #333;
+    color: var(--calendar-title-text);
 }
 
 .calendar-nav-btn {
@@ -33,7 +33,7 @@
 }
 
 .calendar-nav-btn:hover {
-    background: #f0f0f0;
+    background: var(--calendar-nav-btn-hover-bg);
 }
 
 .calendar-grid {
@@ -46,9 +46,9 @@
     text-align: center;
     font-weight: 600;
     padding: 0.5em;
-    color: #666;
+    color: var(--calendar-day-header-text);
     font-size: 0.9em;
-    border-bottom: 2px solid #e0e0e0;
+    border-bottom: 2px solid var(--calendar-day-header-border);
     margin-bottom: 4px;
 }
 
@@ -56,12 +56,13 @@
     aspect-ratio: 1;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid #e0e0e0;
+    align-items: flex-start;
+    justify-content: flex-start;
+    padding: 1em;
+    border: 1px solid var(--calendar-day-border);
     border-radius: 4px;
     position: relative;
-    background: #fff;
+    background: var(--calendar-day-bg);
     transition: all 0.2s;
 }
 
@@ -75,29 +76,67 @@
 }
 
 .calendar-day.editable:hover {
-    background: #f8f8f8;
-    border-color: #ccc;
+    background: var(--calendar-day-hover-bg);
+    border-color: var(--calendar-day-hover-border);
     transform: scale(1.05);
 }
 
 .calendar-day.today {
-    border-color: #4CAF50;
+    border-color: var(--calendar-today-border);
     border-width: 2px;
     font-weight: 600;
 }
 
 .calendar-day.crossed-off {
-    background: #e8f5e9;
-    border-color: #4CAF50;
+    background: var(--calendar-crossed-bg);
+    border-color: var(--calendar-crossed-border);
 }
 
 .calendar-day.crossed-off .day-number {
-    color: #2e7d32;
+    color: var(--calendar-crossed-text);
 }
 
 .day-number {
     font-size: 1.1em;
-    color: #333;
+    color: var(--calendar-day-text);
+}
+
+.day-edit-icon {
+    position: absolute;
+    top: 0.2em;
+    right: 0.2em;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.calendar-day.editable:hover .day-edit-icon {
+    opacity: 1;
+}
+
+.day-edit-icon button {
+    padding: 0.2em;
+    font-size: 0.8em;
+}
+
+.day-edit-icon .material-symbols-rounded {
+    font-size: 1em;
+}
+
+.day-note {
+    position: absolute;
+    bottom: 0.5em;
+    left: 0.5em;
+    right: 0.5em;
+    font-size: 0.8em;
+    opacity: 0.7;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    word-break: break-word;
 }
 
 .cross-mark {
@@ -109,10 +148,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 3em;
-    color: #4CAF50;
+    font-size: 6em;
+    color: var(--calendar-cross-mark);
     font-weight: bold;
     line-height: 1;
+    pointer-events: none;
 }
 
 /* Responsive adjustments */
@@ -126,6 +166,6 @@
     }
     
     .cross-mark {
-        font-size: 2.5em;
+        font-size: 4em;
     }
 }

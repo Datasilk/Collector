@@ -188,6 +188,39 @@ form .form-group,
     font-weight:bold;
 }
 
+.custom-checkbox {
+    display: inline-block;
+    width: 1.2em;
+    height: 1.2em;
+    border: 2px solid var(--checkbox-border);
+    border-radius: 3px;
+    background: var(--checkbox-bg);
+    cursor: pointer;
+    position: relative;
+    vertical-align: middle;
+    margin-right: 0.5em;
+    transition: all 0.2s ease;
+}
+
+.custom-checkbox:hover {
+    border-color: var(--checkbox-color);
+}
+
+.is-checked .custom-checkbox {
+    background: var(--checkbox-color);
+    border-color: var(--checkbox-color);
+}
+
+.checkbox-checkmark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 0.9em;
+    height: 0.9em;
+    stroke: var(--checkbox-bg);
+}
+
 .dropdown-arrow{
     display:inline-block;
     position:relative;

@@ -1708,32 +1708,17 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
 
                         {/* HLS Generation Progress Bar (for older videos) */}
                         {isGeneratingHls && (
-                            <div style={{
-                                position: 'absolute',
-                                top: '10px',
-                                left: '10px',
-                                width: '20%',
-                                minWidth: '150px',
-                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                                borderRadius: '4px',
-                                padding: '8px',
-                                zIndex: 10
-                            }}>
-                                <div style={{ fontSize: '11px', color: '#fff', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <div className="hls-generation-overlay">
+                                <div className="hls-status-text">
                                     {hlsGenerationStatus}
                                 </div>
-                                <div style={{ position: 'relative', height: '4px', backgroundColor: 'rgba(255, 255, 255, 0.2)', borderRadius: '2px', overflow: 'hidden' }}>
-                                    <div style={{ 
-                                        position: 'absolute',
-                                        top: 0,
-                                        left: 0,
-                                        height: '100%',
-                                        width: `${hlsGenerationProgress}%`,
-                                        backgroundColor: '#4CAF50',
-                                        transition: 'width 0.3s ease'
-                                    }} />
+                                <div className="hls-progress-bar">
+                                    <div 
+                                        className="hls-progress-fill"
+                                        style={{ width: `${hlsGenerationProgress}%` }}
+                                    />
                                 </div>
-                                <div style={{ fontSize: '10px', color: '#aaa', marginTop: '4px', textAlign: 'right' }}>
+                                <div className="hls-progress-percent">
                                     {hlsGenerationProgress}%
                                 </div>
                             </div>

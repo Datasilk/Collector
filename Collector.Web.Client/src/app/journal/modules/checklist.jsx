@@ -139,6 +139,7 @@ export default function ChecklistModule({ module, entryId, onUpdate, isEditable 
     };
 
     const handleItemClick = (e, item) => {
+        if (!isEditable) return;
         e.stopPropagation();
         e.preventDefault();
         setEditingItemId(item.id);
@@ -388,7 +389,7 @@ export default function ChecklistModule({ module, entryId, onUpdate, isEditable 
                             checked={item.status === 1}
                             onChange={(checked) => handleItemChange(item, checked)}
                             label={<>
-                                {editingItemId === item.id ? (
+                                {isEditable && editingItemId === item.id ? (
                                     <Input
                                         ref={titleInputRef}
                                         name={`checklist-item-input-${item.id}`}
@@ -408,7 +409,7 @@ export default function ChecklistModule({ module, entryId, onUpdate, isEditable 
                                     <span
                                         className="checklist-item-label"
                                         onClick={(e) => handleItemClick(e, item)}
-                                        style={{ cursor: 'pointer' }}
+                                        style={{ cursor: isEditable ? 'pointer' : 'default' }}
                                     >
                                         {item.title !== '' ? item.title : <>&nbsp;</>}
                                     </span>

@@ -238,14 +238,29 @@
   --pdf-viewport-bg: #f5f5f5;
   --pdf-loading-text: #444;
   
-  /* === CALENDAR === */
+  /* === CHECKBOX === */
+  --checkbox-color: #9b8ef7;
+  --checkbox-bg: #ffffff;
+  --checkbox-border: #d0d0d0;
+
+  /* === CALENDAR MODULE === */
+  --calendar-module-bg: #ffffff;
+  --calendar-module-border: #e0e0e0;
+  --calendar-header-border: #e0e0e0;
+  --calendar-title-text: #333;
+  --calendar-nav-btn-hover-bg: #f0f0f0;
+  --calendar-day-header-text: #666;
+  --calendar-day-header-border: #e0e0e0;
   --calendar-day-bg: #ffffff;
   --calendar-day-border: #e0e0e0;
-  --calendar-day-hover-bg: #f5f5f5;
-  --calendar-today-bg: #e3f2fd;
-  --calendar-today-border: #42a5f5;
-  --calendar-crossed-bg: #f5f5f5;
-  --calendar-crossed-text: #999;
+  --calendar-day-text: #333;
+  --calendar-day-hover-bg: #f8f8f8;
+  --calendar-day-hover-border: #ccc;
+  --calendar-today-border: #7763ed;
+  --calendar-crossed-bg: #eae5fb;
+  --calendar-crossed-border: #b183ff;
+  --calendar-crossed-text: #5503d1;
+  --calendar-cross-mark: #b183ff;
   
   /* === TOGGLE SWITCH === */
   --toggle-label-text: #213547;

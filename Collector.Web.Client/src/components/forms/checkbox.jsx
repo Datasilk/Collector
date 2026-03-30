@@ -38,15 +38,25 @@ export default function Checkbox({
                 {label && (
                     <label htmlFor={inputId}>
                         {!isLabel && !iconUnchecked && !iconChecked && (
-                            <input
-                                type="checkbox"
-                                id={inputId}
-                                name={name}
-                                checked={checked}
-                                onChange={handleChange}
-                                onInput={onInput}
-                                className="checkbox-input"
-                            />
+                            <>
+                                <input
+                                    type="checkbox"
+                                    id={inputId}
+                                    name={name}
+                                    checked={checked}
+                                    onChange={handleChange}
+                                    onInput={onInput}
+                                    className="checkbox-input-hidden"
+                                    style={{ display: 'none' }}
+                                />
+                                <div className="custom-checkbox" onClick={() => handleChange({ target: { checked: !checked } })}>
+                                    {checked && (
+                                        <svg viewBox="0 0 16 16" className="checkbox-checkmark">
+                                            <path d="M13.5 3.5L6 11L2.5 7.5" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                                        </svg>
+                                    )}
+                                </div>
+                            </>
                         )}
                         {!isLabel && iconUnchecked && iconChecked && (checked ? iconChecked : iconUnchecked)}
                         <span className="checkbox-label">

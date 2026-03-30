@@ -72,7 +72,7 @@
   
   /* === CHAT WINDOW === */
   --chat-fab-bg: rgba(155, 142, 247, 0.9);
-  --chat-fab-hover-bg: rgba(155, 142, 247, 1);
+  --chat-fab-hover-bg: #9b8ef7;
   --chat-fab-text: #1a1a1a;
   --chat-fab-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
   --chat-fab-hover-shadow: 0 6px 16px rgba(0, 0, 0, 0.6);
@@ -238,14 +238,29 @@
   --pdf-viewport-bg: #2d2d2d;
   --pdf-loading-text: #aaa;
   
-  /* === CALENDAR === */
+  /* === CHECKBOX === */
+  --checkbox-color: #9b8ef7;
+  --checkbox-bg: #2d2d2d;
+  --checkbox-border: #4a4a4a;
+
+  /* === CALENDAR MODULE === */
+  --calendar-module-bg: #242424;
+  --calendar-module-border: #3a3a3a;
+  --calendar-header-border: #3a3a3a;
+  --calendar-title-text: rgba(255, 255, 255, 0.87);
+  --calendar-nav-btn-hover-bg: #2d2d2d;
+  --calendar-day-header-text: #aaa;
+  --calendar-day-header-border: #3a3a3a;
   --calendar-day-bg: #242424;
   --calendar-day-border: #3a3a3a;
+  --calendar-day-text: rgba(255, 255, 255, 0.87);
   --calendar-day-hover-bg: #2d2d2d;
-  --calendar-today-bg: #2d3a4a;
-  --calendar-today-border: #42a5f5;
-  --calendar-crossed-bg: #2d2d2d;
-  --calendar-crossed-text: #666;
+  --calendar-day-hover-border: #4a4a4a;
+  --calendar-today-border: #9b8ef7;
+  --calendar-crossed-bg: #2d253a;
+  --calendar-crossed-border: #6a4a8b;
+  --calendar-crossed-text: #c299ff;
+  --calendar-cross-mark: #9b8ef7;
   
   /* === TOGGLE SWITCH === */
   --toggle-label-text: rgba(255, 255, 255, 0.87);
