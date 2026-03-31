@@ -68,6 +68,22 @@ namespace Collector.API.Controllers
             }
         }
 
+        [HttpGet("filter")]
+        public async Task<IActionResult> Filter([FromQuery] string search = "", [FromQuery] int limit = 10)
+        {
+            try
+            {
+                var userId = GetUserId();
+                var checkLists = await _checkListsRepo.FilterByUser(userId, search, limit);
+                
+                return Json(new ApiResponse { success = true, data = checkLists });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
         [HttpPost("add")]
         public async Task<IActionResult> Add([FromBody] AddCheckListModel model)
         {

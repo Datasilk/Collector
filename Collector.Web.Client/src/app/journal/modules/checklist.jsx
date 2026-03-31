@@ -356,9 +356,14 @@ export default function ChecklistModule({ module, entryId, onUpdate, isEditable 
                 items={items}
                 module={module}
                 onUpdate={onUpdate}
-                onSaved={(title, description) => {
+                onSaved={(title, description, items, loadedChecklistId) => {
                     setChecklistTitle(title || '');
                     setChecklistDescription(description || '');
+                    if (items && loadedChecklistId) {
+                        setItems(items);
+                        setChecklistId(loadedChecklistId);
+                        onUpdate({ ...module, checklistId: loadedChecklistId, checklist: { items: items, title: title || '', description: description || '' } });
+                    }
                 }}
             />
         ));

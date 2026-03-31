@@ -36,7 +36,7 @@ export default function EntryToolbar({
     children
 }) {
     const session = useSession();
-    const { journalId } = useParams();
+    const { journalId, entryId } = useParams();
     const navigate = useNavigate();
     
     // Check if noui querystring is present
@@ -584,7 +584,7 @@ export default function EntryToolbar({
                         )}
                     </div>
 
-                    {isEditing && (
+                    {isEditing && entryId !== 'new' && (
                         <div className="tool-bar add-module-container">
                             <div className="right-side">
                                 <button
@@ -618,7 +618,7 @@ export default function EntryToolbar({
             </div>
             {children}
 
-            {hasModules && isEditing && (
+            {hasModules && isEditing && entryId !== 'new' && (
                 <div className="tool-bar add-module-container bottom-add-module">
                     <div className="right-side">
                         <button

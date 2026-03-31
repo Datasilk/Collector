@@ -6,6 +6,7 @@ const JournalChecklists = (args) => Api({...args, useToken:true}).endpoints(({ap
         // Checklists
         getChecklist: (id) => api.get(`${apiPath}/${id}`),
         getChecklistsByEntry: (entryId) => api.get(`${apiPath}/entry/${entryId}`),
+        filterChecklists: (search = '', limit = 10) => api.get(`${apiPath}/filter?search=${encodeURIComponent(search)}&limit=${limit}`),
         addChecklist: (checklist) => api.post(`${apiPath}/add`, checklist),
         updateChecklist: (checklist) => api.post(`${apiPath}/update`, checklist),
         updateChecklistTitle: (id, title) => api.post(`${apiPath}/update-title`, { Id: id, Title: title }),

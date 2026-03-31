@@ -13,6 +13,7 @@ namespace Collector.Common.Entities
         public string Description { get; set; }
         public DateTime Created { get; set; }
         public int Status { get; set; }
+        public string EntryTitle { get; set; }
         public List<JournalCheckListItem> Items { get; set; }
     }
 }

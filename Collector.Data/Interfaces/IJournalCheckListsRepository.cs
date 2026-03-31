@@ -9,6 +9,7 @@ namespace Collector.Data.Interfaces
     {
         Task<JournalCheckList> GetById(int id);
         Task<List<JournalCheckList>> GetByEntryId(Guid entryId);
+        Task<List<JournalCheckList>> FilterByUser(Guid userId, string search, int limit);
         Task<int> Add(JournalCheckList checkList);
         Task<bool> Update(JournalCheckList checkList);
         Task<bool> UpdateTitle(int id, string title);

@@ -81,6 +81,24 @@ namespace Collector.Data.Repositories
             }
         }
 
+        public async Task<List<JournalCheckList>> FilterByUser(Guid userId, string search, int limit)
+        {
+            var sql = @"
+                SELECT c.*, e.""Title"" as EntryTitle 
+                FROM public.""JournalCheckLists"" c
+                LEFT JOIN public.""JournalEntries"" e ON c.""EntryId"" = e.""Id""
+                WHERE c.""AppUserId"" = @UserId
+                AND (@Search IS NULL OR @Search = '' OR c.""Title"" ILIKE @SearchPattern OR c.""Description"" ILIKE @SearchPattern OR e.""Title"" ILIKE @SearchPattern)
+                ORDER BY c.""Created"" DESC
+                LIMIT @Limit;
+            ";
+            
+            var searchPattern = string.IsNullOrEmpty(search) ? null : $"%{search}%";
+            var checklists = await _db.QueryAsync<JournalCheckList>(sql, new { UserId = userId, Search = search, SearchPattern = searchPattern, Limit = limit });
+            
+            return checklists.AsList();
+        }
+
         public async Task<int> Add(JournalCheckList checkList)
         {
             var sql = @"

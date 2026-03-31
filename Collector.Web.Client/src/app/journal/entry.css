@@ -2726,3 +2726,40 @@ body.scrolled .entry-header .add-module-container{
     font-size:0.9rem;
     width:100%;
 }
+
+/* Checklist Settings Modal */
+.checklist-load-section {
+    margin-top: 20px;
+}
+
+.checklist-load-button-container {
+    margin-top: 20px;
+}
+
+.checklist-search-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.checklist-loading-container {
+    padding: 20px;
+    text-align: center;
+}
+
+.checklist-confirmation-item {
+    padding: 0.5em 0;
+    border-bottom: 1px solid var(--global-separator);
+}
+
+.checklist-confirmation-more {
+    padding: 0.5em 0;
+    font-style: italic;
+    color: var(--global-text-muted);
+}
+
+.checklist-confirmation-empty {
+    font-style: italic;
+    color: var(--global-text-muted);
+}

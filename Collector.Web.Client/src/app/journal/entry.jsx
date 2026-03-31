@@ -54,6 +54,14 @@ export default function JournalEntryPage() {
 
     //effect
     useEffect(() => {
+        // If there are pending changes, save them immediately before navigating
+        if (saveTimerRef.current) {
+            clearTimeout(saveTimerRef.current);
+            saveTimerRef.current = null;
+            // Immediately save pending changes
+            finishSaving();
+        }
+        
         //reset state
         setupEntry(null, null, [], false);
         setLoading(true);
@@ -428,16 +436,22 @@ export default function JournalEntryPage() {
     const finishSaving = useCallback(() => {
         // Always use the latest state from entryJsonRef
         const json = entryJsonRef.current;
+        const currentEntry = entryRef.current;
         
         if (!json || !json.modules || json.modules.length === 0) {
             console.warn('finishSaving: no valid data to save');
             return;
         }
         
+        if (!currentEntry || !currentEntry.id) {
+            console.warn('finishSaving: no valid entry to save to');
+            return;
+        }
+        
         setSaveStatus('saving');
         try {
             const contentString = JSON.stringify(json);
-            updateEntryContent(entry.id, contentString).then(response => {
+            updateEntryContent(currentEntry.id, contentString).then(response => {
                 if (!response.data.success) {
                     console.error('saveEntryContent: API error', response.data);
                     const errorMessage = response.data.message || '';
@@ -462,7 +476,7 @@ export default function JournalEntryPage() {
             console.error('Error saving entry content:', err);
             setSaveStatus('error');
         }
-    }, [entry])
+    }, [])
     //#endregion
 
     //#region Entry Title
@@ -571,7 +585,8 @@ export default function JournalEntryPage() {
         const updatedModules = [...entryJsonRef.current.modules];
         const index = updatedModules.findIndex(a => a.id == updatedModule.id);
         if (index > -1) {
-            updatedModules[index] = updatedModule;
+            // Merge updates with existing module to preserve properties like width
+            updatedModules[index] = { ...updatedModules[index], ...updatedModule };
             const updatedJson = { ...entryJsonRef.current, modules: updatedModules };
             // Update ref AFTER creating the new object so comparison works
             saveEntryContent(updatedJson);

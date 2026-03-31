@@ -353,7 +353,7 @@ export default function ModuleList({
             const snappedWidth = snapToWidth(finalWidth * 100);
             const module = entryJson.modules.find(m => m.id == resizingModuleRef.current.id);
             if (module) {
-                updatedModule({ ...module, width: snappedWidth });
+                updatedModule({ id: module.id, width: snappedWidth });
             }
 
             // Remove resizing class from all handles

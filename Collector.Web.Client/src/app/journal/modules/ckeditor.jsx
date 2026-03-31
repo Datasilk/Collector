@@ -264,10 +264,14 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
     const handlePostponeSave = () => {
         if (timerSave.current) clearTimeout(timerSave.current);
         timerSave.current = setTimeout(() => {
-            onUpdate({
-                ...module, html: htmlRef.current,
+            // Only update specific properties to avoid overwriting other changes like width
+            const updates = {
+                id: module.id,
+                type: module.type,
+                html: htmlRef.current,
                 userInput: [...(module.userInput ? module.userInput.filter(a => a != userInput) : []), userInput]
-            });
+            };
+            onUpdate(updates);
             timerSave.current = null;
         }, 3000);
     };

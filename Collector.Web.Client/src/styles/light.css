@@ -5,6 +5,7 @@
   --global-text: #213547;
   --global-text-muted: #666;
   --global-border: #ddd;
+  --global-separator: rgba(0, 0, 0, 0.1);
   --global-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
   --global-shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
   --global-shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.15);
