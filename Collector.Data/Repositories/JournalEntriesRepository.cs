@@ -162,7 +162,7 @@ namespace Collector.Data.Repositories
                     FROM public.""JournalEntryTags"" jet
                     INNER JOIN public.""JournalEntries"" je ON je.""Id"" = jet.""JournalEntryId""
                     WHERE {baseWhere}
-                      AND jet.""TagId"" IN @tagIds
+                      AND jet.""TagId"" = ANY(@tagIds)
                     GROUP BY je.""Id""
                     HAVING COUNT(DISTINCT jet.""TagId"") >= @tagCount";
 
@@ -174,7 +174,7 @@ namespace Collector.Data.Repositories
                     INNER JOIN public.""JournalEntries"" je ON je.""Id"" = jet.""JournalEntryId""
                     LEFT JOIN public.""JournalEntries"" parent ON je.""ParentEntryId"" = parent.""Id""
                     WHERE {baseWhere}
-                      AND jet.""TagId"" IN @tagIds
+                      AND jet.""TagId"" = ANY(@tagIds)
                     GROUP BY je.""Id"", je.""JournalId"", je.""ParentEntryId"", je.""Title"", je.""Description"", je.""Created"", je.""Modified"", je.""Status"", je.""ChapterId"", je.""Encrypted"", je.""Thumbnail"", je.""ThumbnailModuleId"", je.""Favorite"", je.""Url"", parent.""Title""
                     HAVING COUNT(DISTINCT jet.""TagId"") >= @tagCount
                     ORDER BY {orderBy}
@@ -200,7 +200,7 @@ namespace Collector.Data.Repositories
                 search = string.IsNullOrWhiteSpace(search) ? null : $"%{search}%",
                 start,
                 length,
-                tagIds = hasTags ? distinctTagIds : null,
+                tagIds = hasTags ? distinctTagIds.ToArray() : null,
                 tagCount
             };
 
