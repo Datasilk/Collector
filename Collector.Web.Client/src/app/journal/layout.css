@@ -1,9 +1,9 @@
-.journal-layout .body{
-    width:calc(100% - 20em);
+.journal-layout .body {
+    width: calc(100% - 20em);
 }
 
-.is-mobile .journal-layout .body{
-    width:100%;
+.is-mobile .journal-layout .body {
+    width: 100%;
 }
 
 .journal-layout {
@@ -18,38 +18,42 @@
     height: 100%;
 }
 
-.is-mobile .journal-layout .sidebar{
-    display:none;
+.is-mobile .journal-layout .sidebar {
+    display: none;
 }
 
-.journal-layout .tree-view-scrollable{
-    margin-left:0;
-    overflow-y:auto;
-    overflow-x:hidden;
-    max-height:20em;
+.is-mobile .journal-layout .sidebar.show-mobile {
+    display: block;
+}
+
+.journal-layout .tree-view-scrollable {
+    margin-left: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    max-height: 20em;
     scrollbar-width: thin;
     scrollbar-color: var(--link-text) transparent;
 }
 
-.journal-layout .tree-view-scrollable::-webkit-scrollbar{
-    width:6px;
+.journal-layout .tree-view-scrollable::-webkit-scrollbar {
+    width: 6px;
 }
 
-.journal-layout .tree-view-scrollable::-webkit-scrollbar-track{
-    background:transparent;
+.journal-layout .tree-view-scrollable::-webkit-scrollbar-track {
+    background: transparent;
 }
 
-.journal-layout .tree-view-scrollable::-webkit-scrollbar-thumb{
-    background:var(--link-text);
-    border-radius:4px;
+.journal-layout .tree-view-scrollable::-webkit-scrollbar-thumb {
+    background: var(--link-text);
+    border-radius: 4px;
 }
 
-.journal-layout .tree-view-scrollable::-webkit-scrollbar-thumb:hover{
-    background:var(--link-hover-text);
+.journal-layout .tree-view-scrollable::-webkit-scrollbar-thumb:hover {
+    background: var(--link-hover-text);
 }
 
-.journal-layout .treeview-journal .tree-view-label{
-    font-size:0.9em;
+.journal-layout .treeview-journal .tree-view-label {
+    font-size: 0.9em;
 }
 
 .journal-layout .sidebar-bottom {
@@ -77,7 +81,7 @@
 }
 
 .journal-layout .sidebar .edit-icon .material-symbols-rounded {
-    font-size:1.2em;
+    font-size: 1.2em;
 }
 
 .journal-layout .sidebar-bottom .label {
@@ -88,60 +92,60 @@
     margin-right: 6px;
 }
 
-.journal-layout .sidebar-top > .journal-tree {
+.journal-layout .sidebar-top>.journal-tree {
     padding: 0.5em;
 }
 
-.journal-layout .sidebar-top > .tool-bar{
-    background-color:var(--entry-toolbar-bg);
-    height:3.4em;
-    padding:0.5em 1em;
-    width:100%;
+.journal-layout .sidebar-top>.tool-bar {
+    background-color: var(--entry-toolbar-bg);
+    height: 3.4em;
+    padding: 0.5em 1em;
+    width: 100%;
     transition: background-color 0.3s ease;
 }
 
-body.scrolled .journal-layout .sidebar-top > .tool-bar{
-    background-color:transparent;
+body.scrolled .journal-layout .sidebar-top>.tool-bar {
+    background-color: transparent;
 }
 
 .journal-tree .tree-view {
-    margin-bottom:0.5em;
+    margin-bottom: 0.5em;
 }
 
 .journal-tree .treeview-category .tree-view-header {
     background-color: var(--journal-tab-bg);
-    padding:0.25em 0.25em 0.25em 0.5em;
+    padding: 0.25em 0.25em 0.25em 0.5em;
 }
 
-.journal-tree .treeview-category > .tree-view-item:hover {
+.journal-tree .treeview-category>.tree-view-item:hover {
     background-color: var(--journal-tab-hover-bg);
 }
 
-.journal-tree .treeview-category > .tree-view-item > .tree-view-header:hover {
+.journal-tree .treeview-category>.tree-view-item>.tree-view-header:hover {
     background-color: var(--journal-tab-hover-bg);
 }
 
-.journal-tree .treeview-category .edit-icon{
-    line-height:0;
-    padding:0.65em 1em 0.55em 1em;
+.journal-tree .treeview-category .edit-icon {
+    line-height: 0;
+    padding: 0.65em 1em 0.55em 1em;
 }
 
-.journal-tree .treeview-category .tree-view-menu{
-    opacity:0.5;
+.journal-tree .treeview-category .tree-view-menu {
+    opacity: 0.5;
 }
 
-.journal-tree .treeview-category .tree-view-header:hover .tree-view-menu{
-    opacity:1;
+.journal-tree .treeview-category .tree-view-header:hover .tree-view-menu {
+    opacity: 1;
 }
 
-.journal-tree .treeview-category .tree-view-header input{
-    width:100%;
-    padding:0.25em 0.5em;
+.journal-tree .treeview-category .tree-view-header input {
+    width: 100%;
+    padding: 0.25em 0.5em;
 }
 
 .journal-tree .treeview-journal .tree-view-header {
     background-color: var(--treeview-bg);
-    padding:0.25em;
+    padding: 0.25em;
 }
 
 .journal-tree .treeview-journal.selected .tree-view-header:before {
@@ -154,23 +158,23 @@ body.scrolled .journal-layout .sidebar-top > .tool-bar{
     background-color: var(--journal-tab-indicator);
 }
 
-.journal-tree .treeview-journal .tree-view-label:hover a{
-    text-decoration:underline;
+.journal-tree .treeview-journal .tree-view-label:hover a {
+    text-decoration: underline;
 }
 
 .journal-tree .tree-view-icon {
     background-color: var(--treeview-bg);
-    color:var(--treeview-icon);
-    font-size:1.25em;
+    color: var(--treeview-icon);
+    font-size: 1.25em;
 }
 
 .journal-tree .tree-view-icon:hover {
     background-color: var(--treeview-hover-bg);
-    color:var(--treeview-icon);
+    color: var(--treeview-icon);
 }
 
-.journal-tree > .tool-bar{
-    text-align:center;
+.journal-tree>.tool-bar {
+    text-align: center;
 }
 
 .journal-layout .journals-treeview-footer {
@@ -184,18 +188,18 @@ body.scrolled .journal-layout .sidebar-top > .tool-bar{
     border-radius: 0.5em;
     cursor: pointer;
     text-decoration: none;
-    font-size:0.9em;
-    width:calc(100% - 1em);
-    justify-content:center;
-    text-align:center;
-    position:relative;
-    left:-1.5em;
-    border:2px dashed var(--link-text);
+    font-size: 0.9em;
+    width: calc(100% - 1em);
+    justify-content: center;
+    text-align: center;
+    position: relative;
+    left: -1.5em;
+    border: 2px dashed var(--link-text);
     opacity: 0.5;
 }
 
-.journal-layout .journals-treeview-footer .button.add-journal:hover{
-    border:2px solid var(--link-text);
+.journal-layout .journals-treeview-footer .button.add-journal:hover {
+    border: 2px solid var(--link-text);
     opacity: 1;
 }
 
@@ -204,19 +208,19 @@ body.scrolled .journal-layout .sidebar-top > .tool-bar{
 }
 
 .journal-layout .button.add-category {
-    font-size:0.9em;
-    width:calc(100% - 3em);
-    justify-content:center;
-    display:inline-block;
-    position:relative;
-    left:-0.7em;
-    text-align:center;
-    border:2px dashed var(--link-text);
+    font-size: 0.9em;
+    width: calc(100% - 3em);
+    justify-content: center;
+    display: inline-block;
+    position: relative;
+    left: -0.7em;
+    text-align: center;
+    border: 2px dashed var(--link-text);
     opacity: 0.5;
 }
 
-.journal-layout .button.add-category:hover{
-    border:2px solid var(--link-text);
+.journal-layout .button.add-category:hover {
+    border: 2px solid var(--link-text);
     opacity: 1;
 }
 
@@ -294,22 +298,112 @@ body.scrolled .journal-layout .sidebar-top > .tool-bar{
     align-items: center;
     width: 100%;
     border: none;
-    padding:0.8em 1.5em;
+    padding: 0.8em 1.5em;
     background: transparent;
     cursor: pointer;
     text-align: left;
     white-space: nowrap;
-    margin:0;
-    font-size:0.9em;
+    margin: 0;
+    font-size: 0.9em;
 }
 
 .entry-type-dropdown .dropdown-item:hover {
     background-color: var(--nav-menu-hover-bg);
-    color:var(--link-hover-text);
+    color: var(--link-hover-text);
 }
 
 .entry-type-dropdown .dropdown-item .material-symbols-rounded {
     margin-right: 0.5em;
 }
 
+.sidebar {
+    overflow-y: auto;
+    overflow-x: hidden;
+}
 
+/* mobile header & sidebar */
+
+.is-mobile .sidebar {
+    max-height: calc(100vh - 3.5em);
+    z-index: 150;
+    background-color: var(--container-bg);
+    overflow-y: auto;
+    box-shadow: var(--container-shadow);
+    position: fixed;
+    top: 3.5em;
+    transition: all 0.3s ease;
+    display: none;
+}
+
+.is-mobile.scrolled .sidebar {
+    top: 3em;
+    max-height: calc(100vh - 3em);
+    transition: all 0.3s ease;
+}
+
+.is-mobile .sidebar > .sidebar-top > .tool-bar {
+    background-color: transparent;
+}
+
+.sidebar-mobile-toggle {
+    display: block;
+    position: fixed;
+    left: 1em;
+    top: 1em;
+    z-index: 150;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.sidebar-mobile-toggle label {
+    display: inline-block;
+    padding-left: 0.5em;
+    cursor: pointer;
+}
+
+.scrolled .sidebar-mobile-toggle {
+    top: 0.8em;
+}
+
+.is-mobile .entry-header {
+    top: 0;
+}
+
+.is-mobile.scrolled .entry-header > .tool-bar:not(.entry-navigation){
+    height:0.25em;
+}
+
+body:not(.is-mobile) .sidebar-mobile-toggle {
+    display: none;
+}
+
+body[data-path="journal"].is-mobile nav {
+    width: 5em !important;
+    margin: 0 !important;
+    position: fixed;
+    left:8em;
+}
+
+body[data-path="journal"].is-mobile nav .nav-left,
+body[data-path="journal"].is-mobile nav .nav-right>.nav-link {
+    display: none;
+}
+
+body[data-path="journal"].is-mobile nav .nav-right{
+    padding:0.25em 0 0 0;
+    gap:0.5em;
+}
+
+body[data-path="journal"].is-mobile .notifications-popup{
+    right:auto;
+    left:0;
+}
+
+body[data-path="journal"].is-mobile .user-menu-popup{
+    right:auto;
+    left:3em;
+}

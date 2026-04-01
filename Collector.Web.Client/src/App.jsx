@@ -5,13 +5,12 @@
 import React, { useEffect, useRef } from 'react';
 import './styles/App.css';
 import { BrowserRouter as Router } from 'react-router-dom';
-import Routing from './routes/routing';
 import { SessionProvider } from './context/session';
 import { WorkerHubProvider } from './context/workerhub';
 import { VideoPiPProvider } from './context/videopip';
 import { ThemeProvider } from './context/theme';
 import { addSvg } from './helpers/svg';
-import Chat from './components/chat/chat';
+import Content from './Content';
 
 function App() {
   //ref
@@ -42,7 +41,9 @@ function App() {
   }, []);
 
   const handleWindowResize = () => {
-    if(window.innerWidth <= 1024){
+    // Use clientWidth to get viewport width without scrollbar
+    const viewportWidth = document.documentElement.clientWidth;
+    if(viewportWidth <= 1280){
       document.body.classList.add('is-mobile');
     }else{
       document.body.classList.remove('is-mobile');
@@ -55,8 +56,7 @@ function App() {
         <SessionProvider>
           <WorkerHubProvider>
             <VideoPiPProvider>
-              <Routing />
-              <Chat />
+              <Content />
             </VideoPiPProvider>
           </WorkerHubProvider>
         </SessionProvider>
