@@ -521,7 +521,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                         triggerHlsGeneration();
                     }
                 } catch (err) {
-                    console.log('Error checking HLS availability:', err);
+                    console.error('Error checking HLS availability:', err);
                     // Trigger generation on error too (likely 404)
                     triggerHlsGeneration();
                 }

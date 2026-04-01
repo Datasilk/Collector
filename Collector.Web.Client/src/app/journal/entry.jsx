@@ -407,12 +407,12 @@ export default function JournalEntryPage() {
     };
 
     const saveEntryContent = async (json) => {
-        setEntryJson(json);
         if (JSON.stringify(json) == JSON.stringify(entryJsonRef.current)) {
             console.warn('No changes detected, skipping save', entryJsonRef.current);
             return;
         }
         entryJsonRef.current = json;
+        setEntryJson(json);
 
         // Skip save if entry is not fully loaded or has no modules
         if (!entry || !entry.id) {
@@ -433,6 +433,43 @@ export default function JournalEntryPage() {
         }, 5000);
     };
 
+    const cleanModuleHierarchy = (modules) => {
+        if (!Array.isArray(modules)) return modules;
+        
+        return modules.map(module => {
+            const cleanedModule = { ...module };
+            
+            // Remove unwanted properties
+            delete cleanedModule.manuallyAdded;
+            delete cleanedModule.uploadFromClipboard;
+            
+            // Add type if missing
+            if (!cleanedModule.type) {
+                cleanedModule.type = 'text-editor';
+            }
+            
+            // Add default html for text-editor if missing or empty
+            if (cleanedModule.type === 'text-editor' && (!cleanedModule.html || cleanedModule.html.trim() === '')) {
+                cleanedModule.html = '<p>Type or paste your content here!</p>';
+            }
+            
+            // Recursively clean nested modules in tabs
+            if (cleanedModule.type === 'tabs' && Array.isArray(cleanedModule.tabs)) {
+                cleanedModule.tabs = cleanedModule.tabs.map(tab => ({
+                    ...tab,
+                    modules: cleanModuleHierarchy(tab.modules || [])
+                }));
+            }
+            
+            // Recursively clean nested modules in module-list
+            if (cleanedModule.type === 'module-list' && Array.isArray(cleanedModule.modules)) {
+                cleanedModule.modules = cleanModuleHierarchy(cleanedModule.modules);
+            }
+            
+            return cleanedModule;
+        });
+    };
+
     const finishSaving = useCallback(() => {
         // Always use the latest state from entryJsonRef
         const json = entryJsonRef.current;
@@ -449,8 +486,15 @@ export default function JournalEntryPage() {
         }
         
         setSaveStatus('saving');
+
+        // Clean the module hierarchy before saving
+        const cleanedJson = {
+            ...json,
+            modules: cleanModuleHierarchy(json.modules)
+        };
+
         try {
-            const contentString = JSON.stringify(json);
+            const contentString = JSON.stringify(cleanedJson);
             updateEntryContent(currentEntry.id, contentString).then(response => {
                 if (!response.data.success) {
                     console.error('saveEntryContent: API error', response.data);
@@ -595,7 +639,9 @@ export default function JournalEntryPage() {
     };
 
     const handleDroppedModule = (json) => {
-        saveEntryContent({ ...entryJsonRef.current, ...json });
+        const updatedJson = { ...entryJsonRef.current, ...json };
+        // Force state update immediately for dropped modules
+        saveEntryContent(updatedJson);
     };
 
     const handleAddedModule = useCallback((newModule, targetModuleId) => {

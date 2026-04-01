@@ -441,6 +441,12 @@ body.scrolled .toggle-switch-container .toggle-switch .slider:before{
     margin:-2em 0 0 0;
 }
 
+.module-tabs .add-module-container{
+    width:100%;
+    float:none !important;
+    text-align:right;
+}
+
 body.scrolled .entry-header .add-module-container{
     margin:-1.5em 0 -0.5em 0;
 }
@@ -685,7 +691,7 @@ body.scrolled .entry-header .add-module-container{
     margin: 0;
     transition: outline 0.2s ease;
     transition: border-radius 0.2s ease;
-    min-height:2em;
+    min-height:6em;
     outline:3px dashed transparent;
 }
 .entry-modules:after{

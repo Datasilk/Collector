@@ -62,7 +62,7 @@ export default function ModuleListModule({ module, entryId, entry, journalId, on
         
         if (index > -1) {
             const updatedModules = [...childModules];
-            updatedModules[index] = updatedChildModule;
+            updatedModules[index] = {...updatedModules[index], ...updatedChildModule};
             setChildModules(updatedModules);
             
             // Update the parent module

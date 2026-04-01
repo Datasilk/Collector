@@ -10,38 +10,13 @@ import modules from '../modules';
 import { useSession } from '@/context/session';
 
 export default function TabsModule({ module, entryId, entry, journalId, journal, chapters, onUpdate, isEditable = true, manuallyAdded = false, tabButtons }) {
-    const cloneTabs = (sourceTabs = []) => {
-        if (!Array.isArray(sourceTabs)) return [];
-        return sourceTabs.map(tab => ({
-            ...tab,
-            modules: Array.isArray(tab.modules) ? [...tab.modules] : []
-        }));
-    };
-
     //state
-    const [tabs, setTabsState] = useState(() => cloneTabs(module.tabs || []));
-    
-    // Wrapper to keep tabsRef in sync with tabs state
-    const setTabs = (newTabs) => {
-        if (typeof newTabs === 'function') {
-            setTabsState(prevTabs => {
-                const updatedTabs = newTabs(prevTabs);
-                tabsRef.current = updatedTabs;
-                return updatedTabs;
-            });
-        } else {
-            tabsRef.current = newTabs;
-            setTabsState(newTabs);
-        }
-    };
     const [activeTabId, setActiveTabId] = useState(null);
     const [editingTabId, setEditingTabId] = useState(null);
     const [showAddModuleDropdown, setShowAddModuleDropdown] = useState(false);
 
     //refs
     const tabInputRef = useRef(null);
-    const moduleRef = useRef(module);
-    const tabsRef = useRef(module.tabs || []);
     const addModuleDropdownRef = useRef(null);
     const addModuleButtonRef = useRef(null);
     const dragDelayTimerRef = useRef(null);
@@ -49,6 +24,9 @@ export default function TabsModule({ module, entryId, entry, journalId, journal,
     const dragStartPosRef = useRef({ x: 0, y: 0 });
     const tabIdsBeforeDragRef = useRef(null);
     const reorderedTabsRef = useRef(null);
+
+    // Get tabs directly from module
+    const tabs = module.tabs || [];
 
     //context
     const session = useSession();
@@ -85,19 +63,6 @@ export default function TabsModule({ module, entryId, entry, journalId, journal,
         };
     }, [showAddModuleDropdown]);
 
-    useEffect(() => {
-        // Only update tabs from module if the tabs structure has actually changed externally
-        // This prevents resetting local state when updates come from within this component
-        const currentTabIds = tabs.map(t => t.id).sort().join(',');
-        const moduleTabIds = (module.tabs || []).map(t => t.id).sort().join(',');
-        
-        if (currentTabIds !== moduleTabIds) {
-            // Tab structure changed (tabs added/removed externally), update state
-            setTabs(cloneTabs(module.tabs || []));
-        }
-        
-        moduleRef.current = module;
-    }, [module, tabs]);
 
 
     //actions
@@ -127,11 +92,8 @@ export default function TabsModule({ module, entryId, entry, journalId, journal,
         };
 
         const updatedTabs = [newTab];
-        setTabs(updatedTabs);
         setActiveTabId(newTab.id);
-
-        const updatedModule = { ...moduleRef.current, tabs: updatedTabs };
-        onUpdate(updatedModule);
+        onUpdate({ ...module, tabs: updatedTabs });
     }, [manuallyAdded]);
 
     const handleAddTab = () => {
@@ -144,13 +106,9 @@ export default function TabsModule({ module, entryId, entry, journalId, journal,
         };
 
         const updatedTabs = [...tabs, newTab];
-        setTabs(updatedTabs);
         setActiveTabId(newTab.id);
         setEditingTabId(newTab.id);
-        
-        // Update the parent module
-        const updatedModule = { ...moduleRef.current, tabs: updatedTabs };
-        onUpdate(updatedModule);
+        onUpdate({ ...module, tabs: updatedTabs });
     };
 
     const handleTabClick = (tabId) => {
@@ -187,7 +145,7 @@ export default function TabsModule({ module, entryId, entry, journalId, journal,
             document.body.style.userSelect = 'none';
             
             // Save the current tab IDs order before dragging starts
-            tabIdsBeforeDragRef.current = tabs.map(t => t.id);
+            tabIdsBeforeDragRef.current = module.tabs.map(t => t.id);
             reorderedTabsRef.current = null;
             
             // Remove early mouseup listener and add drag listeners
@@ -224,9 +182,7 @@ export default function TabsModule({ module, entryId, entry, journalId, journal,
                 const orderChanged = tabIdsBeforeDragRef.current.some((id, index) => id !== newTabIds[index]);
                 
                 if (orderChanged) {
-                    setTabs(reorderedTabsRef.current);
-                    const updatedModule = { ...moduleRef.current, tabs: reorderedTabsRef.current };
-                    onUpdate(updatedModule);
+                    onUpdate({ ...module, tabs: reorderedTabsRef.current });
                 }
                 
                 reorderedTabsRef.current = null;
@@ -244,7 +200,7 @@ export default function TabsModule({ module, entryId, entry, journalId, journal,
         if (!draggingTabRef.current || draggingTabRef.current === tabId) return;
         
         // Calculate new tab order (for storing, not for state)
-        const currentTabs = reorderedTabsRef.current || tabs;
+        const currentTabs = reorderedTabsRef.current || module.tabs;
         const dragIndex = currentTabs.findIndex(t => t.id === draggingTabRef.current);
         const hoverIndex = currentTabs.findIndex(t => t.id === tabId);
         
@@ -282,29 +238,23 @@ export default function TabsModule({ module, entryId, entry, journalId, journal,
     };
 
     const handleTabTitleChange = (tabId, newTitle) => {
-        const updatedTabs = tabs.map(tab =>
+        const updatedTabs = module.tabs.map(tab =>
             tab.id === tabId ? { ...tab, title: newTitle } : tab
         );
-        setTabs(updatedTabs);
+        onUpdate({ ...module, tabs: updatedTabs });
     };
 
     const handleTabTitleBlur = () => {
         setEditingTabId(null);
-        const updatedModule = { ...moduleRef.current, tabs };
-        onUpdate(updatedModule);
     };
 
     const handleTabTitleKeyDown = (e, tabId) => {
         if (e.key === 'Enter') {
             e.preventDefault();
             setEditingTabId(null);
-            const updatedModule = { ...moduleRef.current, tabs };
-            onUpdate(updatedModule);
         } else if (e.key === 'Escape') {
             e.preventDefault();
             setEditingTabId(null);
-            // Revert changes
-            setTabs(moduleRef.current.tabs || []);
         }
     };
 
@@ -312,43 +262,36 @@ export default function TabsModule({ module, entryId, entry, journalId, journal,
         if (!isEditable) return;
         e.stopPropagation();
         
-        const updatedTabs = tabs.filter(tab => tab.id !== tabId);
-        setTabs(updatedTabs);
+        const updatedTabs = module.tabs.filter(tab => tab.id !== tabId);
         
         // If the active tab was removed, set the first tab as active
         if (activeTabId === tabId && updatedTabs.length > 0) {
             setActiveTabId(updatedTabs[0].id);
         }
         
-        // Update the parent module
-        const updatedModule = { ...moduleRef.current, tabs: updatedTabs };
-        onUpdate(updatedModule);
+        onUpdate({ ...module, tabs: updatedTabs });
     };
 
     const getActiveTab = () => {
-        if (!tabs || tabs.length === 0) return null;
-        return tabs.find(tab => tab.id === activeTabId);
+        if (!module.tabs || module.tabs.length === 0) return null;
+        return module.tabs.find(tab => tab.id === activeTabId);
     };
 
     const handleUpdatedModule = (updatedChildModule) => {
-        // Use tabsRef to get the latest tabs state to avoid race conditions
-        const currentTabs = tabsRef.current;
-        const activeTab = currentTabs.find(tab => tab.id === activeTabId);
+        const activeTab = module.tabs.find(tab => tab.id === activeTabId);
+        console.log('activeTab', activeTab);
         if (!activeTab) return;
 
         const childModules = [...(activeTab.modules || [])];
         const index = childModules.findIndex(m => m.id === updatedChildModule.id);
         
         if (index > -1) {
-            childModules[index] = updatedChildModule;
-            const updatedTabs = currentTabs.map(tab =>
+            childModules[index] = {...childModules[index], ...updatedChildModule};
+            const updatedTabs = module.tabs.map(tab =>
                 tab.id === activeTabId ? { ...tab, modules: childModules } : tab
             );
-            setTabs(updatedTabs);
-            
-            // Update the parent module
-            const updatedModule = { ...moduleRef.current, tabs: updatedTabs };
-            onUpdate(updatedModule);
+            console.log('updatedTabs', index, updatedTabs);
+            onUpdate({ ...module, tabs: updatedTabs });
         }
     };
 
@@ -357,23 +300,15 @@ export default function TabsModule({ module, entryId, entry, journalId, journal,
     };
 
     const updateActiveTabModules = (updatedModules) => {
-        // Use tabsRef to get the latest tabs state to avoid race conditions
-        const currentTabs = tabsRef.current;
         const normalizedModules = Array.isArray(updatedModules) ? [...updatedModules] : [];
-        const updatedTabs = currentTabs.map(tab =>
+        const updatedTabs = module.tabs.map(tab =>
             tab.id === activeTabId ? { ...tab, modules: normalizedModules } : tab
         );
-        setTabs(updatedTabs);
-        
-        // Update the parent module
-        const updatedModule = { ...moduleRef.current, tabs: updatedTabs };
-        onUpdate(updatedModule);
+        onUpdate({ ...module, tabs: updatedTabs });
     };
 
     const handleAddedModule = (newModule, targetModuleId) => {
-        // Use tabsRef to get the latest tabs state to avoid race conditions
-        const currentTabs = tabsRef.current;
-        const activeTab = currentTabs.find(tab => tab.id === activeTabId);
+        const activeTab = module.tabs.find(tab => tab.id === activeTabId);
         if (!activeTab) return;
 
         const childModules = activeTab.modules || [];
@@ -387,9 +322,7 @@ export default function TabsModule({ module, entryId, entry, journalId, journal,
     };
 
     const addModuleToBottom = (type) => {
-        // Use tabsRef to get the latest tabs state to avoid race conditions
-        const currentTabs = tabsRef.current;
-        const activeTab = currentTabs.find(tab => tab.id === activeTabId);
+        const activeTab = module.tabs.find(tab => tab.id === activeTabId);
         if (!activeTab) return;
 
         const newModuleId = generateRandomId();
@@ -407,11 +340,11 @@ export default function TabsModule({ module, entryId, entry, journalId, journal,
     const handleShowSettingsModal = useCallback(() => {
         session.showModal(() => (
             <TabsSettingsModal
-                module={moduleRef.current}
+                module={module}
                 onUpdate={onUpdate}
             />
         ));
-    }, [session, onUpdate]);
+    }, [session, onUpdate, module]);
 
     useEffect(() => {
         if (!tabButtons) return;

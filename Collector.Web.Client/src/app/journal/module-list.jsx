@@ -842,7 +842,7 @@ export default function ModuleList({
 
             //remove module from source container
             newModules = removeModuleFromHierarchy(newModules, dragData.moduleId);
-
+            
             if (window.dragOverContainerId == 'main') {
                 // Dropping into main container
                 newModules.splice(dropIndex, 0, dragData.module);
