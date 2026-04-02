@@ -166,10 +166,13 @@ const Navigation = () => {
             </Link>
             <ul className="user-menu-popup" style={{ display: showUserMenu ? 'block' : 'none' }}>
               {(user.isAdmin) && <>
-                <li className="user-menu-item">
+                <li className="user-menu-item show-mobile-only">
                   <Link to="/admin"><Icon name="admin_panel_settings" /> Administration</Link>
                 </li>
               </>}
+              <li className="user-menu-item show-mobile-only">
+                <Link to="/journal"><Icon name="book" /> Journals</Link>
+              </li>
               <li className="user-menu-item">
                 <Link to="/account"><Icon name="person" /> My Account</Link>
               </li>

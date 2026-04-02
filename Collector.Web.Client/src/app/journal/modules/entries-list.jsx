@@ -369,7 +369,7 @@ export default function EntriesListModule({ module, journalId, entryId, entry, c
                         sort={sort}
                         onFilter={handleFilterChange}
                     />
-                    <div className="right-side">
+                    <div className="right-side btn-new-entry">
                         <NewEntry journalId={journalId} entryId={entryId} defaultTagIds={module?.tags || []} />
                     </div>
                 </div>
@@ -394,12 +394,7 @@ export default function EntriesListModule({ module, journalId, entryId, entry, c
             <div className="entries-list-module">
                 {hasSearch && (
                     <div className="entries-filter-bar tool-bar">
-                        <EntriesListFilter
-                            search={filterOptions.search}
-                            sort={sort}
-                            onFilter={handleFilterChange}
-                        />
-                        <div className="right-side">
+                        <div className="right-side btn-new-entry">
                             <NewEntry journalId={journalId} entryId={entryId} defaultTagIds={module?.tags || []} />
                         </div>
                         <div className="right-side">
@@ -410,6 +405,11 @@ export default function EntriesListModule({ module, journalId, entryId, entry, c
                                 onFilter={handlePagingFilter}
                             />
                         </div>
+                        <EntriesListFilter
+                            search={filterOptions.search}
+                            sort={sort}
+                            onFilter={handleFilterChange}
+                        />
                     </div>
                 )}
                 <div className="empty-state">
@@ -452,15 +452,10 @@ export default function EntriesListModule({ module, journalId, entryId, entry, c
         return (
             <div className="entries-list-module">
                 <div className="entries-filter-bar tool-bar">
-                    <EntriesListFilter
-                        search={filterOptions.search}
-                        sort={sort}
-                        onFilter={handleFilterChange}
-                    />
-                    <div className="right-side">
+                    <div className="right-side btn-new-entry">
                         <NewEntry journalId={journalId} entryId={entryId} defaultTagIds={module?.tags || []} />
                     </div>
-                    <div className="right-side">
+                    <div className="right-side paging">
                         <EntriesListPaging
                             start={filterOptions.start}
                             length={filterOptions.length}
@@ -468,6 +463,11 @@ export default function EntriesListModule({ module, journalId, entryId, entry, c
                             onFilter={handlePagingFilter}
                         />
                     </div>
+                    <EntriesListFilter
+                        search={filterOptions.search}
+                        sort={sort}
+                        onFilter={handleFilterChange}
+                    />
                 </div>
 
                 <div className="entries-table">
@@ -504,7 +504,7 @@ export default function EntriesListModule({ module, journalId, entryId, entry, c
                                     key={'tr_' + newEntry.id}
                                     onClick={() => handleViewEntry(newEntry)}
                                 >
-                                    <td className="entry-title">{newEntry.title}</td>
+                                    <td className="entry-title"><span>{newEntry.title}</span></td>
                                     {columns.chapter && <td className="entry-chapter">{getChapterText(newEntry)}</td>}
                                     {columns.created && <td className="entry-created">{formatDate(newEntry.created)}</td>}
                                     {columns.modified && <td className="entry-modified">{formatDate(newEntry.modified)}</td>}
@@ -558,15 +558,10 @@ export default function EntriesListModule({ module, journalId, entryId, entry, c
         return (
             <div className="entries-list-module">
                 <div className="entries-filter-bar tool-bar">
-                    <EntriesListFilter
-                        search={filterOptions.search}
-                        sort={sort}
-                        onFilter={handleFilterChange}
-                    />
-                    <div className="right-side">
+                    <div className="right-side btn-new-entry">
                         <NewEntry journalId={journalId} entryId={entryId} defaultTagIds={module?.tags || []} />
                     </div>
-                    <div className="right-side">
+                    <div className="right-side paging">
                         <EntriesListPaging
                             start={filterOptions.start}
                             length={filterOptions.length}
@@ -574,6 +569,11 @@ export default function EntriesListModule({ module, journalId, entryId, entry, c
                             onFilter={handlePagingFilter}
                         />
                     </div>
+                    <EntriesListFilter
+                        search={filterOptions.search}
+                        sort={sort}
+                        onFilter={handleFilterChange}
+                    />
                 </div>
                 <div className="entry-cards" style={gridColumns > 0 ? { gridTemplateColumns: `repeat(${gridColumns}, 1fr)` } : undefined}>
                     {entries.map(newEntry => (
@@ -632,15 +632,10 @@ export default function EntriesListModule({ module, journalId, entryId, entry, c
         return (
             <div className="entries-list-module">
                 <div className="entries-filter-bar tool-bar">
-                    <EntriesListFilter
-                        search={filterOptions.search}
-                        sort={sort}
-                        onFilter={handleFilterChange}
-                    />
-                    <div className="right-side">
+                    <div className="right-side btn-new-entry">
                         <NewEntry journalId={journalId} entryId={entryId} defaultTagIds={module?.tags || []} />
                     </div>
-                    <div className="right-side">
+                    <div className="right-side paging">
                         <EntriesListPaging
                             start={filterOptions.start}
                             length={filterOptions.length}
@@ -648,6 +643,11 @@ export default function EntriesListModule({ module, journalId, entryId, entry, c
                             onFilter={handlePagingFilter}
                         />
                     </div>
+                    <EntriesListFilter
+                        search={filterOptions.search}
+                        sort={sort}
+                        onFilter={handleFilterChange}
+                    />
                 </div>
                 <div className="entry-posters" style={gridColumns > 0 ? { gridTemplateColumns: `repeat(${gridColumns}, 1fr)` } : undefined}>
                     {entries.map(newEntry => (

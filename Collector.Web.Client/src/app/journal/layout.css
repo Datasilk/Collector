@@ -385,7 +385,7 @@ body[data-path="journal"].is-mobile nav {
     width: 5em !important;
     margin: 0 !important;
     position: fixed;
-    left:8em;
+    right:2em;
 }
 
 body[data-path="journal"].is-mobile nav .nav-left,
@@ -405,5 +405,5 @@ body[data-path="journal"].is-mobile .notifications-popup{
 
 body[data-path="journal"].is-mobile .user-menu-popup{
     right:auto;
-    left:3em;
+    left:0.5em;
 }

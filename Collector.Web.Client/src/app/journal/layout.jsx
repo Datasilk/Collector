@@ -453,7 +453,6 @@ export default function JournalLayout({ children }) {
                 <main className={"journal-layout has-sidebar" + (session.hasRole('admin') ? ' is-admin' : ' is-user')}>
                     <div className="sidebar-mobile-toggle" onClick={handleToggleSidebar}>
                         <Icon name="menu"></Icon>
-                        <label>Journals</label>
                     </div>
                     <div className="sidebar">
                         <div className="sidebar-top">
@@ -512,7 +511,7 @@ export default function JournalLayout({ children }) {
                                                                     className="tree-view-label"
                                                                     onClick={() => {
                                                                         if (document.body.classList.contains('is-mobile')) {
-                                                                            document.querySelector('.sidebar').style.display = 'none';
+                                                                            document.querySelector('.sidebar').classList.remove('show-mobile');
                                                                         }
                                                                         saveSelectedJournal(journal.id);
                                                                     }}

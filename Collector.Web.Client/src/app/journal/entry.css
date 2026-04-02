@@ -38,9 +38,15 @@ body.scrolled .entry-header  .add-module-container{
     float:left;
 }
 
+.tags-toolbar{
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+}
+
 .tag-pointer {
     color:var(--entry-toolbar-icon);
-    margin:-0.2em -1.2em 0 0;
+    margin:0.4em -1.2em 0 0;
 }
 
 .tag-pointer .material-symbols-rounded{
@@ -48,10 +54,28 @@ body.scrolled .entry-header  .add-module-container{
     cursor:default;
 }
 
-.entry-status-badge {
+.info-toolbar{
     display: flex;
     align-items: center;
     gap: 0.5em;
+}
+
+.entry-tools {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+}
+
+.is-mobile .tags-toolbar{
+    float:left;
+    width:100%;
+    padding:0 0 0.5em 1em;
+    justify-content:right;
+}
+
+.entry-tools .entry-tag-pill > span{
+    display:inline-block;
+    padding:0.1em 0 0 0;
 }
 
 .entry-tags-region {
@@ -132,6 +156,9 @@ body.scrolled .entry-header  .add-module-container{
     background-color: var(--status-published-bg);
     color: var(--status-published-text);
     white-space: nowrap;
+    display:flex;
+    align-items:center;
+    height:2.5em;
 }
 
 .entry-tag-pill button {
@@ -2648,19 +2675,108 @@ body.scrolled .entry-header .add-module-container{
     color: var(--global-text-muted);
 }
 
-/* mobile changes */
+/* mobile responsiveness */
 
-body.is-mobile .tabs-module .tab-content{
+.is-mobile .tabs-module .tab-content{
     padding:1em;
 }
 
-body.is-mobile .text-editor .text{
+.is-mobile .text-editor .text{
     padding-right:0;
 }
 
-body.is-mobile .entry-navigation .back-button{
-    position:relative;
-    left:14em;
+body:not(.is-mobile) .entry-tools .back-button,
+.is-mobile .entry-navigation > .back-button{
+    display:none;
+}
+
+.is-mobile .entry-tools .back-button{
+    display:block;
+    margin-right:1em;
+}
+
+.is-mobile .entry-navigation > .btn-settings{
+    float:left;
+    margin-left:2em;
+}
+
+.entry-tools .btn-settings{
+    display:none;
+}
+.is-mobile .entry-tools .btn-settings{
+    display:block;
+    width:100%;
+    padding:0 0 0.25em 1em;
+    clear:both;
+    border-bottom:2px solid;
+    border-bottom-color: var(--global-separator);
+    margin-bottom:0.5em;
+}
+
+.is-mobile .entry-tools .btn-settings label{
+    float:left;
+    display:inline-block;
+    padding-top:0.5em;
+    width:calc(100% - 3.5em);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.is-mobile .entry-tools{
+    display:none;
+}
+
+.is-mobile .entry-tools .status-indicator{
+    margin-right:1em;
+}
+
+.is-mobile .info-toolbar{
+    width:100%;
+    justify-content:right;
+    padding-top:0.25em;
+    border-top:2px solid;
+    border-top-color: var(--global-separator);
+}
+
+.is-mobile .entry-tools.show-mobile{
+    display:block;
+    position:fixed;
+    top:3.5em;
+    left:1em;
+    background-color:var(--container-bg);
+    padding:1em;
+    border-radius:0.5em;
+    box-shadow:var(--container-shadow);
+    z-index:200;
+    width:25em;
+}
+
+.is-mobile.scrolled .entry-tools.show-mobile{
+    top:3em;
+}
+
+.is-mobile .entry-tools .tag-pointer{
+    display:none;
+}
+
+.is-mobile .entry-tools .entry-tags-list{
+    float:left;
+    display:block;
+}
+
+.is-mobile .entry-tools .entry-tags-region{
+    float:right;
+    display:block;
+    margin-right:0;
+}
+
+.is-mobile .entry-tools .entry-tags-region button{
+    margin:0;
+}
+
+.is-mobile .entry-tools .entry-tag-pill{
+    display:inline-block;
 }
 
 /* responsive column */

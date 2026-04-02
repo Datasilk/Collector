@@ -178,9 +178,6 @@ body.scrolled .nav-container .account-icon svg {
     .main-header .nav-right .nav-link{
         display:none;
     }
-    .main-header .user-menu-popup li{
-      display:block !important;
-    }
 }
 
 @media screen and (max-width: 650px) {
@@ -382,4 +379,10 @@ body.scrolled .nav-container .notification-dot {
 
 .user-menu-item.theme-toggle .toggle-switch-container {
   margin: 0;
+}
+
+/* mobile responsive */
+.is-mobile nav > .nav-right{
+  padding:0.25em 1em;
+  gap:0.5em;
 }

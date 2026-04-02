@@ -6,9 +6,10 @@ const apiBasePath = () => {
         return 'https://localhost:7781';
     }
     
-    // Extract the full origin (protocol, domain, and port) from the URL
+    // For non-localhost URLs, use the same hostname but with specific ports
     const url = new URL(window.location.href);
-    return url.origin;
+    const port = url.protocol === 'https:' ? '7781' : '7780';
+    return `${url.protocol}//${url.hostname}:${port}`;
 }
 
 export { apiBasePath }

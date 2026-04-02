@@ -20,7 +20,7 @@ export default function TagsList({ tags, onRemoveTag }) {
         <div className="entry-tags-list">
             {tags.map(tag => (
                 <span key={tag.tagId} className="entry-tag-pill">
-                    {tag.name}
+                    <span>{tag.name}</span>
                     {onRemoveTag && (
                         <button
                             type="button"

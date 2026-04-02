@@ -38,7 +38,7 @@ export default function EntryToolbar({
     const session = useSession();
     const { journalId, entryId } = useParams();
     const navigate = useNavigate();
-    
+
     // Check if noui querystring is present
     const searchParams = new URLSearchParams(window.location.search);
     const noUI = searchParams.has('noui');
@@ -60,10 +60,13 @@ export default function EntryToolbar({
     const bottomDropdownRef = useRef(null);
     const dropdownButtonRef = useRef(null);
     const bottomDropdownButtonRef = useRef(null);
+    const entryToolsRef = useRef(null);
+    const settingsButtonRef = useRef(null);
 
     const [showTopModuleDropdown, setShowTopModuleDropdown] = useState(false);
     const [showBottomModuleDropdown, setShowBottomModuleDropdown] = useState(false);
     const [isTitleEditing, setIsTitleEditing] = useState(noUI);
+    const [showMobileEntryTools, setShowMobileEntryTools] = useState(false);
 
     const effectiveLoadingSnapshots = localLoadingSnapshots;
 
@@ -93,13 +96,20 @@ export default function EntryToolbar({
                     setShowHistoryDropdown(false);
                 }
             }
+
+            if (showMobileEntryTools && entryToolsRef.current && !entryToolsRef.current.contains(event.target)) {
+                const isOutsideSettingsButton = !settingsButtonRef.current || !settingsButtonRef.current.contains(event.target);
+                if (isOutsideSettingsButton) {
+                    setShowMobileEntryTools(false);
+                }
+            }
         };
 
         document.addEventListener('mousedown', handleClickOutside);
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [showTopModuleDropdown, showBottomModuleDropdown, showHistoryDropdown]);
+    }, [showTopModuleDropdown, showBottomModuleDropdown, showHistoryDropdown, showMobileEntryTools]);
 
     useEffect(() => {
         if (isTitleEditing && titleInputRef.current) {
@@ -108,7 +118,12 @@ export default function EntryToolbar({
     }, [isTitleEditing]);
 
     const handleOpenSettings = () => {
-        setShowSettingsModal(true);
+        const isMobile = document.body.classList.contains('is-mobile');
+        if (isMobile) {
+            setShowMobileEntryTools(prev => !prev);
+        } else {
+            setShowSettingsModal(true);
+        }
     };
 
     const handleCloseSettings = () => {
@@ -236,7 +251,7 @@ export default function EntryToolbar({
 
     const handleToggleFavorite = async () => {
         if (!entry || !entry.id) return;
-        
+
         try {
             const newFavoriteValue = !entry.favorite;
             await setEntryFavorite(entry.id, newFavoriteValue);
@@ -381,158 +396,184 @@ export default function EntryToolbar({
                                 </button>
                             ) : <></>
                         )}
-
-                        <div className="right-side entry-status-badge">
-                        {(() => {
-                            const statusConfig = getSaveStatusConfig();
-                            if (!statusConfig) return null;
-                            return (
-                                <div className={`save-status-message ${statusConfig.type}`}>
-                                    {statusConfig.icon && (
-                                        <Icon
-                                            name={statusConfig.icon}
-                                            spin={statusConfig.spin}
-                                        />
-                                    )}
-                                    <span>{statusConfig.text}</span>
-                                </div>
-                            );
-                        })()}
-                        {entry?.id !== journal?.entryId && (
-                            <>
-                                <TagsList
-                                    tags={tags}
-                                    onRemoveTag={async (tag) => {
-                                        if (!entry || !entry.id || !tag || tag.tagId == null) return;
-                                        try {
-                                            await removeTagFromEntry(entry.id, tag.tagId);
-                                            setTags(prev => prev.filter(t => t.tagId !== tag.tagId));
-                                            setEntry(prev => prev ? { ...prev, tags: prev.tags?.filter(t => t.tagId !== tag.tagId) } : prev);
-                                        } catch (err) {
-                                            console.error('Error removing tag from entry:', err);
-                                        }
-                                    }}
-                                />
-                                {tags.length > 0 && (
-                                    <div className="tag-pointer">
-                                        <Icon name="chevron_left" />
-                                    </div>
-                                )}
-                                <NewEntryTag
-                                    entry={entry}
-                                    journalId={journalId}
-                                    onAddTag={async (tag) => {
-                                        if (!entry || !entry.id || entry.id === 0 || !tag || tag.id == null) return;
-                                        try {
-                                            await addTagToEntry(entry.id, tag.id);
-                                            setTags(prev => {
-                                                const exists = prev.some(t => t.tagId === tag.id);
-                                                if (exists) return prev;
-                                                return [...prev, { tagId: tag.id, name: tag.tag }];
-                                            });
-                                            setEntry(prev => prev ? {
-                                                ...prev,
-                                                tags: (prev.tags || []).some(t => t.tagId === tag.id)
-                                                    ? prev.tags
-                                                    : [...(prev.tags || []), { tagId: tag.id, name: tag.tag }]
-                                            } : prev);
-                                        } catch (err) {
-                                            console.error('Error attaching tag to entry:', err);
-                                        }
-                                    }}
-                                />
-                            </>
-                        )}
-                        {entry?.id !== journal?.entryId && (
-                            <button
-                                className="icon"
-                                onClick={handleToggleFavorite}
-                                title={entry?.favorite ? "Remove from favorites" : "Add to favorites"}
-                            >
-                                <Icon name={entry?.favorite ? "star_shine" : "star"} />
+                        <div className="right-side btn-settings">
+                            <button className="icon" onClick={handleOpenSettings} ref={settingsButtonRef}>
+                                <Icon name="settings" />
                             </button>
-                        )}
-                        {chapters.length > 0 && getChapterName() != '' && (
-                            <span className="chapter-label" title={'Chapter #' + getChapter().sort}>
-                                <Icon name="book" /> {getChapterName()}
-                            </span>
-                        )}
-                        <span className={`status-indicator ${getStatusClass(entry)}`} title={getStatusTitle(entry)}>
-                            {getStatusText(entry)}
-                        </span>
-                        {entry?.id === journal?.entryId && (
-                            <span className="status-indicator journal-label" title="This is the journal's main entry">
-                                Journal
-                            </span>
-                        )}
-                        <ToggleSwitch
-                            name="edit-entry"
-                            checked={isEditing}
-                            onChange={setIsEditing}
-                            label="Edit"
-                        />
-                        <div className="right-side history-dropdown-container">
-                            <button
-                                className="icon"
-                                onClick={handleToggleHistoryDropdown}
-                                ref={historyButtonRef}
-                                title="View snapshot history"
-                            >
-                                <Icon name="history" />
-                            </button>
-                            {showHistoryDropdown && (
-                                <div className="history-dropdown-menu" ref={historyDropdownRef}>
-                                    <div className="tool-bar pad-sm">
-                                        <button
-                                            onClick={handleCreateSnapshotClick}
-                                            title="Record the current state of this journal entry for historical records"
-                                        >
-                                            <Icon name="add" /> Create Snapshot
-                                        </button>
+                        </div>
+                        <div className={`right-side entry-tools${showMobileEntryTools ? ' show-mobile' : ''}`} ref={entryToolsRef}>
+                            {entry && entry.parentEntryId ? (
+                                <button
+                                    className="back-button"
+                                    onClick={() => navigate(`/journal/${journalId}/entry/${entry.parentEntryId}`)}
+                                >
+                                    <Icon name="arrow_back" /> Back to {entry.parentEntryName || 'Parent Entry'}
+                                </button>
+                            ) : (
+                                journal.entryId != onGetEntryId() ? (
+                                    <button
+                                        className="back-button"
+                                        onClick={() => navigate(`/journal/${journalId}`)}
+                                    >
+                                        <Icon name="arrow_back" /> Back to {journal?.title || 'Journal'}
+                                    </button>
+                                ) : <></>
+                            )}
+                            <div className="btn-settings">
+                                <label>{entry.title}</label>
+                                <button className="icon" onClick={() => setShowSettingsModal(true)} ref={settingsButtonRef}>
+                                    <Icon name="settings" />
+                                </button>
+                            </div>
+                            {(() => {
+                                const statusConfig = getSaveStatusConfig();
+                                if (!statusConfig) return null;
+                                return (
+                                    <div className={`save-status-message ${statusConfig.type}`}>
+                                        {statusConfig.icon && (
+                                            <Icon
+                                                name={statusConfig.icon}
+                                                spin={statusConfig.spin}
+                                            />
+                                        )}
+                                        <span>{statusConfig.text}</span>
                                     </div>
-                                    {effectiveLoadingSnapshots ? (
-                                        <div className="loading-snapshots">
-                                            <Icon name="progress_activity" spin={true} />
+                                );
+                            })()}
+                            {entry?.id !== journal?.entryId && (
+                                <div className="tags-toolbar">
+                                    <TagsList
+                                        tags={tags}
+                                        onRemoveTag={async (tag) => {
+                                            if (!entry || !entry.id || !tag || tag.tagId == null) return;
+                                            try {
+                                                await removeTagFromEntry(entry.id, tag.tagId);
+                                                setTags(prev => prev.filter(t => t.tagId !== tag.tagId));
+                                                setEntry(prev => prev ? { ...prev, tags: prev.tags?.filter(t => t.tagId !== tag.tagId) } : prev);
+                                            } catch (err) {
+                                                console.error('Error removing tag from entry:', err);
+                                            }
+                                        }}
+                                    />
+                                    {tags.length > 0 && (
+                                        <div className="tag-pointer">
+                                            <Icon name="chevron_left" />
                                         </div>
-                                    ) : snapshots.length === 0 ? (
-                                        <div className="no-snapshots">
-                                            No snapshots yet
-                                        </div>
-                                    ) : (
-                                        <>
-                                            {fromSnapshotId && (
-                                                <div
-                                                    className="dropdown-item"
-                                                    onClick={handleViewLatestVersion}
-                                                    title="View the current version of this entry"
-                                                >
-                                                    <div className="snapshot-date">
-                                                        View Latest Version
-                                                        <Icon name="today" />
-                                                    </div>
-                                                </div>
-                                            )}
-                                            {snapshots.map(snapshot => (
-                                                <div
-                                                    key={snapshot.id}
-                                                    className={`dropdown-item ${fromSnapshotId === snapshot.id ? 'active' : ''}`}
-                                                    onClick={() => handleSnapshotClick(snapshot)}
-                                                >
-                                                    <div className="snapshot-date">
-                                                        {formatDate(snapshot.createdSnapshot)}
-                                                        <Icon name="history" />
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </>
                                     )}
+                                    <NewEntryTag
+                                        entry={entry}
+                                        journalId={journalId}
+                                        onAddTag={async (tag) => {
+                                            if (!entry || !entry.id || entry.id === 0 || !tag || tag.id == null) return;
+                                            try {
+                                                await addTagToEntry(entry.id, tag.id);
+                                                setTags(prev => {
+                                                    const exists = prev.some(t => t.tagId === tag.id);
+                                                    if (exists) return prev;
+                                                    return [...prev, { tagId: tag.id, name: tag.tag }];
+                                                });
+                                                setEntry(prev => prev ? {
+                                                    ...prev,
+                                                    tags: (prev.tags || []).some(t => t.tagId === tag.id)
+                                                        ? prev.tags
+                                                        : [...(prev.tags || []), { tagId: tag.id, name: tag.tag }]
+                                                } : prev);
+                                            } catch (err) {
+                                                console.error('Error attaching tag to entry:', err);
+                                            }
+                                        }}
+                                    />
                                 </div>
                             )}
+                            <div className="info-toolbar">
+                                {chapters.length > 0 && getChapterName() != '' && (
+                                    <span className="chapter-label" title={'Chapter #' + getChapter().sort}>
+                                        <Icon name="book" /> {getChapterName()}
+                                    </span>
+                                )}
+                                <span className={`status-indicator ${getStatusClass(entry)}`} title={getStatusTitle(entry)}>
+                                    {getStatusText(entry)}
+                                </span>
+                                {entry?.id === journal?.entryId && (
+                                    <span className="status-indicator journal-label" title="This is the journal's main entry">
+                                        Journal
+                                    </span>
+                                )}
+                                <ToggleSwitch
+                                    name="edit-entry"
+                                    checked={isEditing}
+                                    onChange={setIsEditing}
+                                    label="Edit"
+                                />
+                                {entry?.id !== journal?.entryId && (
+                                    <button
+                                        className="icon"
+                                        onClick={handleToggleFavorite}
+                                        title={entry?.favorite ? "Remove from favorites" : "Add to favorites"}
+                                    >
+                                        <Icon name={entry?.favorite ? "star_shine" : "star"} />
+                                    </button>
+                                )}
+                                <div className="right-side history-dropdown-container">
+                                    <button
+                                        className="icon"
+                                        onClick={handleToggleHistoryDropdown}
+                                        ref={historyButtonRef}
+                                        title="View snapshot history"
+                                    >
+                                        <Icon name="history" />
+                                    </button>
+                                    {showHistoryDropdown && (
+                                        <div className="history-dropdown-menu" ref={historyDropdownRef}>
+                                            <div className="tool-bar pad-sm">
+                                                <button
+                                                    onClick={handleCreateSnapshotClick}
+                                                    title="Record the current state of this journal entry for historical records"
+                                                >
+                                                    <Icon name="add" /> Create Snapshot
+                                                </button>
+                                            </div>
+                                            {effectiveLoadingSnapshots ? (
+                                                <div className="loading-snapshots">
+                                                    <Icon name="progress_activity" spin={true} />
+                                                </div>
+                                            ) : snapshots.length === 0 ? (
+                                                <div className="no-snapshots">
+                                                    No snapshots yet
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    {fromSnapshotId && (
+                                                        <div
+                                                            className="dropdown-item"
+                                                            onClick={handleViewLatestVersion}
+                                                            title="View the current version of this entry"
+                                                        >
+                                                            <div className="snapshot-date">
+                                                                View Latest Version
+                                                                <Icon name="today" />
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {snapshots.map(snapshot => (
+                                                        <div
+                                                            key={snapshot.id}
+                                                            className={`dropdown-item ${fromSnapshotId === snapshot.id ? 'active' : ''}`}
+                                                            onClick={() => handleSnapshotClick(snapshot)}
+                                                        >
+                                                            <div className="snapshot-date">
+                                                                {formatDate(snapshot.createdSnapshot)}
+                                                                <Icon name="history" />
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
-                        <button className="icon" onClick={handleOpenSettings}>
-                            <Icon name="settings" />
-                        </button>
-                    </div>
                     </div>
                 )}
 

@@ -52,8 +52,8 @@ export default function EntriesListFilter({ search, sort, onFilter, journalId, d
         executeFilter(localSearch, newSort);
     };
 
-    return (
-        <div className="filters left-side">
+    return (<>
+        <div className="filters filter-search left-side">
             <Input
                 name="search"
                 type="text"
@@ -71,6 +71,8 @@ export default function EntriesListFilter({ search, sort, onFilter, journalId, d
                     </button>
                 ]}
             />
+        </div>
+        <div className="filters filter-sort left-side">
             <Select
                 name="sort"
                 value={localSort}
@@ -87,5 +89,6 @@ export default function EntriesListFilter({ search, sort, onFilter, journalId, d
                 ]}
             />
         </div>
+    </>
     );
 }

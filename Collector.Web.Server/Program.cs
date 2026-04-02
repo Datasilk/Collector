@@ -43,13 +43,16 @@ builder.Services.AddCors(options =>
     options.AddDefaultPolicy(
         policy =>
         {
-            // Allow localhost origins and chrome-extension:// origins
-            // Using SetIsOriginAllowed to support dynamic chrome extension IDs
-            policy.SetIsOriginAllowed(origin => 
-                origin.StartsWith("chrome-extension://") || 
+            // Allow localhost, chrome-extension, and any HTTPS origins for mobile debugging
+            // Using SetIsOriginAllowed to support dynamic origins (chrome extensions, Tailscale IPs, etc.)
+            policy.SetIsOriginAllowed(origin =>
+                origin.StartsWith("chrome-extension://") ||
                 origin.StartsWith("http://localhost") ||
-                origin.StartsWith("https://localhost"))
-                .AllowAnyHeader()
+                origin.StartsWith("https://localhost") ||
+                origin.StartsWith("https://100.64.0") || // Allow any HTTPS origin for mobile/Tailscale debugging
+                origin.StartsWith("http://100.64.0") || // Allow any HTTP origin for development
+                origin.StartsWith("https://collector-dev-local.datasilk.io") //allow sub domains used for testing collector
+                ).AllowAnyHeader()
                 .AllowAnyMethod()
                 .AllowCredentials();
         });
@@ -105,7 +108,7 @@ builder.Services.AddSwaggerGen(e =>
 });
 
 //load LLM keys
-foreach(var llm in Collector.Common.LLMs.Available)
+foreach (var llm in Collector.Common.LLMs.Available)
 {
     llm.Value.PrivateKey = builder.Configuration["LLM:" + llm.Key + ":PrivateKey"] ?? "";
 }
@@ -134,7 +137,7 @@ if (LLMOllama.AutoPullModel)
     {
         var tempOllama = new OllamaSharp.OllamaApiClient(LLMOllama.Url);
         var models = await tempOllama.ListLocalModelsAsync();
-        
+
         // Check and pull main chat model
         var modelExists = models.Any(m => m.Name == LLMOllama.Model);
         if (!modelExists)
@@ -155,7 +158,7 @@ if (LLMOllama.AutoPullModel)
         {
             Console.WriteLine($"{LLMOllama.Model} model is already available.\n");
         }
-        
+
         // Check and pull embedding model for RAG
         var embeddingModelExists = models.Any(m => m.Name == "nomic-embed-text");
         if (!embeddingModelExists)
@@ -217,7 +220,7 @@ if (File.Exists(downloadToolsScript))
         if (process != null)
         {
             process.WaitForExit();
-            
+
             // Add application base directory to PATH for this process so it can access the tools
             var baseDir = AppDomain.CurrentDomain.BaseDirectory;
             var currentPath = Environment.GetEnvironmentVariable("PATH") ?? "";
@@ -306,5 +309,16 @@ Console.WriteLine(
     typeof(Program).Assembly
         .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
         ?.InformationalVersion.Split("+")[0] ?? "unknown");
+
+// Display all URLs the server is listening on
+var addresses = app.Urls;
+if (addresses.Any())
+{
+    Console.WriteLine("\nListening on:");
+    foreach (var address in addresses)
+    {
+        Console.WriteLine($"  {address}");
+    }
+}
 
 app.Run();

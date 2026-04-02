@@ -8,6 +8,33 @@
   gap: 1.5rem;
 }
 
+.is-mobile .signup-container{
+  padding:2rem 0;
+}
+
+.is-mobile[data-path="signup"] nav{
+  display:block;
+}
+
+.is-mobile[data-path="signup"] nav .nav-link{
+  display:inline-block !important;
+}
+
+.is-mobile[data-path="signup"] nav .nav-left{
+  display:block;
+  padding:1em 0;
+  float:none;
+  width:100%;
+  text-align:center;
+}
+
+.is-mobile[data-path="signup"] nav .nav-right{
+  float:none;
+  margin:0 auto;
+  width:12em;
+  white-space:nowrap;
+}
+
 .signup-button {
   background: var(--button-bg);
   color: var(--button-text);
@@ -36,6 +63,10 @@
   text-decoration: none;
   font-weight: 500;
   transition: color 0.2s ease;
+}
+
+.signup-form input{
+  width:100%;
 }
 
 .login-link a:hover {

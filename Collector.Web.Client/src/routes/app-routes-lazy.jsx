@@ -1,8 +1,9 @@
 import {lazy} from 'react';
+import { Navigate } from 'react-router-dom';
 
 const routes = [
     //end-user pages
-    {path:'/',                          Element:lazy(() => import('@/app/account/login/page'))},
+    {path:'/',                          Element:() => <Navigate to="/login" replace />},
     {path:'/signup/:token?',            Element:lazy(() => import('@/app/account/signup/page'))},
     {path:'/login',                     Element:lazy(() => import('@/app/account/login/page'))},
     {path:'/activate/:hash',            Element:lazy(() => import('@/app/account/activate/page'))},
