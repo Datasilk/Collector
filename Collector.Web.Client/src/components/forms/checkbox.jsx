@@ -49,7 +49,11 @@ export default function Checkbox({
                                     className="checkbox-input-hidden"
                                     style={{ display: 'none' }}
                                 />
-                                <div className="custom-checkbox" onClick={() => handleChange({ target: { checked: !checked } })}>
+                                <div className="custom-checkbox" onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleChange({ target: { checked: !checked } });
+                                }}>
                                     {checked && (
                                         <svg viewBox="0 0 16 16" className="checkbox-checkmark">
                                             <path d="M13.5 3.5L6 11L2.5 7.5" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>

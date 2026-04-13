@@ -135,14 +135,7 @@ export default function JournalEntryPage() {
                 status: 1
             };
             const newEntryJson = {
-                modules: [
-                    {
-                        id: generateRandomId(),
-                        type: 'text-editor',
-                        manuallyAdded: false,
-                        html: '<p>Type or paste your content here!</p>'
-                    }
-                ]
+                modules: []
             };
 
             if (isNewEntry) {
@@ -743,7 +736,7 @@ export default function JournalEntryPage() {
                 onUpdateEntryJson={saveEntryContent}
                 title={editedTitle}
                 setTitle={setEditedTitle}
-                hasModules={entryJson.modules.length > 0}
+                hasModules={entryJson?.modules?.length > 0}
             >
                 <div className="entry-content">
 

@@ -5,5 +5,6 @@
         public string PrivateKey { get; set; }
         public string Model { get; set; }
         public string Endpoint { get; set; }
+        public int? MaxInputTokens { get; set; }
     }
 }

@@ -416,12 +416,15 @@ export default function ModuleList({
         const allContainers = getModuleHierarchyFromNode(node);
         const allContainerModules = getAllContainerModules(allContainers);
 
+        // Find the actual module in the hierarchy (not just root level)
+        const draggedModule = findModuleInHierarchy(entryJson.modules, moduleId);
+
         // Store drag data including container info
         const dragData = {
             moduleId: moduleId,
             sourceContainerId: allContainers[0] ?? 'main',
             sourceIndex: index,
-            module: entryJson.modules[index],
+            module: draggedModule,
             allContainers: allContainers,
             allContainerModules: allContainerModules
         };
@@ -465,6 +468,14 @@ export default function ModuleList({
         // Update mouse position for auto-scroll
         window.lastDragY = e.clientY;
 
+        // Set the drag over container ID based on the module's container
+        const moduleElement = e.currentTarget;
+        const containerElement = moduleElement.closest('.entry-modules');
+        if (containerElement) {
+            const targetContainerId = containerElement.getAttribute('data-id') || 'main';
+            window.dragOverContainerId = targetContainerId;
+        }
+
         // Allow drag over even if draggedModuleIdRef is not set (for cross-container drops)
         if (moduleId !== draggedModuleIdRef.current) {
             // Remove drag-over classes from previous element
@@ -476,8 +487,16 @@ export default function ModuleList({
                 }
             }
 
-            // Find the index of the module being dragged over
-            const dragOverIndex = entryJson.modules.findIndex(m => m.id == moduleId);
+            // Find the index of the module being dragged over within its container
+            // For nested modules, we need to find the index within the local container, not root
+            let dragOverIndex = -1;
+            if (containerElement) {
+                const modulesInContainer = Array.from(containerElement.querySelectorAll(':scope > .module'));
+                dragOverIndex = modulesInContainer.findIndex(el => el.getAttribute('data-id') === moduleId);
+            } else {
+                // Fallback to root level search
+                dragOverIndex = entryJson.modules.findIndex(m => m.id == moduleId);
+            }
 
             // Determine which side of the module we're hovering over
             const rect = e.currentTarget.getBoundingClientRect();
@@ -508,7 +527,7 @@ export default function ModuleList({
         } catch (err) { }
     };
 
-    const handleDrop = async (e) => {
+    const handleDrop = async (e) => {        
         // Always prevent default browser behavior (which can open the file in a new tab)
         e.preventDefault();
 
@@ -825,8 +844,10 @@ export default function ModuleList({
 
         // Try to get drag data for cross-container drops
         let dragData = window.dragData;
-        // Handle cross-container drop
-        if (dragData && dragData.sourceContainerId != window.dragOverContainerId) {
+        const isCrossContainer = dragData && dragData.sourceContainerId != window.dragOverContainerId;
+
+        
+        if (isCrossContainer) {
             // Check if trying to drop a module into its own descendant container
             if (window.dragOverContainerId !== 'main' && 
                 isContainerDescendantOfModule(window.dragOverContainerId, dragData.moduleId, entryJson.modules)) {
@@ -839,7 +860,6 @@ export default function ModuleList({
             let newModules = [...entryJson.modules];
             const dropIndex = dropIndexRef.current !== undefined ? dropIndexRef.current : newModules.length;
 
-
             //remove module from source container
             newModules = removeModuleFromHierarchy(newModules, dragData.moduleId);
             
@@ -848,7 +868,10 @@ export default function ModuleList({
                 newModules.splice(dropIndex, 0, dragData.module);
             } else {
                 const dropContainer = document.querySelector(`.entry-modules[data-id="${window.dragOverContainerId}"]`);
-                if (!dropContainer) return;
+                if (!dropContainer) {
+                    console.error('Drop container not found!');
+                    return;
+                }
                 const allContainers = getModuleHierarchyFromNode(dropContainer);
                 const allContainerModules = getAllContainerModules(allContainers);
                 newModules = addModuleToHierarchy(newModules, allContainerModules, dragData.module, dropIndex);
@@ -866,7 +889,9 @@ export default function ModuleList({
         }
 
         // Handle same-container drop
-        if (!draggedModuleIdRef.current) return;
+        if (!draggedModuleIdRef.current) {
+            return;
+        }
 
         const dragIndex = dragStartIndexRef.current;
         let dropIndex = dropIndexRef.current;
@@ -1434,7 +1459,7 @@ export default function ModuleList({
             onMouseEnter={isEditing ? handleMouseEnterContainer : undefined}
             onDrop={isEditing && containerId == 'main' ? handleDrop : undefined}
         >
-            {entryJson.modules.map((module, index) => {
+            {entryJson?.modules?.map((module, index) => {
                 if (!module.type) return;
 
                 // Use custom modules registry if provided, otherwise use default

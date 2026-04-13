@@ -159,6 +159,7 @@ export default function NewEntryTag({
                 <button
                     ref={tagButtonRef}
                     onClick={handleToggleClick}
+                    title="Add a new tag to your journal entry"
                 >
                     <Icon name="add" /> Tag
                 </button>

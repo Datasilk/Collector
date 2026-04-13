@@ -399,11 +399,9 @@ body[data-path="journal"].is-mobile nav .nav-right{
 }
 
 body[data-path="journal"].is-mobile .notifications-popup{
-    right:auto;
-    left:0;
+    right:0;
 }
 
 body[data-path="journal"].is-mobile .user-menu-popup{
-    right:auto;
-    left:0.5em;
+    right:0;
 }

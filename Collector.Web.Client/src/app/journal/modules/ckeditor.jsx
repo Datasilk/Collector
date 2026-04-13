@@ -73,13 +73,13 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
     const [showToolbar, setShowToolbar] = useState(false);
 
     //refs
+    const defaultHtml = '<p>Type or paste your content here!</p>';
     const navigate = useNavigate();
-    const htmlRef = useRef(null);
+    const htmlRef = useRef(defaultHtml);
     const editorRef = useRef(null);
     const timerSave = useRef(null);
     const inModal = useRef(false);
     const isEditorActive = useRef(false);
-    const defaultHtml = '<p>Type or paste your content here!</p>';
 
     //context
     const session = useSession();
@@ -139,7 +139,16 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
 
     const addEditorEventListeners = () => {
         const elem = getTextElement();
-        if (!elem) return;
+        if (!elem) {
+            // Element might not be in DOM yet, retry after a short delay
+            setTimeout(() => {
+                const retryElem = getTextElement();
+                if (retryElem && isEditable) {
+                    retryElem.addEventListener('mouseup', showEditor);
+                }
+            }, 100);
+            return;
+        }
         if (isEditable) {
             elem.addEventListener('mouseup', showEditor);
         }
@@ -194,9 +203,25 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
         //re-attach secret content event listeners
         const secrets = elem.querySelectorAll('.secret-content');
         secrets.forEach(secret => {
+            // Store the actual text in a data attribute and replace with asterisks
+            if (!secret.hasAttribute('data-secret-text')) {
+                const actualText = secret.textContent;
+                secret.setAttribute('data-secret-text', actualText);
+                secret.textContent = '*'.repeat(actualText.length);
+            }
+            
             secret.onclick = (e) => {
                 e.preventDefault();
-                e.target.classList.toggle('show-secret');
+                const target = e.target;
+                const actualText = target.getAttribute('data-secret-text');
+                
+                if (target.textContent === actualText) {
+                    // Currently showing, hide it
+                    target.textContent = '*'.repeat(actualText.length);
+                } else {
+                    // Currently hidden, show it
+                    target.textContent = actualText;
+                }
             };
         });
         removeEditorEventListeners();
@@ -330,23 +355,14 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
             anchor.setAttribute('target', '_blank');
         });
 
-        //re-attach secret content event listeners
-        const secrets = elem.querySelectorAll('.secret-content');
-        secrets.forEach(secret => {
-            secret.onclick = (e) => {
-                e.preventDefault();
-                e.target.classList.toggle('show-secret');
-            };
-        });
-
         //load initial data into CKEditor
-        const initialData = elem.innerHTML;
+        const initialData = htmlRef.current || defaultHtml;
 
         setTimeout(() => {
             document.addEventListener('mousedown', handleClickOutside);
         }, 100);
 
-        const containerHtml = `<div class="main-container">
+        const containerHtml = `<div class="main-container no-drag">
 			<div
 				class="editor-container editor-container_inline-editor editor-container_include-style"
 				id="editor-container"

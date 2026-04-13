@@ -419,7 +419,7 @@ export default function EntryToolbar({
                                     </button>
                                 ) : <></>
                             )}
-                            <div className="btn-settings">
+                            <div className="btn-settings" title="Edit settings for journal entry">
                                 <label>{entry.title}</label>
                                 <button className="icon" onClick={() => setShowSettingsModal(true)} ref={settingsButtonRef}>
                                     <Icon name="settings" />

@@ -325,4 +325,8 @@
   --error-bg: #fbe5e5;
   --error-text: #bb2c2c;
   --error-icon: #e81212;
+
+  /* === GENERATE CONTENT MODULE === */
+  --generate-content-status-border: #ddd;
+  --generate-content-error-border: #fd7f7f;
 }

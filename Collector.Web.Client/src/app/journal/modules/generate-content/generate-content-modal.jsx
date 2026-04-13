@@ -122,7 +122,7 @@ export default function GenerateContentModal({
                                             label="Generate Chapters"
                                             name="generate-chapters"
                                             checked={generateChapters}
-                                            onChange={setGenerateChapters}
+                                            onChange={() => setGenerateChapters(!generateChapters)}
                                         />
                                     </div>
                                     {generateChapters && (

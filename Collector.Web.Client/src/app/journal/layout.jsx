@@ -184,8 +184,8 @@ export default function JournalLayout({ children }) {
             const classes = target.classList;
             if (classes?.contains('journal-layout')) {
                 document.removeEventListener('mousedown', handleMouseDownSidebar);
-                const target = document.querySelector('.journal-layout > .sidebar');
-                target.style.display = '';
+                const sidebar = document.querySelector('.journal-layout > .sidebar');
+                sidebar.classList.remove('show-mobile');
                 return;
             };
             if (classes?.contains('sidebar-mobile-toggle') || classes?.contains('sidebar')) return;

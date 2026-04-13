@@ -279,7 +279,6 @@ export default function TabsModule({ module, entryId, entry, journalId, journal,
 
     const handleUpdatedModule = (updatedChildModule) => {
         const activeTab = module.tabs.find(tab => tab.id === activeTabId);
-        console.log('activeTab', activeTab);
         if (!activeTab) return;
 
         const childModules = [...(activeTab.modules || [])];
@@ -290,7 +289,6 @@ export default function TabsModule({ module, entryId, entry, journalId, journal,
             const updatedTabs = module.tabs.map(tab =>
                 tab.id === activeTabId ? { ...tab, modules: childModules } : tab
             );
-            console.log('updatedTabs', index, updatedTabs);
             onUpdate({ ...module, tabs: updatedTabs });
         }
     };

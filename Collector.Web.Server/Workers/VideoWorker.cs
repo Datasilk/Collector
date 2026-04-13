@@ -738,7 +738,7 @@ namespace Collector.Web.Server.Workers
                                 var currentSeconds = ms / 1000000.0; // out_time_ms is in microseconds
                                 var mergeProgress = Math.Min(100, (currentSeconds / duration) * 100);
                                 // Merge phase: 60-70%
-                                var mappedProgress = 60 + (int)Math.Round(10.0 * mergeProgress);
+                                var mappedProgress = 60 + (int)Math.Round((mergeProgress / 100.0) * 10);
                                 if (mappedProgress != lastSentProgress)
                                 {
                                     lastSentProgress = mappedProgress;
