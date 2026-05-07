@@ -311,6 +311,25 @@ body.scrolled .nav-container .notification-dot {
   color: var(--worker-video-icon-text);
 }
 
+/* Chat Worker Styles */
+.worker-item.chat-worker .worker-icon {
+  background: var(--worker-chat-icon-bg, #e3f2fd);
+}
+
+.worker-item.chat-worker .worker-icon .material-icons,
+.worker-item.chat-worker .worker-icon svg {
+  color: var(--worker-chat-icon-text, #1976d2);
+}
+
+.worker-item.chat-worker.has-error .worker-icon {
+  background: var(--worker-error-icon-bg, #ffebee);
+}
+
+.worker-item.chat-worker.has-error .worker-icon .material-icons,
+.worker-item.chat-worker.has-error .worker-icon svg {
+  color: var(--worker-error-icon-text, #d32f2f);
+}
+
 .worker-item .worker-info {
   flex: 1;
   min-width: 0;

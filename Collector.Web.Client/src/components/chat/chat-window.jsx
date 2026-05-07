@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import Icon from '@/components/ui/icon';
 import { useSession } from '@/context/session';
 import { useWorkerHub } from '@/context/workerhub';
@@ -58,6 +59,9 @@ export default function ChatWindow({ windowId, chatId, availableLLMs, openChatId
         }
     }, [chatId, session, openChatIds]);
 
+    // Track progress message ID for replacement
+    const progressMessageIdRef = useRef(null);
+
     // Listen for worker messages
     useEffect(() => {
         if (!workerId || !workerHub) return;
@@ -72,9 +76,112 @@ export default function ChatWindow({ windowId, chatId, availableLLMs, openChatId
                 case 'MessageSaved':
                     // User message already added to UI, skip
                     break;
+                case 'AssistantPlan':
+                    // Show the plan message in chat (before progress starts)
+                    setMessages(prev => [...prev, { role: 2, content: payload.message, isPlan: true }]);
+                    break;
+                case 'Planning':
+                    // Ollama is analyzing the request - update progress message
+                    setMessages(prev => {
+                        const existingProgress = prev.find(msg => msg.isProgress);
+                        if (existingProgress) {
+                            return prev.map(msg =>
+                                msg.isProgress
+                                    ? { ...msg, content: payload.message }
+                                    : msg
+                            );
+                        }
+                        return [...prev, { id: `progress-${Date.now()}`, role: 2, content: payload.message, isProgress: true }];
+                    });
+                    break;
+                case 'OllamaRequest':
+                    // Log Ollama request (server only sends in development)
+                    console.log(`[Ollama Request - ${payload.type}]`, payload.prompt);
+                    break;
+                case 'OllamaResponse':
+                    // Log Ollama raw response (server only sends in development)
+                    console.log(`[Ollama Response - ${payload.type}]`, payload.rawResponse);
+                    break;
+                case 'PlanStarted':
+                    // Plan execution has started - remove any existing progress messages first, then create new one
+                    setMessages(prev => {
+                        // Filter out any existing progress messages
+                        const filtered = prev.filter(msg => !msg.isProgress);
+                        const progressId = `progress-${Date.now()}`;
+                        progressMessageIdRef.current = progressId;
+                        return [...filtered, { id: progressId, role: 2, content: `Executing ${payload.stepCount} step(s)...`, isProgress: true }];
+                    });
+                    break;
+                case 'PlanProgress':
+                    // Update progress indicator (replace existing if flag set)
+                    setMessages(prev => {
+                        if (payload.replace && progressMessageIdRef.current) {
+                            // Find and replace the progress message
+                            return prev.map(msg => 
+                                msg.id === progressMessageIdRef.current 
+                                    ? { ...msg, content: `${payload.message} (${payload.percent}%)` }
+                                    : msg
+                            );
+                        } else {
+                            // Fallback: update last assistant message
+                            const lastMsg = prev[prev.length - 1];
+                            if (lastMsg && lastMsg.role === 2) {
+                                return [...prev.slice(0, -1), { role: 2, content: `${payload.message} (${payload.percent}%)` }];
+                            }
+                            return [...prev, { role: 2, content: `${payload.message} (${payload.percent}%)` }];
+                        }
+                    });
+                    break;
+                case 'ToolError':
+                    // Log full error details to browser console
+                    if (payload.exception) {
+                        console.error(`Tool Error in ${payload.tool}:`, {
+                            error: payload.error,
+                            exception: payload.exception,
+                            stackTrace: payload.exception.stackTrace
+                        });
+                    } else {
+                        console.error(`Tool Error in ${payload.tool}:`, payload.error);
+                    }
+                    setMessages(prev => [...prev, { role: 2, content: `Error in ${payload.tool}: ${payload.error}`, isError: true }]);
+                    break;
+                case 'ToolComplete':
+                    // Update progress message with tool completion
+                    setMessages(prev => {
+                        const existingProgress = prev.find(msg => msg.isProgress);
+                        if (existingProgress) {
+                            return prev.map(msg =>
+                                msg.isProgress
+                                    ? { ...msg, content: `${payload.tool}: ${payload.message}` }
+                                    : msg
+                            );
+                        }
+                        return [...prev, { id: `progress-${Date.now()}`, role: 2, content: `${payload.tool}: ${payload.message}`, isProgress: true }];
+                    });
+                    break;
+                case 'PlanCompleted':
+                    // Remove all progress messages (isProgress = true)
+                    setMessages(prev => prev.filter(msg => !msg.isProgress));
+                    progressMessageIdRef.current = null;
+                    break;
                 case 'ChatResponse':
-                    setMessages(prev => [...prev, { id: payload.id, role: payload.role, content: payload.content }]);
+                    // Remove all progress messages before showing final response
+                    setMessages(prev => {
+                        const filtered = prev.filter(msg => !msg.isProgress);
+                        progressMessageIdRef.current = null;
+                        return [...filtered, { id: payload.id, role: payload.role, content: payload.content }];
+                    });
                     setIsThinking(false);
+                    break;
+                case 'ChatMessage':
+                    // Message from tool with optional link (e.g., journal entry created)
+                    setMessages(prev => [...prev, {
+                        id: `msg-${Date.now()}`,
+                        role: 2,
+                        content: payload.message,
+                        linkUrl: payload.linkUrl,
+                        linkText: payload.linkText
+                    }]);
                     break;
                 case 'ChatHistoryLoaded':
                     setMessages(payload.messages.map(m => ({
@@ -84,7 +191,23 @@ export default function ChatWindow({ windowId, chatId, availableLLMs, openChatId
                     })));
                     break;
                 case 'ChatError':
-                    console.error('Chat error:', payload.message);
+                    // Log full error details to browser console
+                    if (payload.stackTrace) {
+                        console.error('Chat error:', {
+                            message: payload.message,
+                            stackTrace: payload.stackTrace,
+                            type: payload.type,
+                            innerException: payload.innerException
+                        });
+                    } else {
+                        console.error('Chat error:', payload.message);
+                    }
+                    // Clear all progress messages on error
+                    setMessages(prev => {
+                        const filtered = prev.filter(msg => !msg.isProgress);
+                        progressMessageIdRef.current = null;
+                        return [...filtered, { role: 2, content: `Error: ${payload.message}`, isError: true }];
+                    });
                     setIsThinking(false);
                     break;
             }
@@ -286,8 +409,15 @@ export default function ChatWindow({ windowId, chatId, availableLLMs, openChatId
                 ) : (
                     <>
                         {messages.map((msg, index) => (
-                            <div key={index} className={`chat-message ${msg.role === 0 ? 'user' : 'assistant'}`}>
-                                <div className="message-content">{msg.content}</div>
+                            <div key={index} className={`chat-message ${msg.role === 0 ? 'user' : msg.role === 1 ? 'assistant' : 'system'} ${msg.isError ? 'error' : ''}`}>
+                                <div className="message-content">
+                                    {msg.content}
+                                    {msg.linkUrl && (
+                                        <span className="message-link"> (
+                                            <Link to={msg.linkUrl} className="chat-link">{msg.linkText || 'View'}</Link>
+                                        )</span>
+                                    )}
+                                </div>
                             </div>
                         ))}
                         {isThinking && (

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Platforms>AnyCPU;x64</Platforms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="OllamaSharp" Version="5.4.18" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Collector.Data\Collector.Data.csproj" />
+    <ProjectReference Include="..\Collector.Common\Collector.Common.csproj" />
+  </ItemGroup>
+
+</Project>

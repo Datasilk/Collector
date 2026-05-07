@@ -44,7 +44,7 @@ const Navigation = () => {
           subscribe(worker.workerId, ({ eventName, payload }) => {
               setWorkerProgress(prev => ({
                 ...prev,
-                [worker.workerId]: {...prev[worker.workerId], ...payload}
+                [worker.workerId]: {...prev[worker.workerId], ...payload, eventName}
               }));
           });
         }

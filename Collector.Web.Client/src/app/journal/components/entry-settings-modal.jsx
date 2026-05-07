@@ -57,7 +57,7 @@ export default function SettingsModal({
     // Recursive function to flatten module hierarchy
     const flattenModules = (modules) => {
         if (!modules || !Array.isArray(modules)) return [];
-        
+
         const flattened = [];
         for (const module of modules) {
             flattened.push(module);
@@ -131,7 +131,7 @@ export default function SettingsModal({
                     api.getJournal(journalId),
                     api.getCategories()
                 ]);
-                
+
                 if (journalResponse.data?.success && journalResponse.data.data) {
                     const journal = journalResponse.data.data;
                     setJournalData(journal);
@@ -147,7 +147,7 @@ export default function SettingsModal({
                     setJournalCategoryId('');
                     setOriginalJournalCategoryId('');
                 }
-                
+
                 if (categoriesResponse.data?.success) {
                     setCategories(categoriesResponse.data.data || []);
                 }
@@ -350,18 +350,18 @@ export default function SettingsModal({
         setJournalSaving(true);
         try {
             const api = Journals(session);
-            
+
             if (titleChanged) {
                 await api.renameJournal(journalId, journalTitle);
             }
-            
+
             if (categoryChanged) {
                 await api.changeJournalCategory(journalId, parseInt(journalCategoryId));
                 // Refresh the page to reload journal categories
                 window.location.reload();
                 return;
             }
-            
+
             setOriginalJournalTitle(journalTitle);
             setOriginalJournalCategoryId(journalCategoryId);
         } catch (err) {
@@ -532,61 +532,63 @@ export default function SettingsModal({
                         </div>
 
                         {/* Journal Tab */}
-                        <div className="settings-modal-content">
-                            <div className="form-row-block">
-                                <div className="form-group">
-                                    <label htmlFor="journal-title">Journal Title</label>
-                                    <Input
-                                        id="journal-title"
-                                        type="text"
-                                        value={journalTitle}
-                                        onChange={handleJournalTitleChange}
-                                        placeholder="Enter journal title"
-                                    />
+                        {isJournalEntry &&
+                            <div className="settings-modal-content">
+                                <div className="form-row-block">
+                                    <div className="form-group">
+                                        <label htmlFor="journal-title">Journal Title</label>
+                                        <Input
+                                            id="journal-title"
+                                            type="text"
+                                            value={journalTitle}
+                                            onChange={handleJournalTitleChange}
+                                            placeholder="Enter journal title"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="form-row-block">
+                                    <div className="form-group">
+                                        <label htmlFor="journal-category">Category</label>
+                                        <Select
+                                            id="journal-category"
+                                            name="category"
+                                            value={journalCategoryId}
+                                            onChange={handleJournalCategoryChange}
+                                            options={[
+                                                { value: '', label: 'Select a category...' },
+                                                ...categories.map(cat => ({
+                                                    value: cat.id.toString(),
+                                                    label: cat.title
+                                                }))
+                                            ]}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="buttons">
+                                    <button className="btn" style={{ backgroundColor: '#c62828', color: 'white' }} onClick={handleArchiveJournal}>Archive</button>
+                                    {hasJournalDetailsChanges && (
+                                        <>
+                                            <button onClick={handleJournalCancelDetails} className="cancel" disabled={journalSaving}>
+                                                Cancel
+                                            </button>
+                                            <button onClick={handleJournalSaveDetails} disabled={journalSaving}>
+                                                {journalSaving ? (
+                                                    <>
+                                                        <Icon name="progress_activity" spin={true} />
+                                                        Saving...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Icon name="save" />
+                                                        Save
+                                                    </>
+                                                )}
+                                            </button>
+                                        </>
+                                    )}
                                 </div>
                             </div>
-                            <div className="form-row-block">
-                                <div className="form-group">
-                                    <label htmlFor="journal-category">Category</label>
-                                    <Select
-                                        id="journal-category"
-                                        name="category"
-                                        value={journalCategoryId}
-                                        onChange={handleJournalCategoryChange}
-                                        options={[
-                                            { value: '', label: 'Select a category...' },
-                                            ...categories.map(cat => ({
-                                                value: cat.id.toString(),
-                                                label: cat.title
-                                            }))
-                                        ]}
-                                    />
-                                </div>
-                            </div>
-                            <div className="buttons">
-                                <button className="btn" style={{ backgroundColor: '#c62828', color: 'white' }} onClick={handleArchiveJournal}>Archive</button>
-                                {hasJournalDetailsChanges && (
-                                    <>
-                                        <button onClick={handleJournalCancelDetails} className="cancel" disabled={journalSaving}>
-                                            Cancel
-                                        </button>
-                                        <button onClick={handleJournalSaveDetails} disabled={journalSaving}>
-                                            {journalSaving ? (
-                                                <>
-                                                    <Icon name="progress_activity" spin={true} />
-                                                    Saving...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Icon name="save" />
-                                                    Save
-                                                </>
-                                            )}
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-                        </div>
+                        }
 
                         {/* Images Tab */}
                         <div className="settings-modal-content">
@@ -616,7 +618,7 @@ export default function SettingsModal({
                                             {(() => {
                                                 const selected = thumbnailOptions.find(opt => opt.path === settings.thumbnail);
                                                 let imageSrc;
-                                                
+
                                                 if (selected) {
                                                     if (selected.type === 'video') {
                                                         if (selected.thumbnailPath) {

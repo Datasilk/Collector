@@ -4,7 +4,6 @@ import Icon from '@/components/ui/icon';
 import { apiBasePath } from '@/helpers/endpoints.js';
 import { useSession } from '@/context/session';
 import GenerateContentModal from './generate-content/generate-content-modal';
-import './generate-content.css';
 
 export default function GenerateContentModule({ 
     module, 

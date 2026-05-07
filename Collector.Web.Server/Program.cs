@@ -78,6 +78,15 @@ builder.Services.Configure<RouteOptions>(options => options.LowercaseUrls = true
 
 //Initilaize Collector Services
 builder.AddApiStartupService();
+
+// Configure Charlotte Router endpoint
+var charlotteConfig = builder.Configuration.GetSection("Charlotte");
+var routerEndpoint = charlotteConfig["RouterEndpoint"];
+if (!string.IsNullOrEmpty(routerEndpoint))
+{
+    Charlotte.RouterEndpoint = routerEndpoint;
+    Console.WriteLine($"Charlotte Router configured: {routerEndpoint}");
+}
 builder.AddAuthService();
 
 // Register workers

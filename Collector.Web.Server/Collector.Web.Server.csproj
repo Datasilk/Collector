@@ -48,6 +48,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Collector.API\Collector.API.csproj" />
+    <ProjectReference Include="..\Collector.Chat\Collector.Chat.csproj" />
     <ProjectReference Include="..\Collector.Web.Client\Collector.Web.Client.esproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
