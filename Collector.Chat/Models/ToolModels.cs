@@ -74,6 +74,12 @@ public class PlanStep
 
     [JsonPropertyName("args")]
     public Dictionary<string, object> Args { get; set; } = new();
+
+    /// <summary>
+    /// Results from executing this step, available to subsequent steps
+    /// </summary>
+    [JsonPropertyName("result")]
+    public Dictionary<string, object>? Result { get; set; }
 }
 
 /// <summary>

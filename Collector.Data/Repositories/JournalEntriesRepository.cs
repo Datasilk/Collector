@@ -87,7 +87,10 @@ namespace Collector.Data.Repositories
 
         public List<JournalEntry> GetAllByJournalId(int journalId)
         {
-            return _dbConnection.Query<JournalEntry>(@"SELECT je.*, parent.""Title"" AS ParentEntryName
+            return _dbConnection.Query<JournalEntry>(@"SELECT je.""Id"", je.""JournalId"", je.""ParentEntryId"", je.""Title"", 
+                je.""Description"", je.""Url"", je.""Created"", je.""Modified"", je.""Status"", je.""ChapterId"", 
+                je.""Encrypted"", je.""Thumbnail"", je.""ThumbnailModuleId"", je.""Favorite"", 
+                parent.""Title"" AS ParentEntryName
                 FROM public.""JournalEntries"" je
                 LEFT JOIN public.""JournalEntries"" parent ON je.""ParentEntryId"" = parent.""Id""
                 WHERE je.""JournalId"" = @journalId
@@ -169,7 +172,7 @@ namespace Collector.Data.Repositories
                 countSql = $"SELECT COUNT(*) FROM ({tagFilteredSubquery}) AS matches";
 
                 dataSql = $@"
-                    SELECT je.*, parent.""Title"" AS ParentEntryName
+                    SELECT je.""Id"", je.""JournalId"", je.""ParentEntryId"", je.""Title"", je.""Description"", je.""Url"", je.""Created"", je.""Modified"", je.""Status"", je.""ChapterId"", je.""Encrypted"", je.""Thumbnail"", je.""ThumbnailModuleId"", je.""Favorite"", parent.""Title"" AS ParentEntryName
                     FROM public.""JournalEntryTags"" jet
                     INNER JOIN public.""JournalEntries"" je ON je.""Id"" = jet.""JournalEntryId""
                     LEFT JOIN public.""JournalEntries"" parent ON je.""ParentEntryId"" = parent.""Id""
@@ -186,7 +189,7 @@ namespace Collector.Data.Repositories
                 countSql = $@"SELECT COUNT(*) FROM public.""JournalEntries"" je WHERE {baseWhere}";
 
                 dataSql = $@"
-                    SELECT je.*, parent.""Title"" AS ParentEntryName
+                    SELECT je.""Id"", je.""JournalId"", je.""ParentEntryId"", je.""Title"", je.""Description"", je.""Url"", je.""Created"", je.""Modified"", je.""Status"", je.""ChapterId"", je.""Encrypted"", je.""Thumbnail"", je.""ThumbnailModuleId"", je.""Favorite"", parent.""Title"" AS ParentEntryName
                     FROM public.""JournalEntries"" je
                     LEFT JOIN public.""JournalEntries"" parent ON je.""ParentEntryId"" = parent.""Id""
                     WHERE {baseWhere}
@@ -216,7 +219,10 @@ namespace Collector.Data.Repositories
 
         public JournalEntry GetById(Guid journalEntryId)
         {
-            return _dbConnection.QuerySingleOrDefault<JournalEntry>(@"SELECT je.*, parent.""Title"" AS ParentEntryName
+            return _dbConnection.QuerySingleOrDefault<JournalEntry>(@"SELECT je.""Id"", je.""JournalId"", je.""ParentEntryId"", je.""Title"", 
+                je.""Description"", je.""Url"", je.""Created"", je.""Modified"", je.""Status"", je.""ChapterId"", 
+                je.""Encrypted"", je.""Thumbnail"", je.""ThumbnailModuleId"", je.""Favorite"", 
+                parent.""Title"" AS ParentEntryName
                 FROM public.""JournalEntries"" je
                 LEFT JOIN public.""JournalEntries"" parent ON je.""ParentEntryId"" = parent.""Id""
                 WHERE je.""Id"" = @journalEntryId", 
@@ -295,6 +301,28 @@ namespace Collector.Data.Repositories
                 SET ""ParentEntryId"" = @parentEntryId
                 WHERE ""Id"" = @journalEntryId",
                 new { journalEntryId, parentEntryId });
+        }
+
+        public (Guid? EntryId, string Title, float Distance)? FindSimilarByTitle(int journalId, float[] embedding, float maxDistance = 0.3f)
+        {
+            var embeddingJson = System.Text.Json.JsonSerializer.Serialize(embedding);
+            var result = _dbConnection.QueryFirstOrDefault<(Guid Id, string Title, float Distance)>(
+                @"SELECT * FROM public.""JournalEntries_FindSimilar""(@journalId, @embeddingJson, @maxDistance)",
+                new { journalId, embeddingJson, maxDistance });
+            
+            if (result.Id == Guid.Empty)
+                return null;
+                
+            return (result.Id, result.Title, result.Distance);
+        }
+
+        public void UpdateEmbedding(Guid journalEntryId, float[] embedding)
+        {
+            var embeddingJson = System.Text.Json.JsonSerializer.Serialize(embedding);
+            _dbConnection.Execute(@"UPDATE public.""JournalEntries""
+                SET ""Embedding"" = CAST(@embeddingJson AS VECTOR(768))
+                WHERE ""Id"" = @journalEntryId",
+                new { journalEntryId, embeddingJson });
         }
     }
 }

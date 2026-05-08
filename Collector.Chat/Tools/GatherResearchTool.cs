@@ -1,7 +1,11 @@
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Web;
 using Collector.Chat.Models;
 using Collector.Common;
+using OllamaSharp;
 
 namespace Collector.Chat.Tools;
 
@@ -10,6 +14,15 @@ namespace Collector.Chat.Tools;
 /// </summary>
 public class GatherResearchTool : IChatTool
 {
+    private readonly OllamaApiClient _ollama;
+    private readonly string _ollamaModel;
+
+    public GatherResearchTool(OllamaApiClient ollama, string ollamaModel)
+    {
+        _ollama = ollama;
+        _ollamaModel = ollamaModel;
+    }
+
     public string ToolKey => "gather-research";
 
     public string Description => "Search major search engines to find relevant URLs for research. Automatically adds web-scrape steps to the plan for each discovered URL.";
@@ -20,9 +33,9 @@ public class GatherResearchTool : IChatTool
     {
         new ToolParameter
         {
-            Key = "query",
+            Key = "context",
             DataType = "string",
-            Description = "The search query to use"
+            Description = "a brief description of the context in which we will formulate our search query from"
         },
         new ToolParameter
         {
@@ -49,10 +62,11 @@ public class GatherResearchTool : IChatTool
     public async Task Run(
         string userMessage,
         string ragContext,
-        Dictionary<string, string> data,
+        List<Dictionary<string, List<string>>> data,
         OnProgress onProgress,
         OnError onError,
         OnComplete onComplete,
+        Guid appUserId,
         ExecutionPlan? plan = null,
         int currentStepIndex = -1,
         OnRawRequest? onRawRequest = null,
@@ -64,19 +78,27 @@ public class GatherResearchTool : IChatTool
         {
             onProgress(5, "Initializing research gathering...");
 
-            // Get parameters
-            var query = data.GetValueOrDefault("query", userMessage);
-            var maxResultsStr = data.GetValueOrDefault("maxResults", "5");
+            // Get parameters from plan args
+            var args = plan?.Steps.Count > currentStepIndex && currentStepIndex >= 0
+                ? plan.Steps[currentStepIndex].Args
+                : new Dictionary<string, object>();
+
+            var context = args?.GetValueOrDefault("context", "")?.ToString() ?? "";
+            var maxResultsStr = args?.GetValueOrDefault("maxResults", "5")?.ToString() ?? "5";
             var maxResults = int.TryParse(maxResultsStr, out var parsed) ? parsed : 5;
 
+            // Generate search query using Ollama based on context, user message, and RAG context
+            onProgress(10, "Generating optimal search query...");
+            var query = await GenerateSearchQueryAsync(context, userMessage, ragContext);
+            
             if (string.IsNullOrWhiteSpace(query))
             {
-                onError("No search query provided", null);
+                onError("Failed to generate search query", null);
                 return;
             }
 
             var allUrls = new List<string>();
-            var searchEngines = new[] { "google", "bing", "duckduckgo" };
+            var searchEngines = new[] { "google"};//, "bing", "duckduckgo" };
 
             // Search each engine
             for (int i = 0; i < searchEngines.Length; i++)
@@ -111,16 +133,15 @@ public class GatherResearchTool : IChatTool
                 return;
             }
 
-            onProgress(80, $"Found {finalUrls.Count} relevant URLs");
-
-            // Store URLs in data dictionary
-            data["research_urls"] = string.Join("|", finalUrls);
-            data["research_url_count"] = finalUrls.Count.ToString();
+            onProgress(80, $"Found {finalUrls.Count} relevant URLs for query: {query}");
 
             // Add web-scrape steps for each URL
             if (plan != null && currentStepIndex >= 0)
             {
                 onProgress(90, "Adding web-scrape steps to plan...");
+
+                // Track the index where we start adding web-scrape steps
+                int lastWebScrapeIndex = currentStepIndex;
 
                 // Insert steps in reverse order so first URL ends up first in the list
                 for (int i = finalUrls.Count - 1; i >= 0; i--)
@@ -130,10 +151,26 @@ public class GatherResearchTool : IChatTool
                     {
                         { "url", url }
                     });
+                    lastWebScrapeIndex = currentStepIndex + 1; // Points to the step we just added
                 }
+
+                // Add clean-web-content step after all web-scrape steps
+                // Insert at the position after the last web-scrape step
+                int cleanContentIndex = lastWebScrapeIndex + (finalUrls.Count - 1);
+                PlanUtility.AddStepToPlan(plan, cleanContentIndex, "clean-web-content", new Dictionary<string, object>
+                {
+                    { "userMessage", userMessage }
+                });
+
+                // Add add-edit-journal-entry step after clean-web-content
+                int addEditIndex = cleanContentIndex + 1;
+                PlanUtility.AddStepToPlan(plan, addEditIndex, "add-edit-journal-entry", new Dictionary<string, object>
+                {
+                    { "context", "Create journal entry from cleaned web content" }
+                });
             }
 
-            onProgress(100, $"Research complete. Added {finalUrls.Count} URLs to scrape.");
+            onProgress(100, $"Research complete. Added {finalUrls.Count} URLs to scrape, plus content cleaning and journal entry steps.");
 
             onComplete($"Gathered {finalUrls.Count} URLs from search engines");
         }
@@ -160,7 +197,7 @@ public class GatherResearchTool : IChatTool
         {
             // Download search results page
             string resolvedUrl;
-            var domJson = await Task.Run(() => Charlotte.Download(searchUrl, out resolvedUrl));
+            var domJson = Charlotte.Download(searchUrl, out resolvedUrl);
 
             if (string.IsNullOrWhiteSpace(domJson) || domJson.StartsWith("file:") || domJson.StartsWith("Error"))
             {
@@ -296,11 +333,9 @@ public class GatherResearchTool : IChatTool
             "yahoo.com",
             "baidu.com",
             "yandex.com",
-            "wikipedia.org",
             "facebook.com",
             "twitter.com",
             "instagram.com",
-            "youtube.com",
             "tiktok.com",
             "pinterest.com",
             "reddit.com"
@@ -376,5 +411,78 @@ public class GatherResearchTool : IChatTool
         }
 
         return filtered;
+    }
+
+    /// <summary>
+    /// Generate an optimal search query using Ollama based on context, user message, and RAG context
+    /// </summary>
+    private async Task<string> GenerateSearchQueryAsync(string context, string userMessage, string ragContext)
+    {
+        try
+        {
+            var systemPrompt = @"You are a search query optimization expert. Your task is to generate a concise, effective search query that will find accurate and relevant information for the user.
+
+Rules for generating the search query:
+1. Create a query that is 2-8 words long
+2. Focus on the most specific, unique keywords that will yield accurate results
+3. Remove filler words (what, how, why, when, where, is, are, the, a, an)
+4. Use technical terms and proper nouns when relevant
+5. The query should directly address what the user is looking for
+6. Return ONLY the search query string, nothing else
+
+Examples:
+- User wants to know about Python list comprehension syntax -> Query: Python list comprehension syntax
+- User wants to compare PostgreSQL vs MySQL performance -> Query: PostgreSQL vs MySQL performance benchmark
+- User needs information about React hooks best practices -> Query: React hooks best practices 2024";
+
+            var userPrompt = $"Context from conversation: {context}\n\nUser's current question: {userMessage}\n\nPrevious conversation context:\n{ragContext}\n\nBased on all the above information, generate a concise, effective search query (2-8 words) that will find accurate information for the user. Return ONLY the search query:";
+
+            var request = new OllamaSharp.Models.GenerateRequest
+            {
+                Model = _ollamaModel,
+                System = systemPrompt,
+                Prompt = userPrompt,
+                Stream = false
+            };
+
+            var responseContent = "";
+            await foreach (var response in _ollama.GenerateAsync(request))
+            {
+                if (response?.Response != null)
+                {
+                    responseContent += response.Response;
+                }
+            }
+
+            // Clean up the response - take only the first line, remove quotes, trim whitespace
+            var query = responseContent?.Trim() ?? "";
+            
+            // Remove quotes if present
+            query = query.Trim('"', '\'', '`');
+            
+            // Take only the first line if multiple lines
+            var firstNewline = query.IndexOf('\n');
+            if (firstNewline > 0)
+            {
+                query = query.Substring(0, firstNewline).Trim();
+            }
+            
+            // Remove common prefixes that Ollama might add
+            var prefixes = new[] { "Search query:", "Query:", "Search:", "search query:", "query:", "search:" };
+            foreach (var prefix in prefixes)
+            {
+                if (query.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    query = query.Substring(prefix.Length).Trim();
+                }
+            }
+
+            return query;
+        }
+        catch (Exception ex)
+        {
+            // Fallback to using user message directly
+            return userMessage;
+        }
     }
 }

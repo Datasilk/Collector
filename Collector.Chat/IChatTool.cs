@@ -76,7 +76,7 @@ public static class PlanUtility
 public interface IChatTool
 {
     /// <summary>
-    /// Unique key identifying this tool (e.g., "web-scrape", "new-journal-entry")
+    /// Unique key identifying this tool (e.g., "web-scrape", "add-edit-journal-entry")
     /// </summary>
     string ToolKey { get; }
 
@@ -105,10 +105,11 @@ public interface IChatTool
     /// </summary>
     /// <param name="userMessage">The original user chat message</param>
     /// <param name="ragContext">RAG context gathered for this conversation</param>
-    /// <param name="data">Shared data dictionary for passing values between tools</param>
+    /// <param name="data">Shared data list for passing values between tools. Each item represents a scraped web page with keys: type, url, title, headers, content, links, images, layout</param>
     /// <param name="onProgress">Callback for progress updates (percent, message)</param>
     /// <param name="onError">Callback for error reporting</param>
     /// <param name="onComplete">Callback for completion notification</param>
+    /// <param name="appUserId">The authenticated user's ID</param>
     /// <param name="plan">The execution plan that can be modified by the tool</param>
     /// <param name="currentStepIndex">The index of the current step being executed</param>
     /// <param name="onRawRequest">Callback for raw request debugging</param>
@@ -119,10 +120,11 @@ public interface IChatTool
     Task Run(
         string userMessage,
         string ragContext,
-        Dictionary<string, string> data,
+        List<Dictionary<string, List<string>>> data,
         OnProgress onProgress,
         OnError onError,
         OnComplete onComplete,
+        Guid appUserId,
         ExecutionPlan? plan = null,
         int currentStepIndex = -1,
         OnRawRequest? onRawRequest = null,

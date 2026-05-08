@@ -72,7 +72,7 @@ public class ChatToolRegistry
         var prompt = "You are a planning assistant. Analyze the user's request and respond with ONLY valid JSON.\n\n" +
             "DECISION:\n" +
             "- If user wants a simple answer/conversation → return message only (no steps)\n" +
-            "- If user needs actions performed (research, create entries, etc.) → return message AND steps\n\n" +
+            "- If user needs actions performed → return message AND steps\n\n" +
             "AVAILABLE TOOLS (use their exact tool keys):\n" +
             toolList +
             "RESPONSE FORMAT:\n" +
@@ -96,10 +96,11 @@ public class ChatToolRegistry
         ExecutionPlan plan,
         string userMessage,
         string ragContext,
-        Dictionary<string, string> data,
+        List<Dictionary<string, List<string>>> data,
         Action<int, string> onStepProgress,
         Action<string, string, Exception?> onToolError,
         Action<string, string> onToolComplete,
+        Guid appUserId,
         OnRawRequest? onRawRequest = null,
         OnRawResponse? onRawResponse = null,
         OnSaveChatHistory? onSaveChatHistory = null,
@@ -118,12 +119,6 @@ public class ChatToolRegistry
                 continue;
             }
 
-            // Merge step args into data dictionary
-            foreach (var arg in step.Args)
-            {
-                data[arg.Key] = arg.Value?.ToString() ?? string.Empty;
-            }
-
             var stepNumber = i + 1;
 
             await tool.Run(
@@ -133,6 +128,7 @@ public class ChatToolRegistry
                 (percent, message) => onStepProgress((int)((stepNumber - 1 + percent / 100.0) / totalSteps * 100), $"[{stepNumber}/{totalSteps}] {message}"),
                 (message, ex) => onToolError(step.Tool, message, ex),
                 (message) => onToolComplete(step.Tool, message),
+                appUserId,
                 plan,
                 i,
                 onRawRequest,

@@ -25,5 +25,9 @@ namespace Collector.Data.Interfaces
         void SetChapter(Guid journalEntryId, int? chapterId);
         void UpdateThumbnail(Guid journalEntryId, string thumbnail, string thumbnailModuleId = null);
         void SetParent(Guid journalEntryId, Guid? parentEntryId);
+        
+        // Vector similarity search for duplicate detection
+        (Guid? EntryId, string Title, float Distance)? FindSimilarByTitle(int journalId, float[] embedding, float maxDistance = 0.3f);
+        void UpdateEmbedding(Guid journalEntryId, float[] embedding);
     }
 }

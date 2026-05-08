@@ -123,19 +123,12 @@ namespace Collector.Data.Repositories
                 new { appUserId, chatId, content, embeddingJson, metadata });
         }
 
-        public List<(string Content, string Metadata, float Distance)> GetContext(Guid appUserId, float[] queryEmbedding, int topK = 5)
+        public List<(string Content, string Metadata, float Distance)> GetContext(Guid appUserId, float[] queryEmbedding, int length = 5, float? distance = null)
         {
             var embeddingJson = System.Text.Json.JsonSerializer.Serialize(queryEmbedding);
-            var results = _dbConnection.Query<ContextResult>(@"
-                SELECT 
-                    ""Content"",
-                    ""Metadata"",
-                    (""Embedding"" <=> CAST(@embeddingJson AS VECTOR(768))) AS Distance
-                FROM public.""ChatContextChunks""
-                WHERE ""AppUserId"" = @appUserId
-                ORDER BY ""Embedding"" <=> CAST(@embeddingJson AS VECTOR(768))
-                LIMIT @topK", 
-                new { topK, embeddingJson, appUserId });
+            var results = _dbConnection.Query<ContextResult>(
+                @"SELECT * FROM public.""Chat_GetContext""(@appUserId, @embeddingJson, @length, @distance)",
+                new { appUserId, embeddingJson, length, distance });
 
             return results.Select(r => (r.Content, r.Metadata, r.Distance)).ToList();
         }

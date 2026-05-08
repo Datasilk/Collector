@@ -43,7 +43,7 @@ namespace Collector.Common
                     try
                     {
                         //try downloading head first to see if the request is actually html or a file
-                        request.Timeout = TimeSpan.FromSeconds(10);
+                        request.Timeout = TimeSpan.FromSeconds(30);
                         try
                         {
                             using (HttpResponseMessage response = request.Send(new HttpRequestMessage()
@@ -151,9 +151,9 @@ namespace Collector.Common
                 StringContent postContent = new StringContent(postData.ToString(), Encoding.UTF8, "application/x-www-form-urlencoded");
                 HttpClient client = new HttpClient()
                 {
-                    Timeout = TimeSpan.FromSeconds(10)
+                    Timeout = TimeSpan.FromSeconds(32)
                 };
-                HttpResponseMessage message = client.PostAsync(RouterEndpoint, postContent).GetAwaiter().GetResult();
+                HttpResponseMessage message = client.PostAsync(RouterEndpoint + "/GetDOM", postContent).GetAwaiter().GetResult();
                 string result = message.Content.ReadAsStringAsync().GetAwaiter().GetResult();
                 return result;
             }
