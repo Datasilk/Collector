@@ -1,19 +1,20 @@
-CREATE OR REPLACE PROCEDURE  public."DomainTypeMatches_Add"
+CREATE OR REPLACE FUNCTION public."DomainTypeMatches_Add"
 (
-    IN type INT,
-    IN type2 INT DEFAULT -1,
-    IN words TEXT,
-    IN threshold INT,
-    IN rank INT
-);
+    p_type INT,
+    p_type2 INT DEFAULT -1,
+    p_words TEXT,
+    p_threshold INT,
+    p_rank INT
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    id INT;
+    v_id INT;
 BEGIN
-SET id = nextval('public."SequenceDomainTypeMatches"')
-	INSERT INTO DomainTypeMatches (matchId, "type", "type2", words, threshold, "rank")
-	VALUES (id, type, type2, words, threshold, rank)
-END;
+    v_id := nextval('public."SequenceDomainTypeMatches"');
 
+    INSERT INTO public."DomainTypeMatches" ("matchId", "type", "type2", "words", "threshold", "rank")
+    VALUES (v_id, p_type, p_type2, p_words, p_threshold, p_rank);
+END;
 $$;

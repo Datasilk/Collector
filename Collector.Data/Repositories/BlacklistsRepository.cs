@@ -18,27 +18,27 @@ namespace Collector.Data.Repositories
 
         public List<string> GetDomainsList()
         {
-            return _dbConnection.Query<string>("EXEC Blacklist_Domains_GetList").ToList();
+            return _dbConnection.Query<string>("SELECT * FROM public.\"Blacklist_Domains_GetList\"()").ToList();
         }
 
         public void AddDomain(string domain)
         {
-            _dbConnection.Execute("EXEC Blacklist_Domain_Add @domain=@domain", new { domain });
+            _dbConnection.Execute("SELECT public.\"Blacklist_Domain_Add\"(@domain)", new { domain });
         }
 
         public void RemoveDomain(string domain)
         {
-            _dbConnection.Execute("EXEC Blacklist_Domain_Remove @domain=@domain", new { domain });
+            _dbConnection.Execute("SELECT public.\"Blacklist_Domain_Remove\"(@domain)", new { domain });
         }
 
         public bool CheckDomain(string domain)
         {
-            return _dbConnection.ExecuteScalar<int>("EXEC Blacklist_Domain_Check @domain=@domain", new { domain }) > 0;
+            return _dbConnection.ExecuteScalar<int>("SELECT public.\"Blacklist_Domain_Check\"(@domain)", new { domain }) > 0;
         }
 
         public List<Blacklist> CheckAllDomains(string[] domains)
         {
-            return _dbConnection.Query<Blacklist>("EXEC Blacklist_Domains_CheckAll @domains=@domains", new { domains = string.Join(",", domains) }).ToList();
+            return _dbConnection.Query<Blacklist>("SELECT * FROM public.\"Blacklist_Domains_CheckAll\"(@domains)", new { domains = string.Join(",", domains) }).ToList();
         }
 
         #endregion
@@ -47,17 +47,17 @@ namespace Collector.Data.Repositories
 
         public List<string> GetWildcardsList()
         {
-            return _dbConnection.Query<string>("EXEC Blacklist_Wildcards_GetList").ToList();
+            return _dbConnection.Query<string>("SELECT * FROM public.\"Blacklist_Wildcards_GetList\"()").ToList();
         }
 
         public void AddWildcard(string domain)
         {
-            _dbConnection.Execute("EXEC Blacklist_Wildcard_Add @domain=@domain", new { domain });
+            _dbConnection.Execute("SELECT public.\"Blacklist_Wildcard_Add\"(@domain)", new { domain });
         }
 
         public void RemoveWildcard(string domain)
         {
-            _dbConnection.Execute("EXEC Blacklist_Wildcard_Remove @domain=@domain", new { domain });
+            _dbConnection.Execute("SELECT public.\"Blacklist_Wildcard_Remove\"(@domain)", new { domain });
         }
 
         #endregion

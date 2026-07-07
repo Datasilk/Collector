@@ -20,48 +20,49 @@ namespace Collector.Data.Repositories
 
         public int Add(FeedDocType doctype, int categoryId, string title, string url, string domain, string filter = "", int checkIntervals = 720)
         {
-            return _db.ExecuteScalar<int>("Feed_Add", new { doctype = (int)doctype, categoryId, title, url, domain, filter, checkIntervals }, commandType: CommandType.StoredProcedure);
+            return _db.ExecuteScalar<int>("SELECT public.\"Feed_Add\"(@doctype, @categoryId, @title, @url, @domain, @filter, @checkIntervals)",
+                new { doctype = (int)doctype, categoryId, title, url, domain, filter, checkIntervals });
         }
 
         public Feed GetInfo(int feedId)
         {
-            return _db.Query<Feed>("Feed_GetInfo", new { feedId }, commandType: CommandType.StoredProcedure).FirstOrDefault();
+            return _db.Query<Feed>("SELECT * FROM public.\"Feed_GetInfo\"(@feedId)", new { feedId }).FirstOrDefault();
         }
 
         public void LogCheckedLinks(int feedId, int count)
         {
-            _db.Execute("FeedCheckedLog_Add", new { feedId, count }, commandType: CommandType.StoredProcedure);
+            _db.Execute("SELECT public.\"FeedCheckedLog_Add\"(@feedId, @count)", new { feedId, count });
         }
 
         public void UpdateLastChecked(int feedId)
         {
-            _db.Execute("Feed_Checked", new { feedId }, commandType: CommandType.StoredProcedure);
+            _db.Execute("SELECT public.\"Feed_Checked\"(@feedId)", new { feedId });
         }
 
         public List<Feed> GetList()
         {
-            return _db.Query<Feed>("Feeds_GetList", commandType: CommandType.StoredProcedure).ToList();
+            return _db.Query<Feed>("SELECT * FROM public.\"Feeds_GetList\"()").ToList();
         }
 
         public List<FeedWithLog> GetListWithLogs(int days = 7, DateTime? dateStart = null)
         {
-            return _db.Query<FeedWithLog>("Feeds_GetListWithLogs",
-                new { days, dateStart = dateStart ?? DateTime.Now.AddDays(-7) }, commandType: CommandType.StoredProcedure).ToList();
+            return _db.Query<FeedWithLog>("SELECT * FROM public.\"Feeds_GetListWithLogs\"(@days, @dateStart)",
+                new { days, dateStart = (dateStart ?? DateTime.Now.AddDays(-7)).Date }).ToList();
         }
 
         public void AddCategory(string title)
         {
-            _db.Execute("Feeds_Category_Add", new { title }, commandType: CommandType.StoredProcedure);
+            _db.Execute("SELECT public.\"Feeds_Category_Add\"(@title)", new { title });
         }
 
         public List<FeedCategory> GetCategories()
         {
-            return _db.Query<FeedCategory>("Feeds_Categories_GetList", commandType: CommandType.StoredProcedure).ToList();
+            return _db.Query<FeedCategory>("SELECT * FROM public.\"Feeds_Categories_GetList\"()").ToList();
         }
 
         public List<Feed> Check(int feedId = 0)
         {
-            return _db.Query<Feed>("Feeds_Check", new { feedId }, commandType: CommandType.StoredProcedure).ToList();
+            return _db.Query<Feed>("SELECT * FROM public.\"Feeds_Check\"(@feedId)", new { feedId }).ToList();
         }
 
         public List<Feed> GetFilteredFeeds(int start, int length, string search, string sort)
@@ -88,14 +89,8 @@ namespace Collector.Data.Repositories
                     sortValue = 4; // Title ASC
                     break;
             }
-            var parameters = new
-            {
-                Start = start,
-                Length = length,
-                Search = search,
-                Sort = sortValue
-            };
-            return _db.Query<Feed>("[dbo].[Feeds_Filter]", parameters, commandType: CommandType.StoredProcedure).ToList();
+            return _db.Query<Feed>("SELECT * FROM public.\"Feeds_Filter\"(@start, @length, @search, @sort)",
+                new { start, length, search, sort = sortValue }).ToList();
         }
     }
 }

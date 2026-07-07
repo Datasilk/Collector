@@ -12,8 +12,8 @@ table.spreadsheet {
 
 table.spreadsheet thead td,
 table.spreadsheet thead th {
-    background-color: #dedbf4;
-    color: #5200b9;
+    background-color: var(--table-header-bg);
+    color: var(--table-header-text);
     text-align: left;
 }
 
@@ -30,16 +30,16 @@ table.spreadsheet th {
 
 table.spreadsheet td a,
 table.spreadsheet th a {
-    color: #8662b9;
+    color: var(--table-link);
 }
 
 table.spreadsheet td a:hover,
 table.spreadsheet th a:hover {
-    color: #66429a;
+    color: var(--table-link-hover);
 }
 
 table.spreadsheet td a:active {
-    color: #66429a;
+    color: var(--table-link-hover);
 }
 
 table.spreadsheet td,
@@ -48,31 +48,31 @@ table.spreadsheet th {
 }
 
 table.spreadsheet tbody tr a {
-    color: #b0afaf;
+    color: var(--table-row-link);
 }
 
 table.spreadsheet tbody tr:hover a {
-    color: #8662b9;
+    color: var(--table-link);
 }
 
 table.spreadsheet tbody tr:hover a:hover {
-    color: #66429a;
+    color: var(--table-link-hover);
 }
 
 table.spreadsheet tbody tr:nth-child(odd) {
-    background-color: #f3f3f3;
+    background-color: var(--table-row-odd);
 }
 
 table.spreadsheet tbody tr:nth-child(even) {
-    background-color: #e8e8e8;
+    background-color: var(--table-row-even);
 }
 
 table.spreadsheet tbody tr:nth-child(odd):hover {
-    background-color: #dedbf4;
+    background-color: var(--table-row-hover);
 }
 
 table.spreadsheet tbody tr:nth-child(even):hover {
-    background-color: #dedbf4;
+    background-color: var(--table-row-hover);
 }
 
 table.spreadsheet tbody td.buttons {

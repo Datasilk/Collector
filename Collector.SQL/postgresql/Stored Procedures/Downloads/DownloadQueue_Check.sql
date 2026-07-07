@@ -1,88 +1,82 @@
-CREATE OR REPLACE PROCEDURE  public."DownloadQueue_Check"
+CREATE OR REPLACE FUNCTION public."DownloadQueue_Check"
 (
-    IN domaindelay INT DEFAULT 60, -- in seconds,
-    IN domain VARCHAR(64) DEFAULT '',
-    IN feedId INT DEFAULT 0,
-    IN sort INT DEFAULT 0, -- 0 = newest, 1 = oldest, 2 = domain-level, 3 = random,
-    IN qid bigint DEFAULT 0
-);
+    p_domaindelay INT DEFAULT 60,
+    p_domain VARCHAR(64) DEFAULT '',
+    p_feedId INT DEFAULT 0,
+    p_sort INT DEFAULT 0,
+    p_qid BIGINT DEFAULT 0
+)
+RETURNS TABLE(
+    "qid" BIGINT, "feedId" INT, "domainId" INT, "type" SMALLINT, "status" INT,
+    "tries" INT, "url" VARCHAR(255), "path" VARCHAR(255), "datecreated" TIMESTAMP(6),
+    "domain" VARCHAR(64), "articles" INT
+)
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    domainId INT, maxQid bigint := 0, randQid bigint;
-    checkedDomains TABLE (domainId INT);
+    v_domainId INT;
+    v_maxQid BIGINT := 0;
+    v_randQid BIGINT;
 BEGIN
---BEGIN TRANSACTION
-	IF qid = 0 BEGIN
-		IF sort = 2 OR sort = 3 BEGIN -- random queue item
-			SELECT maxQid = MAX(qid) FROM DownloadQueue
-			SET randQid = CONVERT(bigint, (RAND() * maxQid))
-		END
-		IF domain IS NOT NULL AND domain <> '' BEGIN
-			SELECT domainId = domainId FROM Domains WHERE domain=domain
-		END
-		INSERT INTO checkedDomains
-		SELECT domainId FROM Domains
-		WHERE lastchecked >= DATEADD(SECOND, 0 - domaindelay, CURRENT_TIMESTAMP)
-		SELECT TOP 1 qid = q.qid, domainId = q.domainId
-		FROM DownloadQueue q --
-		JOIN Domains d ON d.domainId = q.domainId
-		LEFT JOIN Whitelist_Domains w ON w.domain = d.domain -- must be a whitelisted domain
-		LEFT JOIN Blacklist_Domains b ON b.domain = d.domain -- check for blacklisted domain
-		WHERE
-		(
-			-- filter by domain name
-			(domain IS NOT NULL AND domain <> '' AND q.domainId = domainId)
-			OR domain IS NULL OR domain = ''
-		);
-		-- filter domains that have not been checked recently
-		AND q.domainId NOT IN (SELECT domainId FROM checkedDomains)
-		AND (
-			-- filter by feed
-			(feedId > 0 AND q.feedId = feedId)
-			OR feedId <= 0
-		);
-		-- filter domains that are not behind a paywall
-		AND (d.paywall = 0 OR (d.paywall = 1 AND d.free = 1))
-		AND ( 
-			-- get random download queue item
-			((sort = 2 OR sort = 3) AND maxQid > 0 AND q.qid >= randQid)
-			OR maxQid = 0
-		); 
-		AND (
-			-- get download queue item that only contains domain name (domain home page)
-			(sort = 2 AND LEN(q."url") <= LEN(d.domain) + 11)
-			OR sort != 2
-		);
-		AND (
-			-- filter by whitelisted domains only (unless we're getting domain home pages)
-			(sort != 2 AND w.domain IS NOT NULL)
-			OR sort = 2
-		);
-		-- filter all blacklisted domains
-		AND b.domain IS NULL
-		AND q.status = 0
-		AND (d.lang = '' OR d.lang = 'en')
-		ORDER BY 
-		CASE WHEN sort = 0 THEN q.datecreated END DESC
-	END ELSE BEGIN
-		SELECT domainId = domainId FROM DownloadQueue WHERE qid = qid
-		IF domainId IS NULL RETURN --exit sproc if we fail to get domainId
-	END
-	IF qid > 0 BEGIN
-		--WAITFOR DELAY '00:00:03' -- for debugging transactions
-		UPDATE DownloadQueue SET status=1 WHERE qid=qid
-		UPDATE Domains SET lastchecked = CURRENT_TIMESTAMP
-		WHERE domainId = domainId
-		-- get next download in the queue
-		SELECT q.*, d.domain, d.articles
-		FROM DownloadQueue q 
-		JOIN Domains d ON d.domainId = q.domainId
-		WHERE qid=qid
-		-- get list of download rules for domain that queue item belongs to
-		SELECT * FROM DownloadRules WHERE domainId = (SELECT domainId FROM DownloadQueue q WHERE qid=qid)
-	END
-	--COMMIT
-END;
+    IF p_qid = 0 THEN
+        IF p_sort IN (2, 3) THEN
+            SELECT COALESCE(MAX(q."qid"), 0) INTO v_maxQid FROM public."DownloadQueue" q;
+            v_randQid := floor(random() * v_maxQid)::BIGINT;
+        END IF;
 
+        IF p_domain IS NOT NULL AND p_domain <> '' THEN
+            SELECT d."domainId" INTO v_domainId FROM public."Domains" d WHERE d."domain" = p_domain;
+        END IF;
+
+        RETURN QUERY
+        SELECT q.*, d."domain", d."articles"
+        FROM public."DownloadQueue" q
+        JOIN public."Domains" d ON d."domainId" = q."domainId"
+        LEFT JOIN public."Whitelist_Domains" w ON w."domain" = d."domain"
+        LEFT JOIN public."Blacklist_Domains" b ON b."domain" = d."domain"
+        WHERE
+            (p_domain IS NULL OR p_domain = '' OR q."domainId" = v_domainId)
+            AND q."domainId" NOT IN (
+                SELECT d2."domainId" FROM public."Domains" d2
+                WHERE d2."lastchecked" >= CURRENT_TIMESTAMP - (p_domaindelay || ' seconds')::INTERVAL
+            )
+            AND (
+                (p_feedId > 0 AND q."feedId" = p_feedId)
+                OR p_feedId <= 0
+            )
+            AND (d."paywall" = FALSE OR (d."paywall" = TRUE AND d."free" = TRUE))
+            AND (
+                ((p_sort IN (2, 3)) AND v_maxQid > 0 AND q."qid" >= v_randQid)
+                OR v_maxQid = 0
+            )
+            AND (
+                (p_sort = 2 AND LENGTH(q."url") <= LENGTH(d."domain") + 11)
+                OR p_sort != 2
+            )
+            AND (
+                (p_sort != 2 AND w."domain" IS NOT NULL)
+                OR p_sort = 2
+            )
+            AND b."domain" IS NULL
+            AND q."status" = 0
+            AND (d."lang" = '' OR d."lang" = 'en')
+        ORDER BY
+            CASE WHEN p_sort = 0 THEN q."datecreated" END DESC
+        LIMIT 1;
+    ELSE
+        SELECT q."domainId" INTO v_domainId FROM public."DownloadQueue" q WHERE q."qid" = p_qid;
+        IF v_domainId IS NULL THEN
+            RETURN;
+        END IF;
+
+        UPDATE public."DownloadQueue" SET "status" = 1 WHERE "qid" = p_qid;
+        UPDATE public."Domains" SET "lastchecked" = CURRENT_TIMESTAMP WHERE "domainId" = v_domainId;
+
+        RETURN QUERY
+        SELECT q.*, d."domain", d."articles"
+        FROM public."DownloadQueue" q
+        JOIN public."Domains" d ON d."domainId" = q."domainId"
+        WHERE q."qid" = p_qid;
+    END IF;
+END;
 $$;

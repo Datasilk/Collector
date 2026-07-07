@@ -11,6 +11,7 @@ config.*.json
 .config/
 RECOVER_*
 *.jfm
+Collector.SQL.Migrate
 
 
 # Build results

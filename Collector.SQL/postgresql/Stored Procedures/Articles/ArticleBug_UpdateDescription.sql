@@ -1,12 +1,12 @@
-CREATE OR REPLACE PROCEDURE  public."ArticleBug_UpdateDescription"
+CREATE OR REPLACE FUNCTION public."ArticleBug_UpdateDescription"
 (
-    IN bugId INT DEFAULT 0,
-    IN description TEXT DEFAULT ''
-);
+    p_bugId INT DEFAULT 0,
+    p_description TEXT DEFAULT ''
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 BEGIN
-UPDATE ArticleBugs SET description=description WHERE bugId=bugId
+    UPDATE public."ArticleBugs" SET "description" = p_description WHERE "bugId" = p_bugId;
 END;
-
 $$;

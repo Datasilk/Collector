@@ -15,7 +15,7 @@ namespace Collector.Data.Repositories
 
         public void ResetAllSequences()
         {
-            _dbConnection.Execute("[dbo].[ResetAllSequences]", commandType: CommandType.StoredProcedure);
+            _dbConnection.Execute("SELECT public.\"ResetAllSequences\"()");
         }
     }
 }

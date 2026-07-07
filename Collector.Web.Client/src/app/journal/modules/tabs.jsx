@@ -24,9 +24,15 @@ export default function TabsModule({ module, entryId, entry, journalId, journal,
     const dragStartPosRef = useRef({ x: 0, y: 0 });
     const tabIdsBeforeDragRef = useRef(null);
     const reorderedTabsRef = useRef(null);
+    const moduleRef = useRef(module);
 
     // Get tabs directly from module
     const tabs = module.tabs || [];
+    
+    // Keep moduleRef in sync with latest module prop
+    useEffect(() => {
+        moduleRef.current = module;
+    }, [module]);
 
     //context
     const session = useSession();
@@ -278,7 +284,9 @@ export default function TabsModule({ module, entryId, entry, journalId, journal,
     };
 
     const handleUpdatedModule = (updatedChildModule) => {
-        const activeTab = module.tabs.find(tab => tab.id === activeTabId);
+        // Use moduleRef to get the latest module state, avoiding stale closures
+        const latestModule = moduleRef.current;
+        const activeTab = latestModule.tabs.find(tab => tab.id === activeTabId);
         if (!activeTab) return;
 
         const childModules = [...(activeTab.modules || [])];
@@ -286,10 +294,10 @@ export default function TabsModule({ module, entryId, entry, journalId, journal,
         
         if (index > -1) {
             childModules[index] = {...childModules[index], ...updatedChildModule};
-            const updatedTabs = module.tabs.map(tab =>
+            const updatedTabs = latestModule.tabs.map(tab =>
                 tab.id === activeTabId ? { ...tab, modules: childModules } : tab
             );
-            onUpdate({ ...module, tabs: updatedTabs });
+            onUpdate({ ...latestModule, tabs: updatedTabs });
         }
     };
 

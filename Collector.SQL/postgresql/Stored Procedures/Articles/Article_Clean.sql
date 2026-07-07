@@ -1,13 +1,12 @@
-CREATE OR REPLACE PROCEDURE  public."Article_Clean"
+CREATE OR REPLACE FUNCTION public."Article_Clean"
 (
-    IN articleId INT DEFAULT 0
-);
+    p_articleId INT DEFAULT 0
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 BEGIN
-EXEC ArticleSubjects_Remove articleId=articleId
-	EXEC ArticleWords_Remove articleId=articleId
-RETURN 0
+    PERFORM public."ArticleSubjects_Remove"(p_articleId);
+    PERFORM public."ArticleWords_Remove"(p_articleId);
 END;
-
 $$;

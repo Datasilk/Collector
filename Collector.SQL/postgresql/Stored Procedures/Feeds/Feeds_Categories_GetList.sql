@@ -1,8 +1,8 @@
-CREATE OR REPLACE PROCEDURE public."Feeds_Categories_GetList"
+CREATE OR REPLACE FUNCTION public."Feeds_Categories_GetList"()
+RETURNS TABLE("categoryId" INT, "title" VARCHAR(64))
 LANGUAGE plpgsql
 AS $$
 BEGIN
-SELECT * FROM FeedCategories ORDER BY title ASC
+    RETURN QUERY SELECT * FROM public."FeedCategories" ORDER BY "title" ASC;
 END;
-
 $$;

@@ -1,22 +1,23 @@
-CREATE OR REPLACE PROCEDURE  public."Domain_Collection_Add"
+CREATE OR REPLACE FUNCTION public."Domain_Collection_Add"
 (
-    IN colgroupId INT DEFAULT 0,
-    IN name VARCHAR(32),
-    IN search VARCHAR(128),
-    IN subjectId INT DEFAULT 0,
-    IN filtertype INT DEFAULT 0,
-    IN type INT DEFAULT 0,
-    IN sort INT DEFAULT 0,
-    IN lang varchar(6) DEFAULT ''
-);
+    p_colgroupId INT DEFAULT 0,
+    p_name VARCHAR(32),
+    p_search VARCHAR(128),
+    p_subjectId INT DEFAULT 0,
+    p_filtertype INT DEFAULT 0,
+    p_type INT DEFAULT 0,
+    p_sort INT DEFAULT 0,
+    p_lang VARCHAR(6) DEFAULT ''
+)
+RETURNS INT
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    id INT := nextval('public."SequenceDomainCollections"');
+    v_id INT := nextval('public."SequenceDomainCollections"');
 BEGIN
-INSERT INTO DomainCollections (colId, colgroupId, "name", "search", subjectId, filtertype, "type", "sort", lang, datecreated)
-	VALUES (id, colgroupId, name, search, subjectId, filtertype, type, sort, lang, CURRENT_TIMESTAMP)
-	SELECT id
-END;
+    INSERT INTO public."DomainCollections" ("colId", "colgroupId", "name", "search", "subjectId", "filtertype", "type", "sort", "lang", "datecreated")
+    VALUES (v_id, p_colgroupId, p_name, p_search, p_subjectId, p_filtertype, p_type, p_sort, p_lang, CURRENT_TIMESTAMP);
 
+    RETURN v_id;
+END;
 $$;

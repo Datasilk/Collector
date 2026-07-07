@@ -1,12 +1,12 @@
-CREATE OR REPLACE PROCEDURE  public."Domain_IsEmpty"
+CREATE OR REPLACE FUNCTION public."Domain_IsEmpty"
 (
-    IN domainId INT,
-    IN empty BOOLEAN DEFAULT FALSE
-);
+    p_domainId INT,
+    p_empty BOOLEAN DEFAULT FALSE
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 BEGIN
-UPDATE "Domains" SET "empty"=empty, dateupdated = CURRENT_TIMESTAMP WHERE domainId=domainId
+    UPDATE public."Domains" SET "empty" = p_empty, "dateupdated" = CURRENT_TIMESTAMP WHERE "domainId" = p_domainId;
 END;
-
 $$;

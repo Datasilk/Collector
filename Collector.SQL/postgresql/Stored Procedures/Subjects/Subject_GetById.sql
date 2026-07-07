@@ -1,11 +1,11 @@
-CREATE OR REPLACE PROCEDURE  public."Subject_GetById"
+CREATE OR REPLACE FUNCTION public."Subject_GetById"
 (
-    IN subjectId INT
-);
+    p_subjectId INT
+)
+RETURNS TABLE("subjectId" INT, "parentId" INT, "grammartype" INT, "score" INT, "haswords" BOOLEAN, "title" VARCHAR(50), "hierarchy" VARCHAR(50), "breadcrumb" VARCHAR(500))
 LANGUAGE plpgsql
 AS $$
 BEGIN
-SELECT * FROM Subjects WHERE subjectId=subjectId
+    RETURN QUERY SELECT * FROM public."Subjects" s WHERE s."subjectId" = p_subjectId;
 END;
-
 $$;

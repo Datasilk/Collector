@@ -1,14 +1,16 @@
-CREATE OR REPLACE PROCEDURE  public."DownloadQueue_Move"
+CREATE OR REPLACE FUNCTION public."DownloadQueue_Move"
 (
-    IN qid bigint DEFAULT 0
-);
+    p_qid BIGINT DEFAULT 0
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 BEGIN
---move related Download Queue record into Downloads table
-	INSERT INTO Downloads ("id", "feedId", "domainId", "status", "type", "tries", "url", "path", "datecreated") 
-	SELECT * FROM DownloadQueue WHERE qid=qid
-	DELETE FROM DownloadQueue WHERE qid=qid
-END;
+    INSERT INTO public."Downloads" ("id", "feedId", "domainId", "type", "status", "tries", "url", "path", "datecreated")
+    SELECT q."qid", q."feedId", q."domainId", q."type", q."status", q."tries", q."url", q."path", q."datecreated"
+    FROM public."DownloadQueue" q
+    WHERE q."qid" = p_qid;
 
+    DELETE FROM public."DownloadQueue" WHERE "qid" = p_qid;
+END;
 $$;

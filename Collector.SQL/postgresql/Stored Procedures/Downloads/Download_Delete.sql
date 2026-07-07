@@ -1,18 +1,21 @@
-CREATE OR REPLACE PROCEDURE  public."Download_Delete"
+CREATE OR REPLACE FUNCTION public."Download_Delete"
 (
-    IN qid bigint DEFAULT 0
-);
+    p_qid BIGINT DEFAULT 0
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    url VARCHAR(250), domainId INT;
+    v_url VARCHAR(250);
+    v_domainId INT;
 BEGIN
-SELECT url = "url", domainId=domainId FROM DownloadQueue WHERE qid=qid
-	--delete the article associated with download
-	DELETE FROM Articles WHERE "url" = (SELECT "url" FROM DownloadQueue WHERE qid=qid)
-	DELETE FROM DownloadQueue WHERE qid=qid
-	DELETE FROM Downloads WHERE id=qid
-	UPDATE Domains SET inqueue-=1 WHERE domainId=domainId
-END;
+    SELECT q."url", q."domainId" INTO v_url, v_domainId
+    FROM public."DownloadQueue" q
+    WHERE q."qid" = p_qid;
 
+    DELETE FROM public."Articles" WHERE "url" = v_url;
+    DELETE FROM public."DownloadQueue" WHERE "qid" = p_qid;
+    DELETE FROM public."Downloads" WHERE "id" = p_qid;
+    UPDATE public."Domains" SET "inqueue" = "inqueue" - 1 WHERE "domainId" = v_domainId;
+END;
 $$;

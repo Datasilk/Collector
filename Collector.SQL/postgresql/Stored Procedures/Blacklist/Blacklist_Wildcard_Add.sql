@@ -1,11 +1,11 @@
-CREATE OR REPLACE PROCEDURE  public."Blacklist_Wildcard_Add"
+CREATE OR REPLACE FUNCTION public."Blacklist_Wildcard_Add"
 (
-    IN domain VARCHAR(64)
-);
+    p_domain VARCHAR(64)
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 BEGIN
-INSERT INTO Blacklist_Wildcards (domain) VALUES (domain)
+    INSERT INTO public."Blacklist_Wildcards" ("domain") VALUES (p_domain);
 END;
-
 $$;

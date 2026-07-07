@@ -1,12 +1,12 @@
-CREATE OR REPLACE PROCEDURE  public."Article_UpdateCache"
+CREATE OR REPLACE FUNCTION public."Article_UpdateCache"
 (
-    IN articleId INT DEFAULT 0,
-    IN cached BOOLEAN DEFAULT TRUE
-);
+    p_articleId INT DEFAULT 0,
+    p_cached BOOLEAN DEFAULT TRUE
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 BEGIN
-UPDATE Articles SET cached=cached WHERE articleId=articleId
+    UPDATE public."Articles" SET "cached" = p_cached WHERE "articleId" = p_articleId;
 END;
-
 $$;

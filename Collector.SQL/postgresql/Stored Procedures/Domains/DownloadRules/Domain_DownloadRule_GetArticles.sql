@@ -1,21 +1,29 @@
-CREATE OR REPLACE PROCEDURE  public."Domain_DownloadRule_GetArticles"
+CREATE OR REPLACE FUNCTION public."Domain_DownloadRule_GetArticles"
 (
-    IN ruleId INT
-);
+    p_ruleId INT
+)
+RETURNS TABLE("articleId" INT)
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    domainId INT, url VARCHAR(64), title VARCHAR(64), summary VARCHAR(64);
+    v_domainId INT;
+    v_url VARCHAR(64);
+    v_title VARCHAR(64);
+    v_summary VARCHAR(64);
 BEGIN
-SELECT domainId = domainId, url = "url", title = "title", summary = "summary" FROM DownloadRules WHERE ruleId = ruleId
-	SELECT articleId
-	FROM Articles 
-	WHERE domainId=domainId 
-	AND (
-		"url" LIKE url
-		OR (LEN(title) > 0 AND title LIKE title)
-		OR (LEN(summary) > 0 AND summary LIKE summary)
-	);
-END;
+    SELECT r."domainId", r."url", r."title", r."summary"
+    INTO v_domainId, v_url, v_title, v_summary
+    FROM public."DownloadRules" r
+    WHERE r."ruleId" = p_ruleId;
 
+    RETURN QUERY
+    SELECT a."articleId"
+    FROM public."Articles" a
+    WHERE a."domainId" = v_domainId
+    AND (
+        a."url" ILIKE '%' || v_url || '%'
+        OR (LENGTH(v_title) > 0 AND a."title" ILIKE '%' || v_title || '%')
+        OR (LENGTH(v_summary) > 0 AND a."summary" ILIKE '%' || v_summary || '%')
+    );
+END;
 $$;

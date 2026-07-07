@@ -1,66 +1,84 @@
-CREATE OR REPLACE PROCEDURE  public."Subject_Move"
+CREATE OR REPLACE FUNCTION public."Subject_Move"
 (
-    IN subjectId INT DEFAULT 1,
-    IN newParent INT DEFAULT 127
-);
+    p_subjectId INT DEFAULT 1,
+    p_newParent INT DEFAULT 127
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    v_title VARCHAR(50) := '';
+    v_bread VARCHAR(500) := '';
+    v_hier VARCHAR(50);
+    v_newBread VARCHAR(500) := '';
+    v_newHier VARCHAR(50);
+    v_newTitle VARCHAR(50);
+    v_childId INT;
+    v_parentId INT;
+    v_parentTitle VARCHAR(50);
+    v_parentHier VARCHAR(50);
+    v_parentBread VARCHAR(500);
+    rec RECORD;
 BEGIN
-DECLARE 
-	title VARCHAR(50) = '',
-	bread VARCHAR(500) = '', 
-	hier VARCHAR(50), 
-	newBread VARCHAR(500) = '',
-	newHier VARCHAR(50),
-	newTitle VARCHAR(50),
-	cursor1 CURSOR,
-	childId INT, parentId INT,
-	parentTitle VARCHAR(50),
-	parentHier VARCHAR(50),
-	parentBread VARCHAR(500)
-	/* get breadcrumb info */
-	SELECT bread = breadcrumb, hier = hierarchy FROM Subjects WHERE subjectId=subjectId
-	IF bread <> '' BEGIN
-		SET bread = bread + '>' + title
-		SET hier = hier + '>' + CONVERT(VARCHAR(25),subjectId)
-	END ELSE BEGIN
-		SET bread = title
-		SET hier = CONVERT(VARCHAR(25),subjectId)
-	END
-	SELECT newBread = breadcrumb, newHier = hierarchy, newTitle=title FROM Subjects WHERE subjectId=newParent
-	IF newBread <> '' BEGIN
-		SET newBread = newBread + '>' + newTitle
-		SET newHier = newHier + '>' + CONVERT(VARCHAR(25),newParent)
-	END ELSE BEGIN
-		SET newBread = newTitle
-		SET newHier = CONVERT(VARCHAR(25),newParent)
-	END
-	/* update subject */
-	UPDATE Subjects 
-	SET parentId=newParent, hierarchy=newHier, breadcrumb=newBread 
-	WHERE subjectId=subjectId
-	/* update each child subject */
-	SET cursor1 = CURSOR FOR
-	SELECT subjectId, parentId FROM Subjects WHERE hierarchy LIKE hier + '>%' OR hierarchy = hier ORDER BY hierarchy ASC
-	OPEN cursor1
-	FETCH FROM cursor1 INTO
-	childId, parentId
-	WHILE @@FETCH_STATUS = 0
-    BEGIN
-		SELECT parentTitle = title, parentHier=hierarchy, parentBread=breadcrumb FROM Subjects WHERE subjectId=parentId
-		IF parentBread <> '' BEGIN
-			SET parentBread = parentBread + '>' + parentTitle
-			SET parentHier = parentHier + '>' + CONVERT(VARCHAR(25),parentId)
-		END ELSE BEGIN
-			SET parentBread = parentTitle
-			SET parentHier = CONVERT(VARCHAR(25),parentId)
-		END
-		UPDATE Subjects SET hierarchy=parentHier, breadcrumb=parentBread WHERE subjectId=childId
-		FETCH FROM cursor1 INTO
-		childId, parentId
-	END
-	CLOSE cursor1
-	DEALLOCATE cursor1
-END;
+    SELECT s."title", s."breadcrumb", s."hierarchy"
+    INTO v_title, v_bread, v_hier
+    FROM public."Subjects" s
+    WHERE s."subjectId" = p_subjectId;
 
+    IF v_bread <> '' THEN
+        v_bread := v_bread || '>' || v_title;
+        v_hier := v_hier || '>' || p_subjectId::VARCHAR;
+    ELSE
+        v_bread := v_title;
+        v_hier := p_subjectId::VARCHAR;
+    END IF;
+
+    SELECT s."breadcrumb", s."hierarchy", s."title"
+    INTO v_newBread, v_newHier, v_newTitle
+    FROM public."Subjects" s
+    WHERE s."subjectId" = p_newParent;
+
+    IF v_newBread <> '' THEN
+        v_newBread := v_newBread || '>' || v_newTitle;
+        v_newHier := v_newHier || '>' || p_newParent::VARCHAR;
+    ELSE
+        v_newBread := v_newTitle;
+        v_newHier := p_newParent::VARCHAR;
+    END IF;
+
+    UPDATE public."Subjects"
+    SET "parentId" = p_newParent,
+        "hierarchy" = v_newHier,
+        "breadcrumb" = v_newBread
+    WHERE "subjectId" = p_subjectId;
+
+    FOR rec IN
+        SELECT s."subjectId", s."parentId"
+        FROM public."Subjects" s
+        WHERE s."hierarchy" LIKE v_hier || '>%'
+           OR s."hierarchy" = v_hier
+        ORDER BY s."hierarchy" ASC
+    LOOP
+        v_childId := rec."subjectId";
+        v_parentId := rec."parentId";
+
+        SELECT s."title", s."hierarchy", s."breadcrumb"
+        INTO v_parentTitle, v_parentHier, v_parentBread
+        FROM public."Subjects" s
+        WHERE s."subjectId" = v_parentId;
+
+        IF v_parentBread <> '' THEN
+            v_parentBread := v_parentBread || '>' || v_parentTitle;
+            v_parentHier := v_parentHier || '>' || v_parentId::VARCHAR;
+        ELSE
+            v_parentBread := v_parentTitle;
+            v_parentHier := v_parentId::VARCHAR;
+        END IF;
+
+        UPDATE public."Subjects"
+        SET "hierarchy" = v_parentHier,
+            "breadcrumb" = v_parentBread
+        WHERE "subjectId" = v_childId;
+    END LOOP;
+END;
 $$;

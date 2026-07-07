@@ -3,7 +3,7 @@
   "short_name": "Collector",
   "description": "Collector.ai portal",
   "start_url": "/journal",
-  "display": "fullscreen",
+  "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#7763ed",
   "icons": [

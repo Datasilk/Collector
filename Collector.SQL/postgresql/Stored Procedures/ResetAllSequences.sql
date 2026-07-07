@@ -1,90 +1,47 @@
-CREATE OR REPLACE PROCEDURE public."ResetAllSequences"
+CREATE OR REPLACE FUNCTION public."ResetAllSequences"()
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    SequenceName VARCHAR(128);
-    TableName VARCHAR(128);
-    MaxId INT;
-    IdColumnName VARCHAR(128);
-    SQL TEXT;
-    sequence_cursor CURSOR FOR;
+    v_maxId INT;
+    v_sql TEXT;
+    rec RECORD;
 BEGIN
-    -- Create a temporary table to hold sequence-to-table mappings
-    BEGIN TRY
-        IF OBJECT_ID('tempdb..#SequenceMappings') IS NOT NULL
-        BEGIN
-            DROP TABLE #SequenceMappings
-        END
-    END TRY
-    BEGIN CATCH
-        PRINT 'Error: ' + ERROR_MESSAGE()
-    END CATCH
-    CREATE TABLE IF NOT EXISTS #SequenceMappings
-(
-    "SequenceName" VARCHAR(128),
-    "TableName" VARCHAR(128),
-    "IdColumnName" VARCHAR(128)
-);-- Insert all sequence-to-table mappings
-    INSERT INTO #SequenceMappings (SequenceName, TableName, IdColumnName) VALUES
-        ('SequenceAnalyzerRules', 'AnalyzerRules', 'ruleId'),
-        ('SequenceArticleBugs', 'ArticleBugs', 'bugId'),
-        ('SequenceArticles', 'Articles', 'articleId'),
-        ('SequenceDomainCollectionGroups', 'DomainCollectionGroups', 'colgroupId'),
-        ('SequenceDomainCollections', 'DomainCollections', 'colId'),
-        ('SequenceDomainTypeMatches', 'DomainTypeMatches', 'matchId'),
-        ('SequenceDomains', 'Domains', 'domainId'),
-        ('SequenceDownloadQueue', 'DownloadQueue', 'qid'),
-        ('SequenceDownloadRules', 'DownloadRules', 'ruleId'),
-        ('SequenceFeedCategories', 'FeedCategories', 'categoryId'),
-        ('SequenceFeeds', 'Feeds', 'feedId'),
-        ('SequenceJournalCategories', 'JournalCategories', 'Id'),
-        ('SequenceJournalCheckListItems', 'JournalCheckListItems', 'Id'),
-        ('SequenceJournalCheckLists', 'JournalCheckLists', 'Id'),
-        ('SequenceJournalEntrySnapshots', 'JournalEntrySnapshots', 'Id'),
-        ('SequenceJournalFiles', 'JournalFiles', 'Id'),
-        ('SequenceJournalImages', 'JournalImages', 'Id'),
-        ('SequenceJournalVideos', 'JournalVideos', 'Id'),
-        ('SequenceJournals', 'Journals', 'Id'),
-        ('SequenceStatisticsProjects', 'StatisticsProjects', 'projectId'),
-        ('SequenceStatisticsResults', 'StatisticsResults', 'statId'),
-        ('SequenceSubjects', 'Subjects', 'subjectId'),
-        ('SequenceWords', 'Words', 'wordId')
-    -- Cursor to iterate through all sequences
-    SELECT SequenceName, TableName, IdColumnName FROM #SequenceMappings
-    OPEN sequence_cursor
-    FETCH NEXT FROM sequence_cursor INTO SequenceName, TableName, IdColumnName
-    WHILE @@FETCH_STATUS = 0
-    BEGIN
-        BEGIN TRY
-            -- Build dynamic SQL to get MAX(Id) from the table
-            SET SQL = N'SELECT MaxIdOut = ISNULL(MAX(' + IdColumnName + '), 0) FROM public.[' + TableName + ']'
-            -- Execute dynamic SQL to get the max ID
-            EXEC sp_executesql SQL, N'@MaxIdOut INT OUTPUT', MaxIdOut = MaxId OUTPUT
-            -- Reset the sequence to MAX(Id) + 1
-            IF MaxId > 0
-            BEGIN
-                SET SQL = N'ALTER SEQUENCE public.[' + SequenceName + '] RESTART WITH ' + CAST(MaxId + 1 AS VARCHAR(20))
-                EXEC sp_executesql SQL
-                PRINT 'Reset ' + SequenceName + ' to ' + CAST(MaxId + 1 AS VARCHAR(20))
-            END
-            ELSE
-            BEGIN
-                -- If table is empty, reset to 1
-                SET SQL = N'ALTER SEQUENCE public.[' + SequenceName + '] RESTART WITH 1'
-                EXEC sp_executesql SQL
-                PRINT 'Reset ' + SequenceName + ' to 1 (table is empty)'
-            END
-        END TRY
-        BEGIN CATCH
-            PRINT 'Error resetting ' + SequenceName + ': ' + ERROR_MESSAGE()
-        END CATCH
-        FETCH NEXT FROM sequence_cursor INTO SequenceName, TableName, IdColumnName
-    END
-    CLOSE sequence_cursor
-    DEALLOCATE sequence_cursor
-    -- Clean up
-    DROP TABLE #SequenceMappings
-    PRINT 'All sequences have been reset successfully!'
-END
+    FOR rec IN
+        SELECT 'SequenceAnalyzerRules'::VARCHAR(128) AS seq, 'AnalyzerRules'::VARCHAR(128) AS tbl, 'ruleId'::VARCHAR(128) AS col
+        UNION ALL SELECT 'SequenceArticleBugs', 'ArticleBugs', 'bugId'
+        UNION ALL SELECT 'SequenceArticles', 'Articles', 'articleId'
+        UNION ALL SELECT 'SequenceDomainCollectionGroups', 'DomainCollectionGroups', 'colgroupId'
+        UNION ALL SELECT 'SequenceDomainCollections', 'DomainCollections', 'colId'
+        UNION ALL SELECT 'SequenceDomainTypeMatches', 'DomainTypeMatches', 'matchId'
+        UNION ALL SELECT 'SequenceDomains', 'Domains', 'domainId'
+        UNION ALL SELECT 'SequenceDownloadQueue', 'DownloadQueue', 'qid'
+        UNION ALL SELECT 'SequenceDownloadRules', 'DownloadRules', 'ruleId'
+        UNION ALL SELECT 'SequenceFeedCategories', 'FeedCategories', 'categoryId'
+        UNION ALL SELECT 'SequenceFeeds', 'Feeds', 'feedId'
+        UNION ALL SELECT 'SequenceJournalCategories', 'JournalCategories', 'Id'
+        UNION ALL SELECT 'SequenceJournalCheckListItems', 'JournalCheckListItems', 'Id'
+        UNION ALL SELECT 'SequenceJournalCheckLists', 'JournalCheckLists', 'Id'
+        UNION ALL SELECT 'SequenceJournalEntrySnapshots', 'JournalEntrySnapshots', 'Id'
+        UNION ALL SELECT 'SequenceJournalFiles', 'JournalFiles', 'Id'
+        UNION ALL SELECT 'SequenceJournalImages', 'JournalImages', 'Id'
+        UNION ALL SELECT 'SequenceJournalVideos', 'JournalVideos', 'Id'
+        UNION ALL SELECT 'SequenceJournals', 'Journals', 'Id'
+        UNION ALL SELECT 'SequenceStatisticsProjects', 'StatisticsProjects', 'projectId'
+        UNION ALL SELECT 'SequenceStatisticsResults', 'StatisticsResults', 'statId'
+        UNION ALL SELECT 'SequenceSubjects', 'Subjects', 'subjectId'
+        UNION ALL SELECT 'SequenceWords', 'Words', 'wordId'
+    LOOP
+        v_sql := format('SELECT COALESCE(MAX(%I), 0) FROM public.%I', rec.col, rec.tbl);
+        EXECUTE v_sql INTO v_maxId;
 
+        IF v_maxId > 0 THEN
+            v_sql := format('ALTER SEQUENCE public.%I RESTART WITH %s', rec.seq, v_maxId + 1);
+        ELSE
+            v_sql := format('ALTER SEQUENCE public.%I RESTART WITH 1', rec.seq);
+        END IF;
+
+        EXECUTE v_sql;
+    END LOOP;
+END;
 $$;

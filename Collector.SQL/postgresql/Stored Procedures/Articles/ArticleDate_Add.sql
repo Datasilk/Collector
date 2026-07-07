@@ -1,17 +1,16 @@
-CREATE OR REPLACE PROCEDURE  public."ArticleDate_Add"
+CREATE OR REPLACE FUNCTION public."ArticleDate_Add"
 (
-    IN articleId INT DEFAULT 0,
-    IN date date,
-    IN hasyear BOOLEAN DEFAULT FALSE,
-    IN hasmonth BOOLEAN DEFAULT FALSE,
-    IN hasday BOOLEAN DEFAULT FALSE
-);
+    p_articleId INT DEFAULT 0,
+    p_date DATE,
+    p_hasYear BOOLEAN DEFAULT FALSE,
+    p_hasMonth BOOLEAN DEFAULT FALSE,
+    p_hasDay BOOLEAN DEFAULT FALSE
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 BEGIN
-INSERT INTO ArticleDates (articleId, "date", hasyear, hasmonth, hasday)
-	VALUES (articleId, date, hasyear, hasmonth, hasday)
-RETURN 0
+    INSERT INTO public."ArticleDates" ("articleId", "date", "hasyear", "hasmonth", "hasday")
+    VALUES (p_articleId, p_date, p_hasYear, p_hasMonth, p_hasDay);
 END;
-
 $$;

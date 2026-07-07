@@ -1,49 +1,50 @@
-CREATE OR REPLACE PROCEDURE  public."Domain_CleanDownloads"
+CREATE OR REPLACE FUNCTION public."Domain_CleanDownloads"
 (
-    IN domainId INT
-);
+    p_domainId INT
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
-DECLARE
-    articles TABLE (articleId INT);
-    a_total INT, b_total INT;
 BEGIN
---get all article that will be deleted
-	INSERT INTO articles 
-	SELECT DISTINCT a.articleId
-	FROM Articles a
-	JOIN DownloadRules r ON r.domainId = a.domainId
-	WHERE a.domainId=domainId 
-	AND (
-		(LEN(r."url") > 0 AND a."url" LIKE '%' + r."url" + '%')
-		OR (LEN(r.title) > 0 AND a.title LIKE '%' + r.title + '%')
-		OR (LEN(r.summary) > 0 AND a.summary LIKE '%' + r.summary + '%')
-	);
-	-- delete all associated articles
-	DELETE FROM Articles WHERE articleId IN (SELECT articleId FROM articles)
-	DELETE FROM ArticleBugs WHERE articleId IN (SELECT articleId FROM articles)
-	DELETE FROM ArticleDates WHERE articleId IN (SELECT articleId FROM articles)
-	DELETE FROM ArticleSentences WHERE articleId IN (SELECT articleId FROM articles)
-	DELETE FROM ArticleSubjects WHERE articleId IN (SELECT articleId FROM articles)
-	DELETE FROM ArticleWords WHERE articleId IN (SELECT articleId FROM articles)
-	-- delete all associated download queue records
-	DELETE FROM DownloadQueue WHERE qId IN (
-		SELECT DISTINCT dq.qid FROM DownloadQueue dq
-		JOIN DownloadRules r ON r.domainId = dq.domainId
-		WHERE dq.domainId=domainId 
-		AND (
-			(LEN(r."url") > 0 AND r."rule"=0 AND dq."url" LIKE '%' + r."url" + '%')
-		);
-	);
-	-- delete all associated download archive records
-	DELETE FROM Downloads WHERE id IN (
-		SELECT DISTINCT d.id FROM Downloads d
-		JOIN DownloadRules r ON r.domainId = d.domainId
-		WHERE d.domainId=domainId 
-		AND (
-			(LEN(r."url") > 0 AND r."rule"=0 AND d."url" LIKE '%' + r."url" + '%')
-		);
-	);
-END;
+    DROP TABLE IF EXISTS tmp_articles_to_clean;
+    CREATE TEMP TABLE tmp_articles_to_clean AS
+    SELECT DISTINCT a."articleId"
+    FROM public."Articles" a
+    JOIN public."DownloadRules" r ON r."domainId" = a."domainId"
+    WHERE a."domainId" = p_domainId
+    AND (
+        (LENGTH(r."url") > 0 AND a."url" ILIKE '%' || r."url" || '%')
+        OR (LENGTH(r."title") > 0 AND a."title" ILIKE '%' || r."title" || '%')
+        OR (LENGTH(r."summary") > 0 AND a."summary" ILIKE '%' || r."summary" || '%')
+    );
 
+    DELETE FROM public."Articles" WHERE "articleId" IN (SELECT "articleId" FROM tmp_articles_to_clean);
+    DELETE FROM public."ArticleBugs" WHERE "articleId" IN (SELECT "articleId" FROM tmp_articles_to_clean);
+    DELETE FROM public."ArticleDates" WHERE "articleId" IN (SELECT "articleId" FROM tmp_articles_to_clean);
+    DELETE FROM public."ArticleSentences" WHERE "articleId" IN (SELECT "articleId" FROM tmp_articles_to_clean);
+    DELETE FROM public."ArticleSubjects" WHERE "articleId" IN (SELECT "articleId" FROM tmp_articles_to_clean);
+    DELETE FROM public."ArticleWords" WHERE "articleId" IN (SELECT "articleId" FROM tmp_articles_to_clean);
+
+    DELETE FROM public."DownloadQueue" WHERE "qid" IN (
+        SELECT DISTINCT dq."qid"
+        FROM public."DownloadQueue" dq
+        JOIN public."DownloadRules" r ON r."domainId" = dq."domainId"
+        WHERE dq."domainId" = p_domainId
+        AND LENGTH(r."url") > 0
+        AND r."rule" = FALSE
+        AND dq."url" ILIKE '%' || r."url" || '%'
+    );
+
+    DELETE FROM public."Downloads" WHERE "id" IN (
+        SELECT DISTINCT d."id"
+        FROM public."Downloads" d
+        JOIN public."DownloadRules" r ON r."domainId" = d."domainId"
+        WHERE d."domainId" = p_domainId
+        AND LENGTH(r."url") > 0
+        AND r."rule" = FALSE
+        AND d."url" ILIKE '%' || r."url" || '%'
+    );
+
+    DROP TABLE IF EXISTS tmp_articles_to_clean;
+END;
 $$;

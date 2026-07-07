@@ -1,44 +1,54 @@
-CREATE OR REPLACE PROCEDURE  public."Subject_Create"
+CREATE OR REPLACE FUNCTION public."Subject_Create"
 (
-    IN parentId INT DEFAULT 0,
-    IN grammartype INT DEFAULT 0,
-    IN score INT DEFAULT 0,
-    IN title VARCHAR(50),
-    IN breadcrumb TEXT DEFAULT ''
-);
+    p_parentId INT DEFAULT 0,
+    p_grammartype INT DEFAULT 0,
+    p_score INT DEFAULT 0,
+    p_title VARCHAR(50),
+    p_breadcrumb TEXT DEFAULT ''
+)
+RETURNS INT
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    create BOOLEAN := 1, hierarchy VARCHAR(50) = '';
-    id INT := nextval('public."SequenceSubjects"');
+    v_create BOOLEAN := TRUE;
+    v_hierarchy VARCHAR(50) := '';
+    v_id INT := nextval('public."SequenceSubjects"');
+    v_count INT;
 BEGIN
-IF parentId > 0 BEGIN
-		IF (SELECT COUNT(*) FROM Subjects WHERE breadcrumb = breadcrumb AND title=title) > 0 BEGIN
-			/* subject already exists */
-			SET create = 0
-		END ELSE BEGIN
-			/* get hierarchy indexes */
-			SELECT hierarchy = hierarchy FROM Subjects WHERE subjectId=parentId
-			if hierarchy <> '' BEGIN
-			 SET hierarchy = hierarchy  + '>' + CONVERT(VARCHAR(10),parentId)
-			END ELSE BEGIN
-			 SET hierarchy =  CONVERT(VARCHAR(10),parentId)
-			END
-		END
-	END ELSE BEGIN
-		IF (SELECT COUNT(*) FROM Subjects WHERE parentId=0 AND title=title) > 0 BEGIN
-			/* root subject already exists */
-			SET create = 0
-		END
-	END
-	IF create = 1 BEGIN
-		/* finally, create subject */
-		INSERT INTO Subjects (subjectId, parentId, grammartype, score, title, breadcrumb, hierarchy)
-		VALUES (id, parentId, grammartype, score, title, breadcrumb, hierarchy)
-		SELECT id
-	END ELSE BEGIN
-		SELECT 0
-	END
-END;
+    IF p_parentId > 0 THEN
+        SELECT COUNT(*) INTO v_count
+        FROM public."Subjects"
+        WHERE "breadcrumb" = p_breadcrumb AND "title" = p_title;
 
+        IF v_count > 0 THEN
+            v_create := FALSE;
+        ELSE
+            SELECT s."hierarchy" INTO v_hierarchy
+            FROM public."Subjects" s
+            WHERE s."subjectId" = p_parentId;
+
+            IF v_hierarchy <> '' THEN
+                v_hierarchy := v_hierarchy || '>' || p_parentId::VARCHAR;
+            ELSE
+                v_hierarchy := p_parentId::VARCHAR;
+            END IF;
+        END IF;
+    ELSE
+        SELECT COUNT(*) INTO v_count
+        FROM public."Subjects"
+        WHERE "parentId" = 0 AND "title" = p_title;
+
+        IF v_count > 0 THEN
+            v_create := FALSE;
+        END IF;
+    END IF;
+
+    IF v_create THEN
+        INSERT INTO public."Subjects" ("subjectId", "parentId", "grammartype", "score", "title", "breadcrumb", "hierarchy")
+        VALUES (v_id, p_parentId, p_grammartype, p_score, p_title, p_breadcrumb, v_hierarchy);
+        RETURN v_id;
+    ELSE
+        RETURN 0;
+    END IF;
+END;
 $$;

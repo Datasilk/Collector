@@ -41,7 +41,7 @@ namespace Collector.Data.Repositories
                 new { appUserId }).ToList();
         }
         
-        public List<JournalCategory> GetAllWithJournalsByUserId(Guid appUserId, int? sort = null, string search = null)
+        public List<JournalCategory> GetAllWithJournalsByUserId(Guid appUserId, int? sort = null, string search = null, bool includeArchived = false)
         {
             var categoryDict = new Dictionary<int, JournalCategory>();
             var searchParam = !string.IsNullOrEmpty(search) ? $"%{search}%" : null;
@@ -49,6 +49,11 @@ namespace Collector.Data.Repositories
             // Build the journal query with optional search
             string journalQuery = @"SELECT * FROM public.""Journals"" WHERE ""CategoryId"" IN 
                   (SELECT ""Id"" FROM public.""JournalCategories"" WHERE ""AppUserId"" = @appUserId)";
+            
+            if (!includeArchived)
+            {
+                journalQuery += @" AND ""Status"" != 2";
+            }
             
             if (!string.IsNullOrEmpty(search))
             {

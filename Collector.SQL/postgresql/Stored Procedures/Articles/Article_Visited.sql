@@ -1,11 +1,11 @@
-CREATE OR REPLACE PROCEDURE  public."Article_Visited"
+CREATE OR REPLACE FUNCTION public."Article_Visited"
 (
-    IN articleId INT
-);
+    p_articleId INT
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 BEGIN
-UPDATE Articles SET visited += 1, cached = 1 WHERE articleId=articleId
+    UPDATE public."Articles" SET "visited" = "visited" + 1, "cached" = TRUE WHERE "articleId" = p_articleId;
 END;
-
 $$;

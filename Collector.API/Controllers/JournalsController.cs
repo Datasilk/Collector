@@ -61,7 +61,8 @@ namespace Collector.API.Controllers
 
             try
             {
-                var categories = _categoriesRepository.GetAllWithJournalsByUserId(userId, filter?.Sort, filter?.Search);
+                var includeArchived = filter?.IncludeArchived ?? false;
+                var categories = _categoriesRepository.GetAllWithJournalsByUserId(userId, filter?.Sort, filter?.Search, includeArchived);
                 return Json(new ApiResponse { success = true, data = categories });
             }
             catch (Exception ex)
@@ -101,7 +102,8 @@ namespace Collector.API.Controllers
 
             try
             {
-                var categories = _categoriesRepository.GetAllWithJournalsByUserId(userId, filter.Sort, filter.Search);
+                var includeArchived = filter?.IncludeArchived ?? false;
+                var categories = _categoriesRepository.GetAllWithJournalsByUserId(userId, filter.Sort, filter.Search, includeArchived);
                 return Json(new ApiResponse { success = true, data = categories });
             }
             catch (Exception ex)
@@ -227,7 +229,7 @@ namespace Collector.API.Controllers
         #region Journals
 
         [HttpGet]
-        public IActionResult GetJournals()
+        public IActionResult GetJournals([FromQuery] bool includeArchived = false)
         {
             var userId = GetUserId();
             if (userId == Guid.Empty)
@@ -235,7 +237,7 @@ namespace Collector.API.Controllers
 
             try
             {
-                var journals = _journalsRepository.GetAllByUserId(userId);
+                var journals = _journalsRepository.GetAllByUserId(userId, includeArchived);
                 return Json(new ApiResponse { success = true, data = journals });
             }
             catch (Exception ex)

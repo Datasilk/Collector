@@ -1,8 +1,8 @@
-CREATE OR REPLACE PROCEDURE public."Domain_CollectionGroups_GetList"
+CREATE OR REPLACE FUNCTION public."Domain_CollectionGroups_GetList"()
+RETURNS TABLE("colgroupId" INT, "name" VARCHAR(32))
 LANGUAGE plpgsql
 AS $$
 BEGIN
-SELECT * FROM DomainCollectionGroups ORDER BY "name" ASC
+    RETURN QUERY SELECT * FROM public."DomainCollectionGroups" ORDER BY "name" ASC;
 END;
-
 $$;

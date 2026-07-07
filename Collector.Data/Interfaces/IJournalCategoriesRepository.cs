@@ -7,7 +7,7 @@ namespace Collector.Data.Interfaces
         int Add(JournalCategory journalCategory);
         JournalCategory GetById(int journalCategoryId);
         List<JournalCategory> GetAllByUserId(Guid appUserId);
-        List<JournalCategory> GetAllWithJournalsByUserId(Guid appUserId, int? sort = null, string search = null);
+        List<JournalCategory> GetAllWithJournalsByUserId(Guid appUserId, int? sort = null, string search = null, bool includeArchived = false);
         void Rename(int journalCategoryId, string title);
         void ChangeColor(int journalCategoryId, string color);
         void Archive(int journalCategoryId);

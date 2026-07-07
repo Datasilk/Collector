@@ -1,12 +1,11 @@
-CREATE OR REPLACE PROCEDURE  public."ArticleSentences_Remove"
+CREATE OR REPLACE FUNCTION public."ArticleSentences_Remove"
 (
-    IN articleId INT DEFAULT 0
-);
+    p_articleId INT DEFAULT 0
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 BEGIN
-DELETE FROM ArticleSentences WHERE articleId=articleId
-RETURN 0
+    DELETE FROM public."ArticleSentences" WHERE "articleId" = p_articleId;
 END;
-
 $$;

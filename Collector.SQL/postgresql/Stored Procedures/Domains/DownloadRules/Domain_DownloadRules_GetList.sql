@@ -1,11 +1,11 @@
-CREATE OR REPLACE PROCEDURE  public."Domain_DownloadRules_GetList"
+CREATE OR REPLACE FUNCTION public."Domain_DownloadRules_GetList"
 (
-    IN domainId INT
-);
+    p_domainId INT
+)
+RETURNS TABLE("ruleId" INT, "domainId" INT, "rule" BOOLEAN, "url" VARCHAR(64), "title" VARCHAR(64), "summary" VARCHAR(64), "datecreated" TIMESTAMPTZ)
 LANGUAGE plpgsql
 AS $$
 BEGIN
-SELECT * FROM DownloadRules WHERE domainId=domainId ORDER BY datecreated ASC
+    RETURN QUERY SELECT * FROM public."DownloadRules" r WHERE r."domainId" = p_domainId ORDER BY r."datecreated" ASC;
 END;
-
 $$;

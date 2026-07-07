@@ -1,28 +1,25 @@
-CREATE OR REPLACE PROCEDURE  public."Download_UpdateUrl"
+CREATE OR REPLACE FUNCTION public."Download_UpdateUrl"
 (
-    IN qId bigint DEFAULT 0,
-    IN url VARCHAR(250),
-    IN domain VARCHAR(250)
-);
+    p_qId BIGINT DEFAULT 0,
+    p_url VARCHAR(250),
+    p_domain VARCHAR(250)
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    domainId INT;
+    v_domainId INT;
 BEGIN
-SELECT domainId=domainId FROM Domains WHERE domain=domain
-	IF domainId IS NULL BEGIN
-		SET domainId = nextval('public."SequenceDomains"')
-		INSERT INTO Domains (domainId, domain) VALUES (domainId, domain)
-	END
-	IF EXISTS(SELECT * FROM DownloadQueue WHERE url=url) BEGIN
-		--remove existing download queue item
-		DELETE FROM DownloadQueue WHERE url=url
-	END
-	UPDATE DownloadQueue SET "url"=url, domainId=domainId WHERE qid=qid
-	IF EXISTS(SELECT * FROM Downloads WHERE url=url) BEGIN
-		DELETE FROM Downloads WHERE url=url
-	END
-	UPDATE Downloads SET "url"=url, domainId=domainId WHERE id=qid
-END;
+    SELECT d."domainId" INTO v_domainId FROM public."Domains" d WHERE d."domain" = p_domain;
 
+    IF v_domainId IS NULL THEN
+        v_domainId := nextval('public."SequenceDomains"');
+        INSERT INTO public."Domains" ("domainId", "domain") VALUES (v_domainId, p_domain);
+    END IF;
+
+    DELETE FROM public."DownloadQueue" WHERE "url" = p_url;
+    UPDATE public."DownloadQueue" SET "url" = p_url, "domainId" = v_domainId WHERE "qid" = p_qId;
+    DELETE FROM public."Downloads" WHERE "url" = p_url;
+    UPDATE public."Downloads" SET "url" = p_url, "domainId" = v_domainId WHERE "id" = p_qId;
+END;
 $$;

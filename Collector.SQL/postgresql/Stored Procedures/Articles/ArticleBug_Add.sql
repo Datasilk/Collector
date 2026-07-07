@@ -1,17 +1,17 @@
-CREATE OR REPLACE PROCEDURE  public."ArticleBug_Add"
+CREATE OR REPLACE FUNCTION public."ArticleBug_Add"
 (
-    IN articleId INT DEFAULT 0,
-    IN title VARCHAR(100) DEFAULT '',
-    IN description TEXT DEFAULT '',
-    IN status SMALLINT DEFAULT 0
-);
+    p_articleId INT DEFAULT 0,
+    p_title VARCHAR(100) DEFAULT '',
+    p_description TEXT DEFAULT '',
+    p_status SMALLINT DEFAULT 0
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    bugId INT := nextval('public."SequenceArticleBugs"');
+    v_bugId INT := nextval('public."SequenceArticleBugs"');
 BEGIN
-INSERT INTO ArticleBugs (bugId, articleId, title, "description", datecreated, "status")
-	VALUES (bugId, articleId, title, description, CURRENT_TIMESTAMP, status)
+    INSERT INTO public."ArticleBugs" ("bugId", "articleId", "title", "description", "datecreated", "status")
+    VALUES (v_bugId, p_articleId, p_title, p_description, CURRENT_TIMESTAMP, p_status);
 END;
-
 $$;

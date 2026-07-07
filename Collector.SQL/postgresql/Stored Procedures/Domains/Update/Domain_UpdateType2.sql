@@ -1,13 +1,13 @@
-CREATE OR REPLACE PROCEDURE  public."Domain_UpdateType2"
+CREATE OR REPLACE FUNCTION public."Domain_UpdateType2"
 (
-    IN domainId INT DEFAULT 0,
-    IN type INT DEFAULT -1
-);
+    p_domainId INT DEFAULT 0,
+    p_type INT DEFAULT -1
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 BEGIN
-UPDATE Domains SET "type2" = type, dateupdated = CURRENT_TIMESTAMP
-	WHERE domainId=domainId
+    UPDATE public."Domains" SET "type2" = p_type, "dateupdated" = CURRENT_TIMESTAMP
+    WHERE "domainId" = p_domainId;
 END;
-
 $$;

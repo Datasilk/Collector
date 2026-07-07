@@ -1,15 +1,15 @@
-CREATE OR REPLACE PROCEDURE  public."Domain_UpdateInfo"
+CREATE OR REPLACE FUNCTION public."Domain_UpdateInfo"
 (
-    IN domainId INT DEFAULT 0,
-    IN title VARCHAR(128),
-    IN description VARCHAR(255),
-    IN lang char(2) DEFAULT 'en'
-);
+    p_domainId INT DEFAULT 0,
+    p_title VARCHAR(128),
+    p_description VARCHAR(255),
+    p_lang CHAR(2) DEFAULT 'en'
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 BEGIN
-UPDATE Domains SET "title"=title, "description" = description, lang=lang, hastitle=1, dateupdated = CURRENT_TIMESTAMP
-	WHERE domainId=domainId
+    UPDATE public."Domains" SET "title" = p_title, "description" = p_description, "lang" = p_lang, "hastitle" = TRUE, "dateupdated" = CURRENT_TIMESTAMP
+    WHERE "domainId" = p_domainId;
 END;
-
 $$;

@@ -1,8 +1,8 @@
-CREATE OR REPLACE PROCEDURE public."Downloads_GetCount"
+CREATE OR REPLACE FUNCTION public."Downloads_GetCount"()
+RETURNS INT
 LANGUAGE plpgsql
 AS $$
 BEGIN
-SELECT COUNT(*) FROM Downloads
+    RETURN (SELECT COUNT(*) FROM public."Downloads");
 END;
-
 $$;

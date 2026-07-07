@@ -1,19 +1,23 @@
-CREATE OR REPLACE PROCEDURE  public."Domain_DownloadRule_GetDownloads"
+CREATE OR REPLACE FUNCTION public."Domain_DownloadRule_GetDownloads"
 (
-    IN ruleId INT
-);
+    p_ruleId INT
+)
+RETURNS TABLE("qid" BIGINT)
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    domainId INT, url VARCHAR(64);
+    v_domainId INT;
+    v_url VARCHAR(64);
 BEGIN
-SELECT domainId = domainId, url = "url" FROM DownloadRules WHERE ruleId = ruleId
-	SELECT qid
-	FROM DownloadQueue 
-	WHERE domainId=domainId 
-	AND (
-		"url" LIKE url
-	);
-END;
+    SELECT r."domainId", r."url"
+    INTO v_domainId, v_url
+    FROM public."DownloadRules" r
+    WHERE r."ruleId" = p_ruleId;
 
+    RETURN QUERY
+    SELECT dq."qid"
+    FROM public."DownloadQueue" dq
+    WHERE dq."domainId" = v_domainId
+    AND dq."url" ILIKE '%' || v_url || '%';
+END;
 $$;

@@ -1,13 +1,15 @@
-CREATE OR REPLACE PROCEDURE  public."Words_GetList"
+CREATE OR REPLACE FUNCTION public."Words_GetList"
 (
-    IN words TEXT
-);
+    p_words TEXT
+)
+RETURNS TABLE("wordId" INT, "word" VARCHAR(64), "grammartype" INT, "score" INT)
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    v_words TEXT[] := string_to_array(p_words, ',');
 BEGIN
-SELECT * INTO #words FROM public.SplitArray(words, ',')
-SELECT w.* FROM Words w
-WHERE word IN (SELECT value FROM #words)
+    RETURN QUERY
+    SELECT w.* FROM public."Words" w
+    WHERE w."word" = ANY(v_words);
 END;
-
 $$;

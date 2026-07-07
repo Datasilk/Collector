@@ -1,8 +1,8 @@
-CREATE OR REPLACE PROCEDURE public."CommonWords_GetList"
+CREATE OR REPLACE FUNCTION public."CommonWords_GetList"()
+RETURNS TABLE("word" VARCHAR(16))
 LANGUAGE plpgsql
 AS $$
 BEGIN
-SELECT * FROM CommonWords
+    RETURN QUERY SELECT * FROM public."CommonWords";
 END;
-
 $$;

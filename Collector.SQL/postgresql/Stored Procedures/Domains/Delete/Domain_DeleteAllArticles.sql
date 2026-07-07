@@ -1,16 +1,20 @@
-CREATE OR REPLACE PROCEDURE  public."Domain_DeleteAllArticles"
+CREATE OR REPLACE FUNCTION public."Domain_DeleteAllArticles"
 (
-    IN domainId INT
-);
+    p_domainId INT
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 BEGIN
-SELECT articleId INTO #articles FROM Articles WHERE domainId=domainId
-	DELETE FROM ArticleSentences WHERE articleId IN (SELECT * FROM #articles)
-	DELETE FROM ArticleWords WHERE articleId IN (SELECT * FROM #articles)
-	DELETE FROM ArticleSubjects WHERE articleId IN (SELECT * FROM #articles)
-	/* DELETE FROM ArticleStatistics articleId IN (SELECT * FROM #articles) */
-	DELETE FROM Articles WHERE articleId IN (SELECT * FROM #articles)
+    DELETE FROM public."ArticleSentences" WHERE "articleId" IN (
+        SELECT a."articleId" FROM public."Articles" a WHERE a."domainId" = p_domainId
+    );
+    DELETE FROM public."ArticleWords" WHERE "articleId" IN (
+        SELECT a."articleId" FROM public."Articles" a WHERE a."domainId" = p_domainId
+    );
+    DELETE FROM public."ArticleSubjects" WHERE "articleId" IN (
+        SELECT a."articleId" FROM public."Articles" a WHERE a."domainId" = p_domainId
+    );
+    DELETE FROM public."Articles" WHERE "domainId" = p_domainId;
 END;
-
 $$;

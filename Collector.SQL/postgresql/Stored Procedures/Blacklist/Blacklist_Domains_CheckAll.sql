@@ -1,13 +1,14 @@
-CREATE OR REPLACE PROCEDURE  public."Blacklist_Domains_CheckAll"
+CREATE OR REPLACE FUNCTION public."Blacklist_Domains_CheckAll"
 (
-    IN domains TEXT
-);
+    p_domains TEXT
+)
+RETURNS TABLE("domain" VARCHAR(64))
 LANGUAGE plpgsql
 AS $$
 BEGIN
-SELECT * INTO #domains FROM public.SplitArray(domains, ',')
-	SELECT domain FROM Blacklist_Domains WHERE domain IN (SELECT "value" FROM #domains)
-	DROP TABLE #domains
+    RETURN QUERY
+    SELECT b."domain"
+    FROM public."Blacklist_Domains" b
+    WHERE b."domain" = ANY(string_to_array(p_domains, ','));
 END;
-
 $$;

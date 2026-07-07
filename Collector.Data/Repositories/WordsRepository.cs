@@ -19,19 +19,19 @@ namespace Collector.Data.Repositories
 
         public void Add(string word, int subjectId, GrammarType grammarType = GrammarType.Noun, int score = 1)
         {
-            _dbConnection.Execute("EXEC Word_Add @word=@word, @subjectId=@subjectId, @grammartype=@grammartype, @score=@score", 
+            _dbConnection.Execute("SELECT public.\"Word_Add\"(@word, @subjectId, @grammartype, @score)", 
                 new { word, subjectId, grammartype = (int)grammarType, score });
         }
 
         public void BulkAdd(string[] words, int subjectId)
         {
-            _dbConnection.Execute("EXEC Words_BulkAdd @words=@words, @subjectId=@subjectId", 
+            _dbConnection.Execute("SELECT public.\"Words_BulkAdd\"(@words, @subjectId)", 
                 new { words = string.Join(",", words), subjectId });
         }
 
         public List<Word> GetList(string[] words)
         {
-            return _dbConnection.Query<Word>("EXEC Words_GetList @words=@words", 
+            return _dbConnection.Query<Word>("SELECT * FROM public.\"Words_GetList\"(@words)", 
                 new { words = string.Join(",", words) }).ToList();
         }
     }

@@ -23,11 +23,17 @@ namespace Collector.Data.Repositories
                 journal);
         }
 
-        public List<Journal> GetAllByUserId(Guid appUserId)
+        public List<Journal> GetAllByUserId(Guid appUserId, bool includeArchived = false)
         {
-            return _dbConnection.Query<Journal>(@"SELECT * FROM public.""Journals"" 
-                WHERE ""AppUserId"" = @appUserId", 
-                new { appUserId }).ToList();
+            var sql = @"SELECT * FROM public.""Journals"" 
+                WHERE ""AppUserId"" = @appUserId";
+            
+            if (!includeArchived)
+            {
+                sql += @" AND ""Status"" != 2";
+            }
+            
+            return _dbConnection.Query<Journal>(sql, new { appUserId }).ToList();
         }
         
         public Journal GetById(int journalId)

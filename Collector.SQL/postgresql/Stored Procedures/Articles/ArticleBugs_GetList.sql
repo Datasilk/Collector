@@ -1,22 +1,23 @@
-CREATE OR REPLACE PROCEDURE  public."ArticleBugs_GetList"
+CREATE OR REPLACE FUNCTION public."ArticleBugs_GetList"
 (
-    IN articleId INT DEFAULT 0,
-    IN start INT DEFAULT 1,
-    IN length INT DEFAULT 50,
-    IN orderby INT DEFAULT 1
-);
+    p_articleId INT DEFAULT 0,
+    p_start INT DEFAULT 1,
+    p_length INT DEFAULT 50,
+    p_orderby INT DEFAULT 1
+)
+RETURNS TABLE("rownum" BIGINT, "bugId" INT, "articleId" INT, "title" VARCHAR(100), "description" TEXT, "datecreated" TIMESTAMP, "status" SMALLINT)
 LANGUAGE plpgsql
 AS $$
 BEGIN
-SELECT * FROM (
-		SELECT ROW_NUMBER() OVER(ORDER BY 
-		CASE WHEN orderby = 1 THEN "status" END ASC,
-		CASE WHEN orderby = 2 THEN "status" END DESC,
-		CASE WHEN orderby = 3 THEN datecreated END ASC,
-		CASE WHEN orderby = 4 THEN datecreated END DESC
-		) AS rownum, * FROM ArticleBugs 
-			WHERE articleId = CASE WHEN articleId > 0 THEN articleId ELSE articleId END
-	) AS tbl WHERE rownum >= start AND rownum < start + length
+    RETURN QUERY
+    SELECT * FROM (
+        SELECT ROW_NUMBER() OVER(ORDER BY
+            CASE WHEN p_orderby = 1 THEN b."status" END ASC,
+            CASE WHEN p_orderby = 2 THEN b."status" END DESC,
+            CASE WHEN p_orderby = 3 THEN b."datecreated" END ASC,
+            CASE WHEN p_orderby = 4 THEN b."datecreated" END DESC
+        ) AS rownum, b.* FROM public."ArticleBugs" b
+        WHERE b."articleId" = CASE WHEN p_articleId > 0 THEN p_articleId ELSE b."articleId" END
+    ) AS tbl WHERE tbl.rownum >= p_start AND tbl.rownum < p_start + p_length;
 END;
-
 $$;

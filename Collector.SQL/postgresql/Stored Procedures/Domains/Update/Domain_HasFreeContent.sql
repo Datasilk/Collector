@@ -1,12 +1,12 @@
-CREATE OR REPLACE PROCEDURE  public."Domain_HasFreeContent"
+CREATE OR REPLACE FUNCTION public."Domain_HasFreeContent"
 (
-    IN domainId INT,
-    IN free BOOLEAN DEFAULT FALSE
-);
+    p_domainId INT,
+    p_free BOOLEAN DEFAULT FALSE
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 BEGIN
-UPDATE "Domains" SET free=free, dateupdated = CURRENT_TIMESTAMP WHERE domainId=domainId
+    UPDATE public."Domains" SET "free" = p_free, "dateupdated" = CURRENT_TIMESTAMP WHERE "domainId" = p_domainId;
 END;
-
 $$;

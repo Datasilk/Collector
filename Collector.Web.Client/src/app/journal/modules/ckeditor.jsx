@@ -105,10 +105,14 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
     }, []);
 
     useEffect(() => {
-        if (module.html != htmlRef.current) {
+        // Don't overwrite htmlRef if we have pending changes waiting to be saved
+        if (module.html != htmlRef.current && !timerSave.current) {
             htmlRef.current = module.html;
         }
-        loadHtml(module.html);
+        // Don't reload HTML if editor is currently active
+        if (!editorRef.current) {
+            loadHtml(module.html);
+        }
     }, [module]);
 
     // Effect to handle changes to isEditable prop

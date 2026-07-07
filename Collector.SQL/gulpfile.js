@@ -1132,7 +1132,7 @@ function compilePostgresSql(cb) {
 }
 
 const convert = series(cleanPostgresql, writePostgresSequences, convertSqlFiles);
-const compile = series(convert, compilePostgresSql);
+const compile = series(compilePostgresSql);
 
 exports.convert = convert;
 exports.compile = compile;

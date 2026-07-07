@@ -1,20 +1,19 @@
-CREATE OR REPLACE PROCEDURE  public."ArticleWords_Remove"
+CREATE OR REPLACE FUNCTION public."ArticleWords_Remove"
 (
-    IN articleId INT DEFAULT 0,
-    IN word VARCHAR(50) DEFAULT ''
-);
+    p_articleId INT DEFAULT 0,
+    p_word VARCHAR(50) DEFAULT ''
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    wordId INT := 0;
+    v_wordId INT := 0;
 BEGIN
-IF word = '' BEGIN
-		DELETE FROM ArticleWords WHERE articleId=articleId
-	END ELSE BEGIN
-		SELECT wordId=wordId FROM words WHERE word=word
-		DELETE FROM ArticleWords WHERE articleId=articleId AND wordId=wordId
-	END
-RETURN 0
+    IF p_word = '' THEN
+        DELETE FROM public."ArticleWords" WHERE "articleId" = p_articleId;
+    ELSE
+        SELECT w."wordId" INTO v_wordId FROM public."Words" w WHERE w."word" = p_word;
+        DELETE FROM public."ArticleWords" WHERE "articleId" = p_articleId AND "wordId" = v_wordId;
+    END IF;
 END;
-
 $$;

@@ -1,28 +1,19 @@
-CREATE OR REPLACE PROCEDURE  public."DomainServices_Filter"
+CREATE OR REPLACE FUNCTION public."DomainServices_Filter"
 (
-    IN search VARCHAR(100) DEFAULT NULL,
-    IN start INT DEFAULT 0,
-    IN length INT DEFAULT 50
-);
+    p_search VARCHAR(100) DEFAULT NULL,
+    p_start INT DEFAULT 0,
+    p_length INT DEFAULT 50
+)
+RETURNS TABLE("Id" INT, "Name" VARCHAR(100))
 LANGUAGE plpgsql
 AS $$
-DECLARE
-    totalCount INT;
 BEGIN
-    -- Get the total count for pagination
-    SELECT COUNT(*)
-FROM public."DomainServiceNames"
-    WHERE (search IS NULL OR Name LIKE '%' + search + '%')
-INTO totalCount;
-    -- Get the paginated results
-    SELECT *
-    FROM public."DomainServiceNames"
-    WHERE (search IS NULL OR Name LIKE '%' + search + '%')
-    ORDER BY Name ASC
-    OFFSET start ROWS
-    FETCH NEXT length ROWS ONLY;
-    -- Return the total count as a second result set
-    SELECT totalCount AS TotalCount;
-END
-
+    RETURN QUERY
+    SELECT dsn."Id", dsn."Name"
+    FROM public."DomainServiceNames" dsn
+    WHERE (p_search IS NULL OR dsn."Name" ILIKE '%' || p_search || '%')
+    ORDER BY dsn."Name" ASC
+    OFFSET p_start ROWS
+    FETCH NEXT p_length ROWS ONLY;
+END;
 $$;

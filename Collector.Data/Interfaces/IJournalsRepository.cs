@@ -6,7 +6,7 @@ namespace Collector.Data.Interfaces
     public interface IJournalsRepository
     {
         int Add(Journal journal);
-        List<Journal> GetAllByUserId(Guid appUserId);
+        List<Journal> GetAllByUserId(Guid appUserId, bool includeArchived = false);
         Journal GetById(int journalId);
         Journal GetByUserIdAndStatus(Guid appUserId, int status);
         void Rename(int journalId, string title);

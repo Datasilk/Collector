@@ -1,14 +1,14 @@
-CREATE OR REPLACE PROCEDURE  public."Domain_UpdateHttpsWww"
+CREATE OR REPLACE FUNCTION public."Domain_UpdateHttpsWww"
 (
-    IN domainId INT DEFAULT 0,
-    IN https BOOLEAN DEFAULT FALSE,
-    IN www BOOLEAN DEFAULT FALSE
-);
+    p_domainId INT DEFAULT 0,
+    p_https BOOLEAN DEFAULT FALSE,
+    p_www BOOLEAN DEFAULT FALSE
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 BEGIN
-UPDATE Domains SET "https" = https, "www" = www, dateupdated = CURRENT_TIMESTAMP
-	WHERE domainId=domainId
+    UPDATE public."Domains" SET "https" = p_https, "www" = p_www, "dateupdated" = CURRENT_TIMESTAMP
+    WHERE "domainId" = p_domainId;
 END;
-
 $$;

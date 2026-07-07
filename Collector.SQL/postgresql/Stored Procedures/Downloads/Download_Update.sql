@@ -1,12 +1,12 @@
-CREATE OR REPLACE PROCEDURE  public."Download_Update"
+CREATE OR REPLACE FUNCTION public."Download_Update"
 (
-    IN qid bigint DEFAULT 0,
-    IN status INT DEFAULT 0
-);
+    p_qid BIGINT DEFAULT 0,
+    p_status INT DEFAULT 0
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 BEGIN
-UPDATE DownloadQueue SET status=status WHERE qid=qid
+    UPDATE public."DownloadQueue" SET "status" = p_status WHERE "qid" = p_qid;
 END;
-
 $$;

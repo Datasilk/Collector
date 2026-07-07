@@ -16,12 +16,12 @@ namespace Collector.Data.Repositories
 
         public void Add(string[] words)
         {
-            _dbConnection.Execute("EXEC CommonWords_Add @words=@words", new { words = string.Join(",", words) });
+            _dbConnection.Execute("SELECT public.\"CommonWords_Add\"(@words)", new { words = string.Join(",", words) });
         }
 
         public List<string> GetList()
         {
-            return _dbConnection.Query<CommonWord>("EXEC CommonWords_GetList").Select(a => a.word).ToList();
+            return _dbConnection.Query<CommonWord>("SELECT * FROM public.\"CommonWords_GetList\"()").Select(a => a.word).ToList();
         }
     }
 }

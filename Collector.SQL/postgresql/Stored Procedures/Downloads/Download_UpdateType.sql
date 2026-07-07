@@ -1,14 +1,12 @@
-CREATE OR REPLACE PROCEDURE  public."Download_UpdateType"
+CREATE OR REPLACE FUNCTION public."Download_UpdateType"
 (
-    IN qId BIGINT,
-    IN type SMALLINT
-);
+    p_qId BIGINT,
+    p_type SMALLINT
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    UPDATE public."DownloadQueue"
-    SET "type" = type
-    WHERE "qid" = qId
-END
-
+    UPDATE public."DownloadQueue" SET "type" = p_type WHERE "qid" = p_qId;
+END;
 $$;

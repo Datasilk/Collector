@@ -1,11 +1,11 @@
-CREATE OR REPLACE PROCEDURE  public."Domain_AnalyzerRule_Remove"
+CREATE OR REPLACE FUNCTION public."Domain_AnalyzerRule_Remove"
 (
-    IN ruleId INT
-);
+    p_ruleId INT
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 BEGIN
-DELETE FROM AnalyzerRules WHERE ruleId=ruleId
+    DELETE FROM public."AnalyzerRules" WHERE "ruleId" = p_ruleId;
 END;
-
 $$;

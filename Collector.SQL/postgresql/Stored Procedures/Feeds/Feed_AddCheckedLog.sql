@@ -1,14 +1,15 @@
-CREATE OR REPLACE PROCEDURE  public."FeedCheckedLog_Add"
+CREATE OR REPLACE FUNCTION public."FeedCheckedLog_Add"
 (
-    IN feedId INT DEFAULT 0,
-    IN links INT DEFAULT 0
-);
+    p_feedId INT DEFAULT 0,
+    p_links INT DEFAULT 0
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 BEGIN
-INSERT INTO FeedsCheckedLog (feedId, links, datechecked)
-	VALUES (feedId, links, CURRENT_TIMESTAMP)
-	UPDATE Feeds SET lastChecked = CURRENT_TIMESTAMP
-END;
+    INSERT INTO public."FeedsCheckedLog" ("feedId", "links", "datechecked")
+    VALUES (p_feedId, p_links, CURRENT_TIMESTAMP);
 
+    UPDATE public."Feeds" SET "lastChecked" = CURRENT_TIMESTAMP WHERE "feedId" = p_feedId;
+END;
 $$;

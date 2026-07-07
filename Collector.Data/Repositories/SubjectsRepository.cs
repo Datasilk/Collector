@@ -18,33 +18,33 @@ namespace Collector.Data.Repositories
 
         public int CreateSubject(int parentId, int grammartype, int score, string title, string breadcrumb)
         {
-            return _dbConnection.ExecuteScalar<int>("EXEC Subject_Create @parentId=@parentId, @grammartype=@grammartype, @score=@score, @title=@title, @breadcrumb=@breadcrumb", 
+            return _dbConnection.ExecuteScalar<int>("SELECT public.\"Subject_Create\"(@parentId, @grammartype, @score, @title, @breadcrumb)", 
                 new { parentId, grammartype, score, title, breadcrumb });
         }
 
         public Subject GetSubjectById(int subjectId)
         {
-            return _dbConnection.QueryFirstOrDefault<Subject>("EXEC Subject_GetById @subjectId=@subjectId", new { subjectId });
+            return _dbConnection.QueryFirstOrDefault<Subject>("SELECT * FROM public.\"Subject_GetById\"(@subjectId)", new { subjectId });
         }
 
         public Subject GetSubjectByTitle(string title, string breadcrumb)
         {
-            return _dbConnection.QueryFirstOrDefault<Subject>("EXEC Subject_GetByTitle @title=@title, @breadcrumb=@breadcrumb", new { title, breadcrumb });
+            return _dbConnection.QueryFirstOrDefault<Subject>("SELECT * FROM public.\"Subject_GetByTitle\"(@title, @breadcrumb)", new { title, breadcrumb });
         }
 
         public void Move(int subjectId, int newParentId)
         {
-            _dbConnection.Execute("EXEC Subject_Move @subjectId=@subjectId, @newParentId=@newParentId", new { subjectId, newParentId });
+            _dbConnection.Execute("SELECT public.\"Subject_Move\"(@subjectId, @newParentId)", new { subjectId, newParentId });
         }
 
         public List<Subject> GetList(string subjectIds, int parentId = -1)
         {
-            return _dbConnection.Query<Subject>("EXEC Subjects_GetList @subjectIds=@subjectIds, @parentId=@parentId", new { subjectIds, parentId }).ToList();
+            return _dbConnection.Query<Subject>("SELECT * FROM public.\"Subjects_GetList\"(@subjectIds, @parentId)", new { subjectIds, parentId }).ToList();
         }
 
         public List<Subject> GetByParentId(int parentId)
         {
-            return _dbConnection.Query<Subject>("EXEC Subjects_GetList @subjectIds=@subjectIds, @parentId=@parentId", new { subjectIds = "", parentId }).ToList();
+            return _dbConnection.Query<Subject>("SELECT * FROM public.\"Subjects_GetList\"(@subjectIds, @parentId)", new { subjectIds = "", parentId }).ToList();
         }
     }
 }

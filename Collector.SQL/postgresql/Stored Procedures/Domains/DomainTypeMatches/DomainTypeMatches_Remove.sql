@@ -1,11 +1,11 @@
-CREATE OR REPLACE PROCEDURE  public."DomainTypeMatches_Remove"
+CREATE OR REPLACE FUNCTION public."DomainTypeMatches_Remove"
 (
-    IN matchId INT
-);
+    p_matchId INT
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 BEGIN
-DELETE FROM DomainTypeMatches WHERE matchId=matchId
+    DELETE FROM public."DomainTypeMatches" WHERE "matchId" = p_matchId;
 END;
-
 $$;

@@ -1,12 +1,12 @@
-CREATE OR REPLACE PROCEDURE  public."Domain_IsDeleted"
+CREATE OR REPLACE FUNCTION public."Domain_IsDeleted"
 (
-    IN domainId INT,
-    IN delete BOOLEAN DEFAULT TRUE
-);
+    p_domainId INT,
+    p_delete BOOLEAN DEFAULT TRUE
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 BEGIN
-UPDATE "Domains" SET "deleted"=delete, dateupdated = CURRENT_TIMESTAMP WHERE domainId=domainId
+    UPDATE public."Domains" SET "deleted" = p_delete, "dateupdated" = CURRENT_TIMESTAMP WHERE "domainId" = p_domainId;
 END;
-
 $$;

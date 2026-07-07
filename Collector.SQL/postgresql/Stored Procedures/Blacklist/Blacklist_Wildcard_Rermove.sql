@@ -1,11 +1,11 @@
-CREATE OR REPLACE PROCEDURE  public."Blacklist_Wildcard_Remove"
+CREATE OR REPLACE FUNCTION public."Blacklist_Wildcard_Remove"
 (
-    IN domain VARCHAR(64)
-);
+    p_domain VARCHAR(64)
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 BEGIN
-DELETE FROM Blacklist_Wildcards WHERE domain=domain
+    DELETE FROM public."Blacklist_Wildcards" WHERE "domain" = p_domain;
 END;
-
 $$;

@@ -1,15 +1,16 @@
-CREATE OR REPLACE PROCEDURE  public."Domain_CollectionGroup_Add"
+CREATE OR REPLACE FUNCTION public."Domain_CollectionGroup_Add"
 (
-    IN name VARCHAR(32)
-);
+    p_name VARCHAR(32)
+)
+RETURNS INT
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    id INT := nextval('public."SequenceDomainCollectionGroups"');
+    v_id INT := nextval('public."SequenceDomainCollectionGroups"');
 BEGIN
-INSERT INTO DomainCollectionGroups (colgroupId, "name")
-	VALUES (id, name)
-	SELECT id
-END;
+    INSERT INTO public."DomainCollectionGroups" ("colgroupId", "name")
+    VALUES (v_id, p_name);
 
+    RETURN v_id;
+END;
 $$;

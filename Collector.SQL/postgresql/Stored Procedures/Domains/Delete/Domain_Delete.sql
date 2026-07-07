@@ -1,19 +1,20 @@
-CREATE OR REPLACE PROCEDURE  public."Domain_Delete"
+CREATE OR REPLACE FUNCTION public."Domain_Delete"
 (
-    IN domainId INT
-);
+    p_domainId INT
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    domain VARCHAR(128);
+    v_domain VARCHAR(128);
 BEGIN
-SELECT domain = domain FROM Domains WHERE domainId=domainId
-	EXEC Domain_DeleteAllArticles domainId=domainId
-	DELETE FROM Domains WHERE domainId=domainId
-	DELETE FROM DownloadQueue WHERE domainId=domainId
-	DELETE FROM Downloads WHERE domainId=domainId
-	DELETE FROM Whitelist_Domains WHERE domain=domain
-	DELETE FROM Blacklist_Domains WHERE domain=domain
-END;
+    SELECT d."domain" INTO v_domain FROM public."Domains" d WHERE d."domainId" = p_domainId;
 
+    PERFORM public."Domain_DeleteAllArticles"(p_domainId);
+    DELETE FROM public."Domains" WHERE "domainId" = p_domainId;
+    DELETE FROM public."DownloadQueue" WHERE "domainId" = p_domainId;
+    DELETE FROM public."Downloads" WHERE "domainId" = p_domainId;
+    DELETE FROM public."Whitelist_Domains" WHERE "domain" = v_domain;
+    DELETE FROM public."Blacklist_Domains" WHERE "domain" = v_domain;
+END;
 $$;

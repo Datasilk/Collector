@@ -1,17 +1,18 @@
-CREATE OR REPLACE PROCEDURE  public."Domain_AnalyzerRule_Add"
+CREATE OR REPLACE FUNCTION public."Domain_AnalyzerRule_Add"
 (
-    IN domainId INT,
-    IN selector varchar(64) DEFAULT '',
-    IN rule BOOLEAN DEFAULT FALSE
-);
+    p_domainId INT,
+    p_selector VARCHAR(64) DEFAULT '',
+    p_rule BOOLEAN DEFAULT FALSE
+)
+RETURNS INT
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    id INT := nextval('public."SequenceAnalyzerRules"');
+    v_id INT := nextval('public."SequenceAnalyzerRules"');
 BEGIN
-INSERT INTO AnalyzerRules (ruleId, domainId, selector, "rule", datecreated)
-	VALUES (id, domainId, selector, rule, CURRENT_TIMESTAMP)
-	SELECT id
-END;
+    INSERT INTO public."AnalyzerRules" ("ruleId", "domainId", "selector", "rule", "datecreated")
+    VALUES (v_id, p_domainId, p_selector, p_rule, CURRENT_TIMESTAMP);
 
+    RETURN v_id;
+END;
 $$;

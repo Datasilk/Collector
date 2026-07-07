@@ -4,5 +4,6 @@ namespace Collector.API.Models
     {
         public int? Sort { get; set; }
         public string Search { get; set; }
+        public bool IncludeArchived { get; set; }
     }
 }

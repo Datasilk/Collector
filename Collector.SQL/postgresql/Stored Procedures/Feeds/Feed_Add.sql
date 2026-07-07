@@ -1,35 +1,38 @@
-CREATE OR REPLACE PROCEDURE  public."Feed_Add"
+CREATE OR REPLACE FUNCTION public."Feed_Add"
 (
-    IN doctype INT DEFAULT 1,
-    IN categoryId INT,
-    IN title VARCHAR(100) DEFAULT '',
-    IN url VARCHAR(100) DEFAULT '',
-    IN domain VARCHAR(64) DEFAULT '',
-    IN filter TEXT DEFAULT '',
-    IN checkIntervals INT DEFAULT 720 --(12 hours)
-);
+    p_doctype INT DEFAULT 1,
+    p_categoryId INT,
+    p_title VARCHAR(100) DEFAULT '',
+    p_url VARCHAR(100) DEFAULT '',
+    p_domain VARCHAR(64) DEFAULT '',
+    p_filter TEXT DEFAULT '',
+    p_checkIntervals INT DEFAULT 720
+)
+RETURNS INT
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    domainId INT;
-    feedId INT := nextval('public."SequenceFeeds"');
+    v_domainId INT;
+    v_feedId INT := nextval('public."SequenceFeeds"');
 BEGIN
-IF NOT EXISTS(SELECT * FROM Domains WHERE domain=domain) BEGIN
-	--get domain ID
-	SELECT domainId = domainId, title = title FROM Domains WHERE domain=domain
-END ELSE BEGIN
-	--create domain ID
-	SET domainId = nextval('public."SequenceDomains"')
-	INSERT INTO Domains (domainId, parentId, domain, lastchecked) VALUES (domainId, 0, domain, DATEADD(HOUR, -1, CURRENT_TIMESTAMP))
-END
-INSERT INTO Feeds (feedId, domainId, doctype, categoryId, title, url, checkIntervals, filter, lastChecked) 
-VALUES (feedId, domainId, doctype, categoryId, title, url, checkIntervals, filter, DATEADD(HOUR, -24, CURRENT_TIMESTAMP))
-BEGIN TRY
-	INSERT INTO Whitelist_Domains (domain) VALUES (domain)
-END TRY
-BEGIN CATCH
-END CATCH
-SELECT feedId
-END;
+    IF EXISTS(SELECT 1 FROM public."Domains" d WHERE d."domain" = p_domain) THEN
+        SELECT d."domainId" INTO v_domainId FROM public."Domains" d WHERE d."domain" = p_domain;
+    ELSE
+        v_domainId := nextval('public."SequenceDomains"');
+        INSERT INTO public."Domains" ("domainId", "parentId", "domain", "lastchecked")
+        VALUES (v_domainId, 0, p_domain, CURRENT_TIMESTAMP - INTERVAL '1 hour');
+    END IF;
 
+    INSERT INTO public."Feeds" ("feedId", "domainId", "doctype", "categoryId", "title", "url", "checkIntervals", "filter", "lastChecked")
+    VALUES (v_feedId, v_domainId, p_doctype, p_categoryId, p_title, p_url, p_checkIntervals, p_filter, CURRENT_TIMESTAMP - INTERVAL '24 hours');
+
+    BEGIN
+        INSERT INTO public."Whitelist_Domains" ("domain") VALUES (p_domain);
+    EXCEPTION
+        WHEN unique_violation THEN
+            NULL;
+    END;
+
+    RETURN v_feedId;
+END;
 $$;

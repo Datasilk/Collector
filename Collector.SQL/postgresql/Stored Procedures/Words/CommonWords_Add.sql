@@ -1,12 +1,14 @@
-CREATE OR REPLACE PROCEDURE  public."CommonWords_Add"
+CREATE OR REPLACE FUNCTION public."CommonWords_Add"
 (
-    IN words TEXT
-);
+    p_words TEXT
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    v_words TEXT[] := string_to_array(p_words, ',');
 BEGIN
-DELETE FROM CommonWords WHERE word IN (SELECT "value" FROM public.SplitArray(words, ','))
-INSERT INTO CommonWords SELECT "value" AS word FROM public.SplitArray(words, ',')
+    DELETE FROM public."CommonWords" WHERE "word" = ANY(v_words);
+    INSERT INTO public."CommonWords" ("word") SELECT DISTINCT unnest(v_words);
 END;
-
 $$;

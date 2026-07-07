@@ -1,13 +1,17 @@
-CREATE OR REPLACE PROCEDURE  public."DomainLink_Add"
+CREATE OR REPLACE FUNCTION public."DomainLink_Add"
 (
-    IN domainId INT,
-    IN linkId INT
-);
+    p_domainId INT,
+    p_linkId INT
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
-BEGIN TRY
-		INSERT INTO DomainLinks (domainId, linkId) VALUES (domainId, linkId)
-	END TRY BEGIN CATCH END CATCH
+BEGIN
+    BEGIN
+        INSERT INTO public."DomainLinks" ("domainId", "linkId") VALUES (p_domainId, p_linkId);
+    EXCEPTION
+        WHEN unique_violation THEN
+            NULL;
+    END;
 END;
-
 $$;

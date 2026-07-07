@@ -1,16 +1,16 @@
-CREATE OR REPLACE PROCEDURE  public."Whitelist_Domain_Add"
+CREATE OR REPLACE FUNCTION public."Whitelist_Domain_Add"
 (
-    IN domain VARCHAR(64)
-);
+    p_domain VARCHAR(64)
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
-DECLARE
-    domainId INT;
-BEGIN TRY
-	INSERT INTO Whitelist_Domains (domain) VALUES (domain)
-	END TRY
-	BEGIN CATCH
-	END CATCH
+BEGIN
+    BEGIN
+        INSERT INTO public."Whitelist_Domains" ("domain") VALUES (p_domain);
+    EXCEPTION
+        WHEN unique_violation THEN
+            NULL;
+    END;
 END;
-
 $$;

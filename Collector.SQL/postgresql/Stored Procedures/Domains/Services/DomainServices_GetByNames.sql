@@ -1,30 +1,24 @@
-CREATE OR REPLACE PROCEDURE  public."DomainServices_GetByNames"
+CREATE OR REPLACE FUNCTION public."DomainServices_GetByNames"
 (
-    IN serviceNames TEXT
-);
+    p_serviceNames TEXT
+)
+RETURNS TABLE("Id" INT, "Name" VARCHAR(64))
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    v_serviceNames VARCHAR(64)[];
 BEGIN
-    -- Create a temporary table to hold the service names
-    CREATE TABLE IF NOT EXISTS #ServiceNames
-(
-    "Name" VARCHAR(64)
-);
-    -- Insert the service names into the temporary table
-    INSERT INTO #ServiceNames ("Name")
-    SELECT value FROM STRING_SPLIT(serviceNames, ',');
-    -- Create any service names that don't exist yet
+    v_serviceNames := string_to_array(p_serviceNames, ',');
+
     INSERT INTO public."DomainServiceNames" ("Name")
-    SELECT DISTINCT sn."Name"
-    FROM #ServiceNames sn
-    LEFT JOIN public."DomainServiceNames" dsn ON dsn."Name" = sn."Name"
+    SELECT DISTINCT sn
+    FROM unnest(v_serviceNames) AS sn
+    LEFT JOIN public."DomainServiceNames" dsn ON dsn."Name" = sn
     WHERE dsn."Id" IS NULL;
-    -- Return the IDs for all service names
+
+    RETURN QUERY
     SELECT dsn."Id", dsn."Name"
     FROM public."DomainServiceNames" dsn
-    INNER JOIN #ServiceNames sn ON dsn."Name" = sn."Name";
-    -- Clean up
-    DROP TABLE #ServiceNames;
-END
-
+    WHERE dsn."Name" = ANY(v_serviceNames);
+END;
 $$;

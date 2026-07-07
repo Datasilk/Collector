@@ -1,13 +1,13 @@
-CREATE OR REPLACE PROCEDURE  public."Feeds_Category_Add"
+CREATE OR REPLACE FUNCTION public."Feeds_Category_Add"
 (
-    IN title VARCHAR(64)
-);
+    p_title VARCHAR(64)
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    id INT := nextval('public."SequenceFeedCategories"');
+    v_id INT := nextval('public."SequenceFeedCategories"');
 BEGIN
-INSERT INTO FeedCategories (categoryId, title) VALUES (id, title)
+    INSERT INTO public."FeedCategories" ("categoryId", "title") VALUES (v_id, p_title);
 END;
-
 $$;

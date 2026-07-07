@@ -1,11 +1,11 @@
-CREATE OR REPLACE PROCEDURE  public."Domain_Collection_Remove"
+CREATE OR REPLACE FUNCTION public."Domain_Collection_Remove"
 (
-    IN colId INT DEFAULT 0
-);
+    p_colId INT DEFAULT 0
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 BEGIN
-DELETE FROM DomainCollections WHERE colId=colId
+    DELETE FROM public."DomainCollections" WHERE "colId" = p_colId;
 END;
-
 $$;

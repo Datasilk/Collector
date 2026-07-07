@@ -63,6 +63,16 @@
   --admin-tab-selected-bg: #f5f5f5;
   --admin-gradient: linear-gradient(180deg,rgba(0,0,0,0) 0%, rgba(0,0,0,0) 65%, rgba(0,0,0,0.05) 100%);
   
+  /* === ADMIN TABLES === */
+  --table-header-bg: #dedbf4;
+  --table-header-text: #5200b9;
+  --table-link: #8662b9;
+  --table-link-hover: #66429a;
+  --table-row-link: #b0afaf;
+  --table-row-odd: #f3f3f3;
+  --table-row-even: #e8e8e8;
+  --table-row-hover: #dedbf4;
+  
   /* === JOURNAL === */
   --journal-sidebar-bg: #ffffff;
   --journal-sidebar-text: #213547;

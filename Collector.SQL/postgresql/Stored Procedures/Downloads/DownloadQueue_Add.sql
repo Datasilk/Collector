@@ -1,49 +1,50 @@
-CREATE OR REPLACE PROCEDURE  public."DownloadQueue_Add"
+CREATE OR REPLACE FUNCTION public."DownloadQueue_Add"
 (
-    IN url TEXT DEFAULT '',
-    IN domain VARCHAR(64) DEFAULT '',
-    IN parentId INT,
-    IN feedId INT DEFAULT 0
-);
+    p_url TEXT DEFAULT '',
+    p_domain VARCHAR(64) DEFAULT '',
+    p_parentId INT,
+    p_feedId INT DEFAULT 0
+)
+RETURNS BIGINT
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    domainId INT, qid BIGINT, count INT := 0, title VARCHAR(128);
-    title_results TABLE (title TEXT);
-    domain_results TABLE (id INT);
+    v_domainId INT;
+    v_qid BIGINT;
+    v_title VARCHAR(128);
 BEGIN
-IF EXISTS(SELECT * FROM Domains WHERE domain=domain) BEGIN
-	--get domain ID
-	SELECT domainId = domainId, title = title FROM Domains WHERE domain=domain
-	IF title = '' BEGIN
-		IF (SELECT COUNT(*) FROM Articles WHERE domainId=domainId) >= 10 BEGIN
-			--get common word found in all article titles
-			INSERT INTO title_results
-			EXEC Domain_FindTitle domainId=domainId
-		END
-	END
-	IF parentId > 0 AND parentId <> domainId BEGIN
-		EXEC DomainLink_Add domainId=parentId, linkId=domainId
-	END
-END ELSE BEGIN
-	--create domain ID
-	INSERT INTO domain_results
-	EXEC Domain_Add domain=domain, parentId=parentId
-	SELECT domainId = domainId, title = title FROM Domains WHERE domain=domain
-END
-	IF NOT EXISTS(SELECT * FROM DownloadQueue WHERE url=url) 
-	AND NOT EXISTS(SELECT * FROM Downloads WHERE url=url) BEGIN
-		SET qid = nextval('public."SequenceDownloadQueue"')
-		INSERT INTO DownloadQueue (qid, "url", "path", feedId, domainId, "status", datecreated) 
-		VALUES (qid, url, public.GetPathFromUrl(url, domain), feedId, domainId, 0, CURRENT_TIMESTAMP)
-		UPDATE Domains SET inqueue+=1 WHERE domainId=domainId
-	END ELSE BEGIN
-		SELECT qid = qid FROM DownloadQueue WHERE url=url
-		IF qid IS NULL BEGIN
-			SELECT qid = id FROM Downloads WHERE url=url
-		END
-	END
-	SELECT qid AS qid
-END;
+    IF EXISTS(SELECT 1 FROM public."Domains" d WHERE d."domain" = p_domain) THEN
+        SELECT d."domainId", d."title" INTO v_domainId, v_title
+        FROM public."Domains" d
+        WHERE d."domain" = p_domain;
 
+        IF v_title = '' THEN
+            IF (SELECT COUNT(*) FROM public."Articles" a WHERE a."domainId" = v_domainId) >= 10 THEN
+                v_title := public."Domain_FindTitle"(v_domainId);
+            END IF;
+        END IF;
+
+        IF p_parentId > 0 AND p_parentId <> v_domainId THEN
+            PERFORM public."DomainLink_Add"(p_parentId, v_domainId);
+        END IF;
+    ELSE
+        SELECT public."Domain_Add"(p_domain, p_parentId) INTO v_domainId;
+        SELECT d."title" INTO v_title FROM public."Domains" d WHERE d."domainId" = v_domainId;
+    END IF;
+
+    IF NOT EXISTS(SELECT 1 FROM public."DownloadQueue" q WHERE q."url" = p_url)
+    AND NOT EXISTS(SELECT 1 FROM public."Downloads" d WHERE d."url" = p_url) THEN
+        v_qid := nextval('public."SequenceDownloadQueue"');
+        INSERT INTO public."DownloadQueue" ("qid", "url", "path", "feedId", "domainId", "status", "datecreated")
+        VALUES (v_qid, p_url, public."GetPathFromUrl"(p_url, p_domain), p_feedId, v_domainId, 0, CURRENT_TIMESTAMP);
+        UPDATE public."Domains" SET "inqueue" = "inqueue" + 1 WHERE "domainId" = v_domainId;
+    ELSE
+        SELECT q."qid" INTO v_qid FROM public."DownloadQueue" q WHERE q."url" = p_url;
+        IF v_qid IS NULL THEN
+            SELECT d."id" INTO v_qid FROM public."Downloads" d WHERE d."url" = p_url;
+        END IF;
+    END IF;
+
+    RETURN v_qid;
+END;
 $$;

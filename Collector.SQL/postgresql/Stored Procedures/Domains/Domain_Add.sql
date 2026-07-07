@@ -1,36 +1,54 @@
-CREATE OR REPLACE PROCEDURE  public."Domain_Add"
+CREATE OR REPLACE FUNCTION public."Domain_Add"
 (
-    IN domain VARCHAR(64),
-    IN title VARCHAR(128) DEFAULT '',
-    IN parentId INT DEFAULT 0,
-    IN type INT DEFAULT 0 -- 0 = none, 1 = whitelist, 2 = blacklist
-);
+    p_domain VARCHAR(64),
+    p_title VARCHAR(128) DEFAULT '',
+    p_parentId INT DEFAULT 0,
+    p_type INT DEFAULT 0
+)
+RETURNS INT
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    id INT := nextval('public."SequenceDomains"');
-    level INT;
-    url TEXT := 'http://' + domain;
+    v_id INT := nextval('public."SequenceDomains"');
+    v_level INT;
+    v_url TEXT := 'http://' || p_domain;
 BEGIN
-INSERT INTO Domains (domainId, parentId, domain, title, lastchecked)
-	VALUES (id, parentId, domain, title, DATEADD(HOUR, -1, CURRENT_TIMESTAMP))
-	SELECT id
-	IF parentId > 0 BEGIN
-		BEGIN TRY
-			INSERT INTO DomainHierarchy (domainId, parentId, "level")
-			SELECT id, parentId, "level"
-			FROM DomainHierarchy WHERE domainId = parentId
-		END TRY BEGIN CATCH END CATCH
-		SELECT level = ISNULL(MAX("level"), 0) + 1 FROM DomainHierarchy WHERE domainId = parentId
-		BEGIN TRY
-			INSERT INTO DomainHierarchy (domainId, parentId, "level")
-			VALUES (id, parentId, level)
-		END TRY BEGIN CATCH END CATCH
-		EXEC DomainLink_Add domainId=parentId, linkId=id
-	END
-	IF type = 1 EXEC Whitelist_Domain_Add domain=domain
-	IF type = 2 EXEC Blacklist_Domain_Add domain=domain
-	EXEC DownloadQueue_Add url=url, domain=domain, parentId=parentId, feedId=0
-END;
+    INSERT INTO public."Domains" ("domainId", "parentId", "domain", "title", "lastchecked")
+    VALUES (v_id, p_parentId, p_domain, p_title, CURRENT_TIMESTAMP - INTERVAL '1 hour');
 
+    IF p_parentId > 0 THEN
+        BEGIN
+            INSERT INTO public."DomainHierarchy" ("domainId", "parentId", "level")
+            SELECT v_id, p_parentId, dh."level"
+            FROM public."DomainHierarchy" dh WHERE dh."domainId" = p_parentId;
+        EXCEPTION
+            WHEN unique_violation THEN
+                NULL;
+        END;
+
+        SELECT COALESCE(MAX(dh."level"), 0) + 1 INTO v_level
+        FROM public."DomainHierarchy" dh
+        WHERE dh."domainId" = p_parentId;
+
+        BEGIN
+            INSERT INTO public."DomainHierarchy" ("domainId", "parentId", "level")
+            VALUES (v_id, p_parentId, v_level);
+        EXCEPTION
+            WHEN unique_violation THEN
+                NULL;
+        END;
+
+        PERFORM public."DomainLink_Add"(p_parentId, v_id);
+    END IF;
+
+    IF p_type = 1 THEN
+        PERFORM public."Whitelist_Domain_Add"(p_domain);
+    ELSIF p_type = 2 THEN
+        PERFORM public."Blacklist_Domain_Add"(p_domain);
+    END IF;
+
+    PERFORM public."DownloadQueue_Add"(v_url, p_domain, p_parentId, 0);
+
+    RETURN v_id;
+END;
 $$;

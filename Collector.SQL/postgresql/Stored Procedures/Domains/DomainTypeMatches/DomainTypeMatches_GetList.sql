@@ -1,8 +1,8 @@
-CREATE OR REPLACE PROCEDURE public."DomainTypeMatches_GetList"
+CREATE OR REPLACE FUNCTION public."DomainTypeMatches_GetList"()
+RETURNS TABLE("matchId" INT, "type" INT, "type2" INT, "words" TEXT, "threshold" INT, "rank" INT)
 LANGUAGE plpgsql
 AS $$
 BEGIN
-SELECT * FROM DomainTypeMatches
+    RETURN QUERY SELECT * FROM public."DomainTypeMatches";
 END;
-
 $$;

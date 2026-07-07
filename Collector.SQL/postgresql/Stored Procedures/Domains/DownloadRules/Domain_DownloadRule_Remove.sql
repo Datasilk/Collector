@@ -1,11 +1,11 @@
-CREATE OR REPLACE PROCEDURE  public."Domain_DownloadRule_Remove"
+CREATE OR REPLACE FUNCTION public."Domain_DownloadRule_Remove"
 (
-    IN ruleId INT
-);
+    p_ruleId INT
+)
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 BEGIN
-DELETE FROM DownloadRules WHERE ruleId=ruleId
+    DELETE FROM public."DownloadRules" WHERE "ruleId" = p_ruleId;
 END;
-
 $$;

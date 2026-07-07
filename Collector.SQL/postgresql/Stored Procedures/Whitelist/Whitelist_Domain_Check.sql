@@ -1,11 +1,11 @@
-CREATE OR REPLACE PROCEDURE  public."Whitelist_Domain_Check"
+CREATE OR REPLACE FUNCTION public."Whitelist_Domain_Check"
 (
-    IN domain VARCHAR(64)
-);
+    p_domain VARCHAR(64)
+)
+RETURNS INTEGER
 LANGUAGE plpgsql
 AS $$
 BEGIN
-SELECT COUNT(*) FROM Whitelist_Domains WHERE domain=domain
+    RETURN (SELECT COUNT(*) FROM public."Whitelist_Domains" WHERE "domain" = p_domain);
 END;
-
 $$;

@@ -1,158 +1,149 @@
-CREATE OR REPLACE PROCEDURE  public."Domains_GetList"
+CREATE OR REPLACE FUNCTION public."Domains_GetList"
 (
-    IN subjectIds TEXT DEFAULT '',
-    IN lang varchar(6) DEFAULT '',
-    IN search TEXT DEFAULT '',
-    IN type INT DEFAULT 0, -- 0 = all, 1 = whitelisted, 2 = blacklisted, 3 = not-listed, 4 = paywall, 5 = free, 6 = unprocessed, 7 = empty,
-    IN domainType INT DEFAULT -1,
-    IN domainType2 INT DEFAULT -1,
-    IN sort INT DEFAULT 0, -- 0 = Domain ASC, 1 = Domain DESC, 2 = Articles DESC, 3 = DateCreated DESC, 4 = DateCreated ASC, 5 = DateUpdated DESC,
-    IN start INT DEFAULT 1,
-    IN length INT DEFAULT 50,
-    IN parentId INT DEFAULT -1,
-    IN serviceIds TEXT DEFAULT NULL
-);
+    p_subjectIds TEXT DEFAULT '',
+    p_lang VARCHAR(6) DEFAULT '',
+    p_search TEXT DEFAULT '',
+    p_type INT DEFAULT 0,
+    p_domainType INT DEFAULT -1,
+    p_domainType2 INT DEFAULT -1,
+    p_sort INT DEFAULT 0,
+    p_start INT DEFAULT 1,
+    p_length INT DEFAULT 50,
+    p_parentId INT DEFAULT -1,
+    p_serviceIds TEXT DEFAULT NULL
+)
+RETURNS TABLE(
+    "rownum" INT, "domainId" INT, "domain" VARCHAR(64), "lang" VARCHAR(6), "parentId" INT,
+    "hastitle" BOOLEAN, "paywall" BOOLEAN, "free" BOOLEAN, "https" BOOLEAN, "www" BOOLEAN,
+    "empty" BOOLEAN, "deleted" BOOLEAN, "type" INT, "type2" INT, "articles" INT, "inqueue" INT,
+    "title" VARCHAR(128), "company" VARCHAR(64), "description" VARCHAR(255), "datecreated" TIMESTAMPTZ,
+    "dateupdated" TIMESTAMPTZ, "lastchecked" TIMESTAMPTZ, "whitelisted" INT, "blacklisted" INT
+)
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    haswildcard BOOLEAN := 0;
+    v_haswildcard BOOLEAN := FALSE;
+    v_serviceArr INT[];
 BEGIN
-/* get subjects from array */
-	SELECT * INTO #subjects FROM public.SplitArray(subjectIds, ',')
-	/* get domains that match a search term */
-	SELECT * INTO #search FROM public.SplitArray(search, ',')
-	IF CHARINDEX('%', search) > 0 SET haswildcard = 1
-	--PRINT 'has wildcard = ' + CONVERT(VARCHAR(1), haswildcard)
-	IF type = 2 BEGIN
-		/* //////////////////////////////////////////////////////////////////////////////////////// */
-		/* Get domains from Blacklist table */
-		/* //////////////////////////////////////////////////////////////////////////////////////// */
-		SELECT * FROM (
-			SELECT ROW_NUMBER() OVER(ORDER BY 
-			CASE WHEN sort = 0 OR sort = 6 THEN d.domain END,
-			CASE WHEN sort = 1 OR sort = 7 THEN d.domain END DESC
-			) AS rownum, d.domain, -1 AS "type"
-			FROM "Blacklist_Domains" d
-			WHERE
-			(
-				(search IS NOT NULL AND search  <> '' AND (
-					d.domain LIKE CASE WHEN haswildcard = 1 THEN search ELSE '%' + search + '%' END
-				))
-				OR (search IS NULL OR search = '')
-			);
-		) AS tbl WHERE rownum >= start AND rownum < start + length
-	END ELSE IF type = 8 BEGIN
-		/* //////////////////////////////////////////////////////////////////////////////////////// */
-		/* Get domains from Blacklist Wildcards table */
-		/* //////////////////////////////////////////////////////////////////////////////////////// */
-		SELECT * FROM (
-			SELECT ROW_NUMBER() OVER(ORDER BY 
-			CASE WHEN sort = 0 OR sort = 6 THEN d.domain END,
-			CASE WHEN sort = 1 OR sort = 7 THEN d.domain END DESC
-			) AS rownum, d.domain, -2 AS "type"
-			FROM "Blacklist_Wildcards" d
-			WHERE
-			(
-				(search IS NOT NULL AND search  <> '' AND (
-					d.domain LIKE CASE WHEN haswildcard = 1 THEN search ELSE '%' + search + '%' END
-				))
-				OR (search IS NULL OR search = '')
-			);
-		) AS tbl WHERE rownum >= start AND rownum < start + length
-	END ELSE BEGIN
-		/* //////////////////////////////////////////////////////////////////////////////////////// */
-		/* Get domains from Domains table */
-		/* //////////////////////////////////////////////////////////////////////////////////////// */
-		SELECT CAST(value AS INT) AS serviceId 
-		INTO #serviceIds
-		FROM STRING_SPLIT(serviceIds, ',')
-		SELECT * FROM (
-			SELECT ROW_NUMBER() OVER(ORDER BY 
-			-- Title sorting with hastitle priority
-			CASE WHEN sort = 0 OR sort = 1 OR sort = 6 OR sort = 7 THEN d.hastitle END DESC, 
-			CASE WHEN sort = 6 THEN d.title END,
-			CASE WHEN sort = 7 THEN d.title END DESC,
-			-- Domain sorting
-			CASE WHEN sort = 0 THEN d.domain END,
-			CASE WHEN sort = 1 THEN d.domain END DESC,
-			-- Articles sorting
-			CASE WHEN sort = 2 THEN d.articles END DESC,
-			CASE WHEN sort = 8 THEN d.articles END ASC,
-			-- Date created sorting
-			CASE WHEN sort = 3 THEN d.datecreated END DESC,
-			CASE WHEN sort = 4 THEN d.datecreated END ASC,
-			-- Date updated sorting
-			CASE WHEN sort = 5 THEN d.dateupdated END DESC,
-			CASE WHEN sort = 9 THEN d.dateupdated END ASC,
-			-- Status sorting (whitelisted/blacklisted status)
-			CASE WHEN sort = 10 THEN 
-				CASE 
-					WHEN wl.domain IS NOT NULL THEN 1
-					WHEN bl.domain IS NOT NULL THEN 2
-					ELSE 3
-				END
-			END ASC,
-			CASE WHEN sort = 11 THEN 
-				CASE 
-					WHEN wl.domain IS NOT NULL THEN 1
-					WHEN bl.domain IS NOT NULL THEN 2
-					ELSE 3
-				END
-			END DESC
-			) AS rownum, d.*,
-			(CASE WHEN wl.domain IS NOT NULL THEN 1 ELSE 0 END) AS whitelisted,
-			(CASE WHEN bl.domain IS NOT NULL THEN 1 ELSE 0 END) AS blacklisted
-			FROM "Domains" d
-			LEFT JOIN Whitelist_Domains wl ON wl.domain = d.domain
-			LEFT JOIN Blacklist_Domains bl ON bl.domain = d.domain
-			LEFT JOIN DomainServices ds ON ds.domainId = d.domainId AND ds.serviceId IN (SELECT * FROM #serviceIds)
-			WHERE
-			(
-				(search IS NOT NULL AND search  <> '' AND (
-					d.title LIKE CASE WHEN haswildcard = 1 THEN search ELSE '%' + search + '%' END
-					OR d.domain LIKE CASE WHEN haswildcard = 1 THEN search ELSE '%' + search + '%' END
-				))
-				OR (search IS NULL OR search = '')
-			) AND (
-				(type = 0)
-				OR (type = 1 AND wl.domain IS NOT NULL)
-				OR (type = 2 AND bl.domain IS NOT NULL)
-				OR (type = 3 AND wl.domain IS NULL AND bl.domain IS NULL)
-				OR (type = 4 AND d.paywall = 1)
-				OR (type = 5 AND d.free = 1)
-				OR (type = 6 AND d.free = 0 AND d.paywall = 0 AND d.type = -1 AND bl.domain IS NULL AND wl.domain IS NULL)
-				OR (type = 7 AND d."empty" = 1)
-				OR (type = 9 AND d."empty" = 0)
-			);
-			AND (
-				(sort = 2 AND d.articles > 0)
-				OR (sort <> 2)
-			);
-			AND (
-				(domainType >= 0 AND domainType2 < 0 AND (d."type" = domainType OR d."type2" = domainType))
-				OR 
-				(domainType < 0 AND domainType2 >= 0 AND (d."type" = domainType2 OR d."type2" = domainType2))
-				OR 
-				(domainType >= 0 AND domainType2 >= 0 AND (d."type" = domainType OR d."type2" = domainType
-														  OR d."type" = domainType2 OR d."type2" = domainType2))
-				OR 
-				(domainType < 0)
-			);
-			AND (
-				(parentId >= 0 AND d.parentId = parentId)
-				OR (parentId < 0)
-			);
-			AND (
-				(lang != '' AND d.lang = lang)
-				OR lang IS NULL OR lang = ''
-			);
-			AND d.deleted = 0
-			AND (
-				serviceIds IS NULL
-				OR ds.serviceId IS NOT NULL
-			);
-		) AS tbl WHERE rownum >= start AND rownum < start + length
-	END
-END;
+    IF POSITION('%' IN p_search) > 0 THEN
+        v_haswildcard := TRUE;
+    END IF;
+    v_serviceArr := string_to_array(p_serviceIds, ',')::INT[];
 
+    IF p_type = 2 THEN
+        RETURN QUERY
+        SELECT * FROM (
+            SELECT ROW_NUMBER() OVER(ORDER BY
+                CASE WHEN p_sort = 0 OR p_sort = 6 THEN d."domain" END,
+                CASE WHEN p_sort = 1 OR p_sort = 7 THEN d."domain" END DESC
+            ) AS rn,
+            NULL::INT, d."domain", NULL::VARCHAR(6), NULL::INT,
+            NULL::BOOLEAN, NULL::BOOLEAN, NULL::BOOLEAN, NULL::BOOLEAN, NULL::BOOLEAN,
+            NULL::BOOLEAN, NULL::BOOLEAN, -1, NULL::INT, NULL::INT, NULL::INT,
+            NULL::VARCHAR(128), NULL::VARCHAR(64), NULL::VARCHAR(255), NULL::TIMESTAMPTZ,
+            NULL::TIMESTAMPTZ, NULL::TIMESTAMPTZ, NULL::INT, NULL::INT
+            FROM public."Blacklist_Domains" d
+            WHERE (
+                (p_search IS NOT NULL AND p_search <> '' AND d."domain" ILIKE CASE WHEN v_haswildcard THEN p_search ELSE '%' || p_search || '%' END)
+                OR (p_search IS NULL OR p_search = '')
+            )
+        ) AS tbl WHERE rn >= p_start AND rn < p_start + p_length;
+    ELSIF p_type = 8 THEN
+        RETURN QUERY
+        SELECT * FROM (
+            SELECT ROW_NUMBER() OVER(ORDER BY
+                CASE WHEN p_sort = 0 OR p_sort = 6 THEN d."domain" END,
+                CASE WHEN p_sort = 1 OR p_sort = 7 THEN d."domain" END DESC
+            ) AS rn,
+            NULL::INT, d."domain", NULL::VARCHAR(6), NULL::INT,
+            NULL::BOOLEAN, NULL::BOOLEAN, NULL::BOOLEAN, NULL::BOOLEAN, NULL::BOOLEAN,
+            NULL::BOOLEAN, NULL::BOOLEAN, -2, NULL::INT, NULL::INT, NULL::INT,
+            NULL::VARCHAR(128), NULL::VARCHAR(64), NULL::VARCHAR(255), NULL::TIMESTAMPTZ,
+            NULL::TIMESTAMPTZ, NULL::TIMESTAMPTZ, NULL::INT, NULL::INT
+            FROM public."Blacklist_Wildcards" d
+            WHERE (
+                (p_search IS NOT NULL AND p_search <> '' AND d."domain" ILIKE CASE WHEN v_haswildcard THEN p_search ELSE '%' || p_search || '%' END)
+                OR (p_search IS NULL OR p_search = '')
+            )
+        ) AS tbl WHERE rn >= p_start AND rn < p_start + p_length;
+    ELSE
+        RETURN QUERY
+        SELECT * FROM (
+            SELECT ROW_NUMBER() OVER(ORDER BY
+                CASE WHEN p_sort = 0 OR p_sort = 1 OR p_sort = 6 OR p_sort = 7 THEN d."hastitle" END DESC,
+                CASE WHEN p_sort = 6 THEN d."title" END,
+                CASE WHEN p_sort = 7 THEN d."title" END DESC,
+                CASE WHEN p_sort = 0 THEN d."domain" END,
+                CASE WHEN p_sort = 1 THEN d."domain" END DESC,
+                CASE WHEN p_sort = 2 THEN d."articles" END DESC,
+                CASE WHEN p_sort = 8 THEN d."articles" END ASC,
+                CASE WHEN p_sort = 3 THEN d."datecreated" END DESC,
+                CASE WHEN p_sort = 4 THEN d."datecreated" END ASC,
+                CASE WHEN p_sort = 5 THEN d."dateupdated" END DESC,
+                CASE WHEN p_sort = 9 THEN d."dateupdated" END ASC,
+                CASE WHEN p_sort = 10 THEN
+                    CASE WHEN wl."domain" IS NOT NULL THEN 1 WHEN bl."domain" IS NOT NULL THEN 2 ELSE 3 END
+                END ASC,
+                CASE WHEN p_sort = 11 THEN
+                    CASE WHEN wl."domain" IS NOT NULL THEN 1 WHEN bl."domain" IS NOT NULL THEN 2 ELSE 3 END
+                END DESC
+            ) AS rn,
+            d."domainId", d."domain", d."lang", d."parentId", d."hastitle", d."paywall", d."free", d."https", d."www",
+            d."empty", d."deleted", d."type", d."type2", d."articles", d."inqueue", d."title", d."company",
+            d."description", d."datecreated", d."dateupdated", d."lastchecked",
+            (CASE WHEN wl."domain" IS NOT NULL THEN 1 ELSE 0 END) AS wl,
+            (CASE WHEN bl."domain" IS NOT NULL THEN 1 ELSE 0 END) AS bl
+            FROM public."Domains" d
+            LEFT JOIN public."Whitelist_Domains" wl ON wl."domain" = d."domain"
+            LEFT JOIN public."Blacklist_Domains" bl ON bl."domain" = d."domain"
+            LEFT JOIN public."DomainServices" ds ON ds."domainId" = d."domainId" AND ds."serviceId" = ANY(v_serviceArr)
+            WHERE
+            (
+                (p_search IS NOT NULL AND p_search <> '' AND (
+                    d."title" ILIKE CASE WHEN v_haswildcard THEN p_search ELSE '%' || p_search || '%' END
+                    OR d."domain" ILIKE CASE WHEN v_haswildcard THEN p_search ELSE '%' || p_search || '%' END
+                ))
+                OR (p_search IS NULL OR p_search = '')
+            )
+            AND (
+                (p_type = 0)
+                OR (p_type = 1 AND wl."domain" IS NOT NULL)
+                OR (p_type = 2 AND bl."domain" IS NOT NULL)
+                OR (p_type = 3 AND wl."domain" IS NULL AND bl."domain" IS NULL)
+                OR (p_type = 4 AND d."paywall" = TRUE)
+                OR (p_type = 5 AND d."free" = TRUE)
+                OR (p_type = 6 AND d."free" = FALSE AND d."paywall" = FALSE AND d."type" = -1 AND bl."domain" IS NULL AND wl."domain" IS NULL)
+                OR (p_type = 7 AND d."empty" = TRUE)
+                OR (p_type = 9 AND d."empty" = FALSE)
+            )
+            AND (
+                (p_sort = 2 AND d."articles" > 0)
+                OR (p_sort <> 2)
+            )
+            AND (
+                (p_domainType >= 0 AND p_domainType2 < 0 AND (d."type" = p_domainType OR d."type2" = p_domainType))
+                OR
+                (p_domainType < 0 AND p_domainType2 >= 0 AND (d."type" = p_domainType2 OR d."type2" = p_domainType2))
+                OR
+                (p_domainType >= 0 AND p_domainType2 >= 0 AND (d."type" = p_domainType OR d."type2" = p_domainType
+                                                              OR d."type" = p_domainType2 OR d."type2" = p_domainType2))
+                OR
+                (p_domainType < 0)
+            )
+            AND (
+                (p_parentId >= 0 AND d."parentId" = p_parentId)
+                OR (p_parentId < 0)
+            )
+            AND (
+                (p_lang <> '' AND d."lang" = p_lang)
+                OR p_lang IS NULL OR p_lang = ''
+            )
+            AND d."deleted" = FALSE
+            AND (
+                p_serviceIds IS NULL
+                OR ds."serviceId" IS NOT NULL
+            )
+        ) AS tbl WHERE rn >= p_start AND rn < p_start + p_length;
+    END IF;
+END;
 $$;
