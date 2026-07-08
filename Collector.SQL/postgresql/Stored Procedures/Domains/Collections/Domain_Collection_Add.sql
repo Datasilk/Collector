@@ -1,8 +1,8 @@
 CREATE OR REPLACE FUNCTION public."Domain_Collection_Add"
 (
     p_colgroupId INT DEFAULT 0,
-    p_name VARCHAR(32),
-    p_search VARCHAR(128),
+    p_name VARCHAR(32) DEFAULT '',
+    p_search VARCHAR(128) DEFAULT '',
     p_subjectId INT DEFAULT 0,
     p_filtertype INT DEFAULT 0,
     p_type INT DEFAULT 0,

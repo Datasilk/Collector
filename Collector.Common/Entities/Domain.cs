@@ -19,6 +19,7 @@ namespace Collector.Data.Entities
         public string title { get; set; }
         public string description { get; set; }
         public DateTime lastchecked { get; set; }
+        public DateTime datecreated { get; set; }
         public int articles { get; set; }
         public int inqueue { get; set; }
         public bool whitelisted { get; set; }

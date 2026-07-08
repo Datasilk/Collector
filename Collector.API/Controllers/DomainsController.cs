@@ -28,6 +28,7 @@ namespace Collector.API.Controllers
         {
             try
             {
+                var start = filter.Start + 1;
                 var domains = _domainsRepository.GetList(
                     filter.SubjectIds,
                     filter.Type,
@@ -36,7 +37,7 @@ namespace Collector.API.Controllers
                     filter.Sort,
                     filter.Lang,
                     filter.Search,
-                    filter.Start,
+                    start,
                     filter.Length,
                     filter.ParentId,
                     filter.ServiceIds

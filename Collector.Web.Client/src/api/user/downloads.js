@@ -5,7 +5,10 @@ const Downloads = (args) => Api({...args, useToken:true}).endpoints(({api}) => {
     return {
         // Get count of items in the download queue
         getCount: () => api.get(`${apiPath}/count`),
-        
+
+        // Get a paginated list of items in the download queue
+        getList: (filter) => api.post(`${apiPath}/list`, filter),
+
         // Check the download queue for the next item to process
         checkQueue: (params = {}) => {
             const payload = {

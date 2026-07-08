@@ -330,6 +330,63 @@ body.scrolled .nav-container .notification-dot {
   color: var(--worker-error-icon-text, #d32f2f);
 }
 
+/* Download Worker Styles */
+.worker-item.download-worker .worker-icon {
+  background: var(--worker-download-icon-bg, #e8f5e9);
+}
+
+.worker-item.download-worker .worker-icon .material-icons,
+.worker-item.download-worker .worker-icon svg {
+  color: var(--worker-download-icon-text, #388e3c);
+}
+
+.worker-item.download-worker.has-error .worker-icon {
+  background: var(--worker-error-icon-bg, #ffebee);
+}
+
+.worker-item.download-worker.has-error .worker-icon .material-icons,
+.worker-item.download-worker.has-error .worker-icon svg {
+  color: var(--worker-error-icon-text, #d32f2f);
+}
+
+/* Domain Worker Styles */
+.worker-item.domain-worker .worker-icon {
+  background: var(--worker-domain-icon-bg, #fff3e0);
+}
+
+.worker-item.domain-worker .worker-icon .material-icons,
+.worker-item.domain-worker .worker-icon svg {
+  color: var(--worker-domain-icon-text, #f57c00);
+}
+
+.worker-item.domain-worker.has-error .worker-icon {
+  background: var(--worker-error-icon-bg, #ffebee);
+}
+
+.worker-item.domain-worker.has-error .worker-icon .material-icons,
+.worker-item.domain-worker.has-error .worker-icon svg {
+  color: var(--worker-error-icon-text, #d32f2f);
+}
+
+.worker-item .worker-stats {
+  display: flex;
+  gap: 0.75em;
+  font-size: 0.75em;
+  color: var(--worker-status-text);
+  margin-bottom: 0.5em;
+}
+
+.worker-item .worker-progress-fill.indeterminate {
+  width: 40%;
+  animation: worker-progress-indeterminate 1.5s ease-in-out infinite;
+}
+
+@keyframes worker-progress-indeterminate {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(150%); }
+  100% { transform: translateX(-100%); }
+}
+
 .worker-item .worker-info {
   flex: 1;
   min-width: 0;

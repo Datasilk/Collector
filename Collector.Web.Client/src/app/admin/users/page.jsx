@@ -36,7 +36,7 @@ export default function AdminUsers() {
         role: 0,
         sort: 'Email ASC',
         start: 0,
-        length: 10
+        length: 100
     });
     const [roleFiltersList, setRoleFiltersList] = useState([]);
     const [totalItems, setTotalItems] = useState(0);

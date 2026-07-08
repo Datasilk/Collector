@@ -1015,7 +1015,16 @@ function compilePostgresSql(cb) {
 
   const files = getSqlFiles(TARGET_ROOT)
     .filter((filePath) => filePath.toLowerCase().endsWith('.sql'))
-    .filter((filePath) => filePath.toLowerCase() !== COMPILED_OUTPUT.toLowerCase())
+    .filter((filePath) => {
+      const lower = filePath.toLowerCase();
+      const bundled = [
+        COMPILED_OUTPUT.toLowerCase(),
+        path.join(TARGET_ROOT, 'postgresql-tables.sql').toLowerCase(),
+        path.join(TARGET_ROOT, 'postgresql-functions.sql').toLowerCase(),
+        path.join(TARGET_ROOT, 'postgresql-procedures.sql').toLowerCase()
+      ];
+      return !bundled.includes(lower);
+    })
     .sort((a, b) => {
       const relA = path.relative(TARGET_ROOT, a).replace(/\\/g, '/');
       const relB = path.relative(TARGET_ROOT, b).replace(/\\/g, '/');
@@ -1124,7 +1133,15 @@ function compilePostgresSql(cb) {
     fs.writeFileSync(proceduresOutputPath, composeBundle(proceduresEntries), 'utf8');
   }
 
-  const contents = fileEntries.map(({ relative, sql }) => `-- File: ${relative}\n${sql}\n`);
+  const sortedFileEntries = [
+    ...sequences,
+    ...sortedTables,
+    ...indexes,
+    ...functionsEntries,
+    ...proceduresEntries
+  ];
+
+  const contents = sortedFileEntries.map(({ relative, sql }) => `-- File: ${relative}\n${sql}\n`);
 
   ensureDir(TARGET_ROOT);
   fs.writeFileSync(COMPILED_OUTPUT, contents.join('\n'), 'utf8');

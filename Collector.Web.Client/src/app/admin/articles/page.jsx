@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
 //styles
 import '@/styles/admin/filter.css';
 import './page.css';
@@ -9,10 +8,13 @@ import Modal from '@/components/ui/modal';
 import Icon from '@/components/ui/icon';
 import Select from '@/components/forms/select';
 import Input from '@/components/forms/input';
+import ArticleModal from './components/article-modal';
+import Pager from '@/components/ui/pager';
 //context
 import { useSession } from '@/context/session';
 //api
 import { Articles } from '@/api/user/articles';
+import { Downloads } from '@/api/user/downloads';
 //helpers
 import { handleSort, getSortIcon } from '@/helpers/format';
 import { localDateTime, printDate } from '@/helpers/datetime';
@@ -23,10 +25,10 @@ import messages from '@/helpers/messages';
  * <description>Displays and manages the list of articles in the admin panel.</description>
  */
 export default function AdminArticles() {
-    const navigate = useNavigate();
     const session = useSession();
     const { getArticles, removeArticle } = Articles(session);
-    
+    const { addQueueItem } = Downloads(session);
+
     const [articles, setArticles] = useState([]);
     const [totalCount, setTotalCount] = useState(0);
     const [showAdd, setShowAdd] = useState(false);
@@ -42,6 +44,9 @@ export default function AdminArticles() {
     ]);
     const [sort, setSort] = useState('Published DESC');
     const [deleteModal, setDeleteModal] = useState(null);
+    const [selectedArticle, setSelectedArticle] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 100;
 
     useEffect(() => {
         // Fetch articles from API when component mounts
@@ -50,7 +55,7 @@ export default function AdminArticles() {
 
     useEffect(() => {
         filterArticles();
-    }, [searchTitle, categoryFilters, sort]);
+    }, [searchTitle, categoryFilters, sort, currentPage]);
 
     const fetchArticles = () => {
         // Call the API with the proper ArticleListRequestModel
@@ -58,8 +63,8 @@ export default function AdminArticles() {
             search: searchTitle || '',
             subjectIds: categoryFilters !== 0 ? [categoryFilters] : [],
             orderBy: getOrderByValue(sort),
-            start: 1,
-            length: 50,
+            start: (currentPage - 1) * pageSize + 1,
+            length: pageSize,
             isActive: 0 // ArticleIsActive.Both
         }).then(response => {
             if (response.data.success) {
@@ -91,6 +96,39 @@ export default function AdminArticles() {
         setDeleteModal(article);
     };
 
+    const handleViewArticle = (article) => {
+        setSelectedArticle(article);
+    };
+
+    const handleCloseArticleModal = () => {
+        setSelectedArticle(null);
+    };
+
+    const handleDownloadArticle = (article) => {
+        if (!article.url || !article.domain) {
+            messages.error('Article is missing URL or domain');
+            return;
+        }
+        addQueueItem(article.url, article.domain, 0, article.feedId || 0)
+            .then(response => {
+                if (response.data.success) {
+                    messages.success('Article queued for download');
+                } else {
+                    messages.error(response.data.message || 'Failed to queue article');
+                }
+            })
+            .catch(error => {
+                console.error('Error queueing article:', error);
+                messages.error('Failed to queue article for download');
+            });
+    };
+
+    const handlePageChange = (page) => {
+        setCurrentPage(page);
+    };
+
+    const totalPages = Math.ceil(totalCount / pageSize) || 1;
+
     const handleDeleteClose = () => {
         setDeleteModal(null);
     };
@@ -99,7 +137,7 @@ export default function AdminArticles() {
         // Call the API to delete the article
         removeArticle(articleId).then(response => {
             if (response.data.success) {
-                setArticles(articles.filter(article => article.id !== articleId));
+                setArticles(articles.filter(article => article.articleId !== articleId));
                 messages.success('Article deleted successfully');
             } else {
                 messages.error('Failed to delete article');
@@ -124,7 +162,7 @@ export default function AdminArticles() {
                     This will permanently remove the article from the system.
                 </p>
                 <div className="buttons">
-                    <button className="submit" onClick={() => { handleDeleteConfirmed(deleteModal.id) }}>Yes</button>
+                    <button className="submit" onClick={() => { handleDeleteConfirmed(deleteModal.articleId) }}>Yes</button>
                     <button className="cancel" onClick={handleDeleteClose}>Cancel</button>
                 </div>
             </Modal>
@@ -147,6 +185,13 @@ export default function AdminArticles() {
         <div className="admin-articles">
             {showAdd && <div className="modal-placeholder">Add Article Modal would appear here</div>}
             {deleteModal != null && <DeleteModal></DeleteModal>}
+            {selectedArticle != null && (
+                <ArticleModal
+                    article={selectedArticle}
+                    onClose={handleCloseArticleModal}
+                    onDownload={handleDownloadArticle}
+                />
+            )}
             <Container
                 title="Article Management"
                 tools={tools}
@@ -184,47 +229,51 @@ export default function AdminArticles() {
                             <th onClick={() => setSort(handleSort('Views', sort))}>
                                 Views {getSortIcon('Views', sort) && <span className="material-symbols-rounded">{getSortIcon('Views', sort)}</span>}
                             </th>
-                            <th onClick={() => setSort(handleSort('Category', sort))}>
-                                Category {getSortIcon('Category', sort) && <span className="material-symbols-rounded">{getSortIcon('Category', sort)}</span>}
+                            <th onClick={() => setSort(handleSort('Subject', sort))}>
+                                Subject {getSortIcon('Subject', sort) && <span className="material-symbols-rounded">{getSortIcon('Subject', sort)}</span>}
                             </th>
                             <th></th>
                         </tr>
                     </thead>
                     <tbody>
                         {articles.map(article =>
-                            <tr 
-                                key={article.id} 
+                            <tr
+                                key={article.articleId}
                                 onClick={(e) => {
                                     // Prevent triggering if the event originated from action buttons
                                     if (e.target.closest('a')) {
                                         e.stopPropagation();
                                         return;
                                     }
-                                    navigate('/admin/articles/edit/' + article.id);
+                                    handleViewArticle(article);
                                 }}
                             >
                                 <td>{article.title}</td>
                                 <td>{article.domain}</td>
-                                <td>{article.published ? printDate(localDateTime(new Date(article.published))) : 'N/A'}</td>
-                                <td>{article.status}</td>
-                                <td>{article.views}</td>
-                                <td>{article.category}</td>
+                                <td>{article.datepublished ? printDate(localDateTime(new Date(article.datepublished))) : 'N/A'}</td>
+                                <td>{article.active === true ? 'Active' : article.active === false ? 'Inactive' : 'N/A'}</td>
+                                <td>{article.visited}</td>
+                                <td>{article.subjectTitle}</td>
                                 <td className="buttons">
-                                    <Link to={'/admin/articles/edit/' + article.id} title="edit article"><Icon name="edit_square"></Icon></Link>
-                                    <Link 
-                                        onClick={(e) => { 
-                                            e.preventDefault(); 
-                                            handleDelete(article); 
-                                        }} 
-                                        title="delete article"
-                                    >
+                                    <button className="icon" onClick={() => handleViewArticle(article)} title="view article">
+                                        <Icon name="visibility"></Icon>
+                                    </button>
+                                    <button className="icon" onClick={() => handleDownloadArticle(article)} title="download article">
+                                        <Icon name="download"></Icon>
+                                    </button>
+                                    <button className="icon" onClick={() => handleDelete(article)} title="delete article">
                                         <Icon name="delete"></Icon>
-                                    </Link>
+                                    </button>
                                 </td>
                             </tr>
                         )}
                     </tbody>
                 </table>
+                <Pager
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={handlePageChange}
+                />
             </Container>
         </div>
     );

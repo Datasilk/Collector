@@ -14,6 +14,7 @@ RETURNS TABLE(
 LANGUAGE plpgsql
 AS $$
 DECLARE
+    v_qid BIGINT := 0;
     v_domainId INT;
     v_maxQid BIGINT := 0;
     v_randQid BIGINT;
@@ -28,8 +29,8 @@ BEGIN
             SELECT d."domainId" INTO v_domainId FROM public."Domains" d WHERE d."domain" = p_domain;
         END IF;
 
-        RETURN QUERY
-        SELECT q.*, d."domain", d."articles"
+        SELECT q."qid", q."domainId"
+        INTO v_qid, v_domainId
         FROM public."DownloadQueue" q
         JOIN public."Domains" d ON d."domainId" = q."domainId"
         LEFT JOIN public."Whitelist_Domains" w ON w."domain" = d."domain"
@@ -64,19 +65,21 @@ BEGIN
             CASE WHEN p_sort = 0 THEN q."datecreated" END DESC
         LIMIT 1;
     ELSE
+        v_qid := p_qid;
         SELECT q."domainId" INTO v_domainId FROM public."DownloadQueue" q WHERE q."qid" = p_qid;
-        IF v_domainId IS NULL THEN
-            RETURN;
-        END IF;
-
-        UPDATE public."DownloadQueue" SET "status" = 1 WHERE "qid" = p_qid;
-        UPDATE public."Domains" SET "lastchecked" = CURRENT_TIMESTAMP WHERE "domainId" = v_domainId;
-
-        RETURN QUERY
-        SELECT q.*, d."domain", d."articles"
-        FROM public."DownloadQueue" q
-        JOIN public."Domains" d ON d."domainId" = q."domainId"
-        WHERE q."qid" = p_qid;
     END IF;
+
+    IF v_qid IS NULL OR v_qid = 0 OR v_domainId IS NULL THEN
+        RETURN;
+    END IF;
+
+    UPDATE public."DownloadQueue" dq SET "status" = 1 WHERE dq."qid" = v_qid;
+    UPDATE public."Domains" d SET "lastchecked" = CURRENT_TIMESTAMP WHERE d."domainId" = v_domainId;
+
+    RETURN QUERY
+    SELECT q.*, d."domain", d."articles"
+    FROM public."DownloadQueue" q
+    JOIN public."Domains" d ON d."domainId" = q."domainId"
+    WHERE q."qid" = v_qid;
 END;
 $$;

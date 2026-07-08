@@ -15,9 +15,16 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
     RETURN QUERY
-    SELECT a.*, d."domain"
+    SELECT
+        a."articleId", a."feedId", a."subjects", a."subjectId", a."domainId",
+        a."score", a."images", a."filesize", a."linkcount", a."linkwordcount",
+        a."wordcount", a."sentencecount", a."paragraphcount", a."importantcount",
+        a."analyzecount", a."yearstart", a."yearend", a."years",
+        a."datecreated", a."datepublished", a."relavance", a."importance",
+        a."fiction", d."domain"::VARCHAR(50) AS "domain", a."url", a."title", a."summary",
+        a."analyzed", a."visited", a."cached", a."active", a."deleted"
     FROM public."Articles" a
-    LEFT JOIN public."Domains" d ON d."domainId" = a."domainId"
+    LEFT JOIN public."Domains" d ON a."domainId" = d."domainId"
     WHERE a."articleId" = p_articleId;
 END;
 $$;

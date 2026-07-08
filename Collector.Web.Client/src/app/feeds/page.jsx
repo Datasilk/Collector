@@ -5,6 +5,7 @@ import FeedsLayout from './layout';
 import NewFeedModal from './components/new-feed-modal';
 import Input from '../../components/forms/input.jsx';
 import Select from '../../components/forms/select.jsx';
+import { Accordion } from '../../components/ui/accordion';
 import './page.css';
 
 function FeedsPage() {
@@ -39,18 +40,25 @@ function FeedsPage() {
   const handleAddFeed = async () => {
     const checkInterval = (parseInt(newFeed.checkIntervalHours) * 60) + parseInt(newFeed.checkIntervalMinutes);
     const response = await addFeed({ ...newFeed, checkInterval });
-    if (response.data && response.data.data && response.data.success) {
-      setFeeds([...feeds, response.data.data]);
+    if (response.data && response.data.success) {
+      await loadFeeds();
       setIsModalOpen(false);
       setNewFeed({ title: '', url: '', categoryId: '', checkIntervalHours: 0, checkIntervalMinutes: 0 });
     }
   };
 
   const handleAddCategory = async (categoryName) => {
-    const response = await addCategory({ name: categoryName });
-    if (response.data && response.data.data && response.data.success) {
-      setCategories([...categories, response.data.data]);
-      setNewFeed({ ...newFeed, categoryId: response.data.data.id });
+    const response = await addCategory({ title: categoryName });
+    if (response.data && response.data.success) {
+      const categoriesResponse = await getCategories();
+      if (categoriesResponse.data && categoriesResponse.data.data && categoriesResponse.data.success) {
+        const updatedCategories = categoriesResponse.data.data;
+        const newCategory = updatedCategories.find(c => c.title === categoryName);
+        setCategories(updatedCategories);
+        if (newCategory) {
+          setNewFeed({ ...newFeed, categoryId: newCategory.categoryId });
+        }
+      }
     }
   };
 
@@ -101,11 +109,14 @@ function FeedsPage() {
         </div>
         {groupedFeeds.length > 0 ? (
           groupedFeeds.map(group => (
-            <div key={group.category.categoryId} className="feed-category-row">
-              <h4>{group.category.name}</h4>
+            <Accordion
+              key={group.category.categoryId}
+              title={group.category.title}
+              className="feed-category-row"
+            >
               <div className="feed-cards">
                 {group.feeds.map(feed => (
-                  <div key={feed.id} className="entry-card feed-card">
+                  <div key={feed.feedId} className="entry-card feed-card">
                     <h5>{feed.title}</h5>
                     <p className="url">{feed.url}</p>
                     <p className="interval">
@@ -115,7 +126,7 @@ function FeedsPage() {
                   </div>
                 ))}
               </div>
-            </div>
+            </Accordion>
           ))
         ) : (
           <p>No feeds or categories to display.</p>

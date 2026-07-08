@@ -10,5 +10,12 @@ CREATE TABLE IF NOT EXISTS public."DownloadQueue"
     "path" VARCHAR(255) NOT NULL,
     "datecreated" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-ALTER TABLE public."DownloadQueue"
-    ADD CONSTRAINT "PK_DownloadQueue" PRIMARY KEY ("qid");
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conrelid = 'public."DownloadQueue"'::regclass AND contype = 'p'
+    ) THEN
+        ALTER TABLE public."DownloadQueue"
+            ADD CONSTRAINT "PK_DownloadQueue" PRIMARY KEY ("qid");
+    END IF;
+END $$;

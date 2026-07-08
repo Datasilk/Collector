@@ -13,6 +13,7 @@ namespace Collector.Data.Interfaces
         int GetCount(int[] subjectIds = null, DomainFilterType type = DomainFilterType.All, DomainType domainType = DomainType.unused, DomainType domainType2 = DomainType.unused, DomainSort sort = DomainSort.Alphabetical, string lang = "", string search = "", int parentId = -1, int[] serviceIds = null);
         Domain GetInfo(string domain);
         Domain GetById(int domainId);
+        Domain GetNextUnanalyzedDomain();
 
         // Links
         List<Domain> GetLinks(int domainId);

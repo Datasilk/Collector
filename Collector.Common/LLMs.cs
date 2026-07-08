@@ -21,14 +21,14 @@ namespace Collector.Common
         public static Dictionary<Models, LLMInfo> Available = new Dictionary<Models, LLMInfo>()
         {
             {Models.Qwen, new LLMInfo(){
-                Model = "qwen-turbo-latest",
-                Endpoint = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+                Model = "qwen-flash",
+                Endpoint = "https://dashscope-us.aliyuncs.com/compatible-mode/v1",
                 PrivateKey = "",
                 MaxInputTokens = 1000000
             }},
             {Models.ChatGPT, new LLMInfo(){
                 Model = "gpt-4o-mini",
-                Endpoint = "https://api.openai.com/v1",
+                Endpoint = "https://api.openai.com/v1/",
                 PrivateKey = ""
             }},
             {Models.Gemini, new LLMInfo(){

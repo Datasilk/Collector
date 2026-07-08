@@ -1,7 +1,7 @@
 CREATE OR REPLACE FUNCTION public."Domain_UpdateLanguage"
 (
     p_domainId INT DEFAULT 0,
-    p_lang VARCHAR(6)
+    p_lang VARCHAR(6) DEFAULT ''
 )
 RETURNS VOID
 LANGUAGE plpgsql

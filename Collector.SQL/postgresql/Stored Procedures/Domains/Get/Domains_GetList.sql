@@ -1,4 +1,6 @@
-CREATE OR REPLACE FUNCTION public."Domains_GetList"
+DROP FUNCTION IF EXISTS public."Domains_GetList";
+
+CREATE FUNCTION public."Domains_GetList"
 (
     p_subjectIds TEXT DEFAULT '',
     p_lang VARCHAR(6) DEFAULT '',
@@ -13,7 +15,7 @@ CREATE OR REPLACE FUNCTION public."Domains_GetList"
     p_serviceIds TEXT DEFAULT NULL
 )
 RETURNS TABLE(
-    "rownum" INT, "domainId" INT, "domain" VARCHAR(64), "lang" VARCHAR(6), "parentId" INT,
+    "rownum" BIGINT, "domainId" INT, "domain" VARCHAR(64), "lang" VARCHAR(6), "parentId" INT,
     "hastitle" BOOLEAN, "paywall" BOOLEAN, "free" BOOLEAN, "https" BOOLEAN, "www" BOOLEAN,
     "empty" BOOLEAN, "deleted" BOOLEAN, "type" INT, "type2" INT, "articles" INT, "inqueue" INT,
     "title" VARCHAR(128), "company" VARCHAR(64), "description" VARCHAR(255), "datecreated" TIMESTAMPTZ,

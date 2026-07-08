@@ -10,6 +10,7 @@ import Icon from '@/components/ui/icon';
 import Select from '@/components/forms/select';
 import Input from '@/components/forms/input';
 import AdminAddSubject from './components/add';
+import Pager from '@/components/ui/pager';
 //context
 import { useSession } from '@/context/session';
 //api
@@ -27,7 +28,9 @@ export default function AdminSubjects() {
     const session = useSession();
     const { getSubjects, getSubjectsByParent } = Subjects(session);
     
-    const [subjects, setSubjects] = useState([]);
+    const [allSubjects, setAllSubjects] = useState([]);
+    const [filteredSubjects, setFilteredSubjects] = useState([]);
+    const [displayedSubjects, setDisplayedSubjects] = useState([]);
     const [showAdd, setShowAdd] = useState(false);
     const [searchName, setSearchName] = useState('');
     const [levelFilters, setLevelFilters] = useState(0);
@@ -39,6 +42,8 @@ export default function AdminSubjects() {
     ]);
     const [sort, setSort] = useState('title ASC'); // Client-side sorting since API doesn't support sorting
     const [deleteModal, setDeleteModal] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 100;
 
     useEffect(() => {
         // Fetch subjects from API
@@ -51,7 +56,7 @@ export default function AdminSubjects() {
             if (response.data.success) {
                 // Process the subjects to include level information
                 const processedSubjects = processSubjectsHierarchy(response.data.data || []);
-                setSubjects(processedSubjects);
+                setAllSubjects(processedSubjects);
             } else {
                 console.error('Error fetching subjects:', response.data.message);
                 messages.error('Failed to fetch subjects');
@@ -90,30 +95,34 @@ export default function AdminSubjects() {
     };
 
     useEffect(() => {
-        if (subjects.length > 0) {
+        if (allSubjects.length > 0) {
             filterSubjects();
         }
-    }, [searchName, levelFilters, sort]);
+    }, [searchName, levelFilters, sort, allSubjects]);
+
+    useEffect(() => {
+        paginateSubjects();
+    }, [filteredSubjects, currentPage]);
 
     const filterSubjects = () => {
-        let filtered = [...subjects];
-        
+        let filtered = [...allSubjects];
+
         if (searchName) {
-            filtered = filtered.filter(subject => 
+            filtered = filtered.filter(subject =>
                 subject.title.toLowerCase().includes(searchName.toLowerCase())
             );
         }
-        
+
         if (levelFilters !== 0) {
             filtered = filtered.filter(subject => subject.level === levelFilters);
         }
-        
+
         // Apply sorting
         const [sortField, sortDirection] = sort.split(' ');
         filtered.sort((a, b) => {
             let valueA = a[sortField];
             let valueB = b[sortField];
-            
+
             // Handle special cases
             if (sortField === 'parentSubject') {
                 valueA = a.parentSubject || '';
@@ -122,20 +131,33 @@ export default function AdminSubjects() {
                 valueA = a.articleCount || 0;
                 valueB = b.articleCount || 0;
             }
-            
+
             if (typeof valueA === 'string') {
-                return sortDirection === 'ASC' ? 
-                    valueA.localeCompare(valueB) : 
+                return sortDirection === 'ASC' ?
+                    valueA.localeCompare(valueB) :
                     valueB.localeCompare(valueA);
             } else {
-                return sortDirection === 'ASC' ? 
-                    valueA - valueB : 
+                return sortDirection === 'ASC' ?
+                    valueA - valueB :
                     valueB - valueA;
             }
         });
-        
-        setSubjects(filtered);
+
+        setFilteredSubjects(filtered);
+        setCurrentPage(1);
     };
+
+    const paginateSubjects = () => {
+        const start = (currentPage - 1) * pageSize;
+        const end = start + pageSize;
+        setDisplayedSubjects(filteredSubjects.slice(start, end));
+    };
+
+    const handlePageChange = (page) => {
+        setCurrentPage(page);
+    };
+
+    const totalPages = Math.ceil(filteredSubjects.length / pageSize) || 1;
 
     const handleDelete = (subject) => {
         setDeleteModal(subject);
@@ -240,8 +262,8 @@ export default function AdminSubjects() {
                         </tr>
                     </thead>
                     <tbody>
-                        {subjects.map(subject =>
-                            <tr 
+                        {displayedSubjects.map(subject =>
+                            <tr
                                 key={subject.id} 
                                 onClick={(e) => {
                                     // Prevent triggering if the event originated from action buttons
@@ -272,6 +294,11 @@ export default function AdminSubjects() {
                         )}
                     </tbody>
                 </table>
+                <Pager
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={handlePageChange}
+                />
             </Container>
         </div>
     );

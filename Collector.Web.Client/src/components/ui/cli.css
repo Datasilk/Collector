@@ -1,0 +1,92 @@
+.cli-wrapper {
+    border: 1px solid #333;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.cli-title-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid #333;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+}
+
+.cli-title {
+    font-weight: bold;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cli-title-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.cli-counter {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+.cli-counter.failed {
+    color: #f33;
+}
+
+.cli-toggle {
+    flex-shrink: 0;
+    padding: 2px 6px;
+    cursor: pointer;
+}
+
+.cli {
+    background: #000;
+    color: #0f0;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.4;
+    padding: 12px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.cli-wrapper.collapsed .cli {
+    height: 5em;
+}
+
+.cli-wrapper.expanded .cli {
+    height: 50em;
+}
+
+.cli-line {
+    padding: 1px 0;
+    margin: 0;
+}
+
+.cli-line.info {
+    color: #0f0;
+}
+
+.cli-line.error {
+    color: #f33;
+}
+
+.cli-line.warning {
+    color: #ff0;
+}
+
+.cli-line.success {
+    color: #0ff;
+}
+
+.cli-empty {
+    opacity: 0.6;
+}

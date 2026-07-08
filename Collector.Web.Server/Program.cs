@@ -1,3 +1,4 @@
+using System.Data;
 using System.Reflection;
 using Serilog;
 using Serilog.Events;
@@ -10,6 +11,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Http.Features;
 using Collector.Web.Server.SignalR;
 using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -92,6 +94,8 @@ builder.AddAuthService();
 // Register workers
 builder.Services.AddTransient<VideoWorker>();
 builder.Services.AddTransient<ChatWorker>();
+builder.Services.AddTransient<DownloadWorker>();
+builder.Services.AddTransient<DomainWorker>();
 
 // Configure request limits for large file uploads (5GB for video files)
 builder.Services.Configure<IISServerOptions>(options =>
@@ -284,6 +288,27 @@ app.Use(async (context, next) =>
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Reset all PostgreSQL sequences to MAX(id) + 1 before starting real-time services
+try
+{
+    using var scope = app.Services.CreateScope();
+    var connection = scope.ServiceProvider.GetRequiredService<IDbConnection>();
+    using (var command = connection.CreateCommand())
+    {
+        command.CommandText = "SELECT public.\"ResetAllSequences\"()";
+        if (connection.State != ConnectionState.Open)
+        {
+            connection.Open();
+        }
+        command.ExecuteNonQuery();
+    }
+    Console.WriteLine("PostgreSQL sequences reset successfully.");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Warning: Failed to reset PostgreSQL sequences: {ex.Message}");
+}
+
 // Map SignalR hubs BEFORE static files and controllers
 app.MapHub<TextEditorHub>("/text-editor");
 app.MapHub<VideoHub>("/video-download");
@@ -294,6 +319,8 @@ app.MapHub<ChromeExtensionHub>("/chrome-extension");
 // Register worker routes
 WorkerRoutes.Register<VideoWorker>("video-worker");
 WorkerRoutes.Register<ChatWorker>("chat-worker");
+WorkerRoutes.Register<DownloadWorker>("download-worker");
+WorkerRoutes.Register<DomainWorker>("domain-worker");
 
 // Set WorkerHub context for worker-to-client communication
 Workers.SetHubContext(app.Services.GetRequiredService<IHubContext<WorkerHub>>());

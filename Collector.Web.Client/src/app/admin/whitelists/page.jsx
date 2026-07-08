@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
 //styles
 import '@/styles/admin/filter.css';
 import './page.css';
@@ -7,15 +6,14 @@ import './page.css';
 import Container from '@/components/admin/container';
 import Modal from '@/components/ui/modal';
 import Icon from '@/components/ui/icon';
-import Select from '@/components/forms/select';
 import Input from '@/components/forms/input';
+import Pager from '@/components/ui/pager';
 //context
 import { useSession } from '@/context/session';
 //api
 import { Whitelists } from '@/api/admin/whitelists';
 //helpers
 import { handleSort, getSortIcon } from '@/helpers/format';
-import { localDateTime, printDate } from '@/helpers/datetime';
 import messages from '@/helpers/messages';
 
 /**
@@ -23,39 +21,35 @@ import messages from '@/helpers/messages';
  * <description>Displays and manages the list of whitelists in the admin panel.</description>
  */
 export default function AdminWhitelists() {
-    const navigate = useNavigate();
     const session = useSession();
-    const { getWhitelists, deleteWhitelist } = Whitelists(session);
-    
-    const [whitelists, setWhitelists] = useState([]);
+    const { getWhitelists, createWhitelist, deleteWhitelist } = Whitelists(session);
+
+    const [allWhitelists, setAllWhitelists] = useState([]);
+    const [displayedWhitelists, setDisplayedWhitelists] = useState([]);
     const [showAdd, setShowAdd] = useState(false);
+    const [newDomain, setNewDomain] = useState('');
     const [searchName, setSearchName] = useState('');
-    const [statusFilters, setStatusFilters] = useState(0);
-    const [statusFiltersList, setStatusFiltersList] = useState([
-        { id: 0, name: 'All Statuses' },
-        { id: 1, name: 'Active' },
-        { id: 2, name: 'Inactive' }
-    ]);
     const [sort, setSort] = useState('Name ASC');
     const [deleteModal, setDeleteModal] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalCount, setTotalCount] = useState(0);
+    const pageSize = 100;
 
     useEffect(() => {
-        // Fetch whitelists from API on initial load
         fetchWhitelists();
-    }, []);
-
-    useEffect(() => {
-        filterWhitelists();
-    }, [searchName, statusFilters, sort]);
+    }, [searchName, sort, currentPage]);
 
     const fetchWhitelists = () => {
         getWhitelists({
             search: searchName,
-            status: statusFilters,
-            sort: sort
+            sort: sort,
+            start: (currentPage - 1) * pageSize + 1,
+            length: pageSize
         }).then(response => {
             if (response.data.success) {
-                setWhitelists(response.data.data);
+                setAllWhitelists(response.data.data.items || []);
+                setTotalCount(response.data.data.totalCount || 0);
+                setDisplayedWhitelists(response.data.data.items || []);
             } else {
                 messages.error(response.data.message || 'Failed to fetch whitelists');
                 console.error('Failed to fetch whitelists:', response.data.message);
@@ -65,11 +59,12 @@ export default function AdminWhitelists() {
             console.error('Error fetching whitelists:', error);
         });
     };
-    
-    const filterWhitelists = () => {
-        // Call API with filters
-        fetchWhitelists();
+
+    const handlePageChange = (page) => {
+        setCurrentPage(page);
     };
+
+    const totalPages = Math.ceil(totalCount / pageSize) || 1;
 
     const handleDelete = (whitelist) => {
         setDeleteModal(whitelist);
@@ -79,60 +74,99 @@ export default function AdminWhitelists() {
         setDeleteModal(null);
     };
 
-    const handleDeleteConfirmed = (whitelistId) => {
-        deleteWhitelist(whitelistId)
+    const handleDeleteConfirmed = (domain) => {
+        deleteWhitelist(domain)
             .then(response => {
                 if (response.data.success) {
-                    messages.success('Whitelist deleted successfully');
-                    fetchWhitelists(); // Refresh the list
+                    messages.success('Whitelist domain removed successfully');
+                    fetchWhitelists();
                 } else {
-                    messages.error(response.data.message || 'Failed to delete whitelist');
-                    console.error('Failed to delete whitelist:', response.data.message);
+                    messages.error(response.data.message || 'Failed to remove whitelist domain');
+                    console.error('Failed to remove whitelist domain:', response.data.message);
                 }
             })
             .catch(error => {
-                messages.error('Failed to delete whitelist');
-                console.error('Error deleting whitelist:', error);
+                messages.error('Failed to remove whitelist domain');
+                console.error('Error removing whitelist domain:', error);
             })
             .finally(() => {
                 handleDeleteClose();
             });
     };
 
+    const handleAddDomain = () => {
+        if (!newDomain || newDomain.trim() === '') {
+            messages.error('Domain is required');
+            return;
+        }
+        createWhitelist(newDomain.trim())
+            .then(response => {
+                if (response.data.success) {
+                    messages.success('Domain added to whitelist');
+                    setNewDomain('');
+                    setShowAdd(false);
+                    fetchWhitelists();
+                } else {
+                    messages.error(response.data.message || 'Failed to add domain');
+                }
+            })
+            .catch(error => {
+                console.error('Error adding whitelist domain:', error);
+                messages.error('Failed to add domain to whitelist');
+            });
+    };
+
     const DeleteModal = () => {
         return (<>
             <Modal
-                title="Delete Whitelist"
+                title="Remove Whitelisted Domain"
                 onClose={handleDeleteClose}
             >
                 <p>
-                    Do you really want to delete the whitelist "{deleteModal.name}"?
-                    <br />
-                    This will remove {deleteModal.domainCount} domains from the whitelist.
+                    Do you really want to remove the domain "{deleteModal.name}" from the whitelist?
                 </p>
                 <div className="buttons">
-                    <button className="submit" onClick={() => { handleDeleteConfirmed(deleteModal.id) }}>Yes</button>
+                    <button className="submit" onClick={() => { handleDeleteConfirmed(deleteModal.name) }}>Yes</button>
                     <button className="cancel" onClick={handleDeleteClose}>Cancel</button>
                 </div>
             </Modal>
         </>);
     };
 
-    const handleClosedAddWhitelist = (whitelist) => {
-        if(whitelist) {
-            // Refresh the whitelist list from API
-            fetchWhitelists();
-        }
-        setShowAdd(false);
+    const AddModal = () => {
+        return (<>
+            <Modal
+                title="Add Domain to Whitelist"
+                onClose={() => setShowAdd(false)}
+            >
+                <div className="form-sized">
+                    <div className="form-row">
+                        <Input
+                            label="Domain"
+                            name="domain"
+                            type="text"
+                            value={newDomain}
+                            onInput={(e) => setNewDomain(e.target.value)}
+                            placeholder="Enter domain (e.g. example.com)"
+                            required={true}
+                        />
+                    </div>
+                    <div className="buttons">
+                        <button className="submit" onClick={handleAddDomain}><Icon name="add"></Icon>Add Domain</button>
+                        <button className="cancel" onClick={() => setShowAdd(false)}>Cancel</button>
+                    </div>
+                </div>
+            </Modal>
+        </>);
     };
 
     const tools = (<>
-        <button onClick={() => setShowAdd(true)}><Icon name="add"></Icon>New Whitelist</button>
+        <button onClick={() => setShowAdd(true)}><Icon name="add"></Icon>New Domain</button>
     </>);
 
     return (
         <div className="admin-whitelists">
-            {showAdd && <div className="modal-placeholder">Add Whitelist Modal would appear here</div>}
+            {showAdd && <AddModal></AddModal>}
             {deleteModal != null && <DeleteModal></DeleteModal>}
             <Container
                 title="Whitelist Management"
@@ -142,72 +176,41 @@ export default function AdminWhitelists() {
                     <Input
                         name="whitelistsearch"
                         type="text"
-                        placeholder="Search by Name"
+                        placeholder="Search by Domain"
                         value={searchName}
                         onInput={(e) => setSearchName(e.target.value)}
                         className="nameInput"
-                    />
-                    <Select
-                        options={statusFiltersList.map(status => ({ value: status.id, label: status.name }))}
-                        value={statusFilters}
-                        onChange={(e) => setStatusFilters(e.target.value)}
                     />
                 </div>
                 <table className="spreadsheet">
                     <thead>
                         <tr>
                             <th onClick={() => setSort(handleSort('Name', sort))}>
-                                Name {getSortIcon('Name', sort) && <span className="material-symbols-rounded">{getSortIcon('Name', sort)}</span>}
-                            </th>
-                            <th onClick={() => setSort(handleSort('DomainCount', sort))}>
-                                Domains {getSortIcon('DomainCount', sort) && <span className="material-symbols-rounded">{getSortIcon('DomainCount', sort)}</span>}
-                            </th>
-                            <th onClick={() => setSort(handleSort('Created', sort))}>
-                                Created {getSortIcon('Created', sort) && <span className="material-symbols-rounded">{getSortIcon('Created', sort)}</span>}
-                            </th>
-                            <th onClick={() => setSort(handleSort('LastUpdated', sort))}>
-                                Last Updated {getSortIcon('LastUpdated', sort) && <span className="material-symbols-rounded">{getSortIcon('LastUpdated', sort)}</span>}
-                            </th>
-                            <th onClick={() => setSort(handleSort('Status', sort))}>
-                                Status {getSortIcon('Status', sort) && <span className="material-symbols-rounded">{getSortIcon('Status', sort)}</span>}
+                                Domain {getSortIcon('Name', sort) && <span className="material-symbols-rounded">{getSortIcon('Name', sort)}</span>}
                             </th>
                             <th></th>
                         </tr>
                     </thead>
                     <tbody>
-                        {whitelists.map(whitelist =>
-                            <tr 
-                                key={whitelist.id} 
-                                onClick={(e) => {
-                                    // Prevent triggering if the event originated from action buttons
-                                    if (e.target.closest('a')) {
-                                        e.stopPropagation();
-                                        return;
-                                    }
-                                    navigate('/admin/whitelists/edit/' + whitelist.id);
-                                }}
+                        {displayedWhitelists.map(whitelist =>
+                            <tr
+                                key={whitelist.name}
                             >
                                 <td>{whitelist.name}</td>
-                                <td>{whitelist.domainCount}</td>
-                                <td>{whitelist.created ? printDate(localDateTime(new Date(whitelist.created))) : 'N/A'}</td>
-                                <td>{whitelist.lastUpdated ? printDate(localDateTime(new Date(whitelist.lastUpdated))) : 'N/A'}</td>
-                                <td>{whitelist.status}</td>
                                 <td className="buttons">
-                                    <Link to={'/admin/whitelists/edit/' + whitelist.id} title="edit whitelist"><Icon name="edit_square"></Icon></Link>
-                                    <Link 
-                                        onClick={(e) => { 
-                                            e.preventDefault(); 
-                                            handleDelete(whitelist); 
-                                        }} 
-                                        title="delete whitelist"
-                                    >
+                                    <button className="icon" onClick={() => handleDelete(whitelist)} title="remove domain">
                                         <Icon name="delete"></Icon>
-                                    </Link>
+                                    </button>
                                 </td>
                             </tr>
                         )}
                     </tbody>
                 </table>
+                <Pager
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={handlePageChange}
+                />
             </Container>
         </div>
     );

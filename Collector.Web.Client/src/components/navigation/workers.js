@@ -3,6 +3,8 @@
 
 import VideoWorker from './workers/video-worker';
 import ChatWorker from './workers/chat-worker';
+import DownloadWorker from './workers/download-worker';
+import DomainWorker from './workers/domain-worker';
 
 const workers = {
     'video-worker': {
@@ -12,6 +14,14 @@ const workers = {
     'chat-worker': {
         component: ChatWorker,
         name: 'AI Assistant'
+    },
+    'download-worker': {
+        component: DownloadWorker,
+        name: 'Download Worker'
+    },
+    'domain-worker': {
+        component: DomainWorker,
+        name: 'Domain Analyzer'
     }
 };
 

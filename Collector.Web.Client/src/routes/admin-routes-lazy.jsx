@@ -12,6 +12,7 @@ const routes = [
     { path: '/admin/downloads/details/:id', Element:lazy(() => import('@/app/admin/downloads/page')) },
     { path: '/admin/articles',          Element:lazy(() => import('@/app/admin/articles/page')) },
     { path: '/admin/articles/edit/:id', Element:lazy(() => import('@/app/admin/articles/page')) },
+    { path: '/admin/feeds',              Element:lazy(() => import('@/app/feeds/page')) },
     { path: '/admin/subjects',          Element:lazy(() => import('@/app/admin/subjects/page')) },
     { path: '/admin/subjects/edit/:id', Element:lazy(() => import('@/app/admin/subjects/page')) },
     { path: '/admin/blacklists',        Element:lazy(() => import('@/app/admin/blacklists/page')) },

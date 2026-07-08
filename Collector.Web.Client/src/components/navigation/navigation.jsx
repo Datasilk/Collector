@@ -147,7 +147,6 @@ const Navigation = () => {
               <Link to="/admin" className={'nav-link' + (section == 'admin' ? ' selected' : '')}>Administration</Link>
             </>}
             <Link to="/journal" className={'nav-link' + (section == 'journal' ? ' selected' : '')}>Journal</Link>
-            <Link to="/feeds" className={'nav-link' + (section == 'feeds' ? ' selected' : '')}>Feeds</Link>
             <a href="#" title="Notifications" className="notifications-icon" onClick={handleNotificationsClick}>
               <Icon name="notifications" />
               {activeWorkers.length > 0 && <span className="notification-dot" />}

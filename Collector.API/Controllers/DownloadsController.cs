@@ -21,6 +21,24 @@ namespace Collector.API.Controllers
         }
 
         /// <summary>
+        /// Get a paginated list of items in the download queue
+        /// </summary>
+        [HttpPost("list")]
+        public IActionResult GetList([FromBody] DownloadQueueListRequestModel model)
+        {
+            try
+            {
+                var items = _downloadsRepository.GetQueueList(model.Search, model.Status, model.Sort, model.Start, model.Length);
+                var count = _downloadsRepository.GetQueueCount(model.Search, model.Status);
+                return Json(new ApiResponse { success = true, data = new { items, totalCount = count } });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// Get the count of items in the download queue
         /// </summary>
         [HttpGet("count")]

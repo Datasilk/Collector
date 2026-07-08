@@ -1,7 +1,7 @@
 CREATE OR REPLACE FUNCTION public."Feeds_GetListWithLogs"
 (
     p_days INT DEFAULT 7,
-    p_dateStart DATE
+    p_dateStart DATE DEFAULT NULL
 )
 RETURNS TABLE(
     "feedId" INT,

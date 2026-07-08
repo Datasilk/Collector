@@ -14,6 +14,10 @@
     color: var(--admin-header-text);
     padding: 0.5em 0 0 0;
     text-align: left;
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    height: fit-content;
   }
   
   .admin .sidebar ul {

@@ -53,6 +53,15 @@ namespace Collector.API.Models
         public QueueSort Sort { get; set; } = QueueSort.Newest;
     }
 
+    public class DownloadQueueListRequestModel
+    {
+        public string Search { get; set; } = "";
+        public int Status { get; set; } = -1;
+        public string Sort { get; set; } = "datecreated DESC";
+        public int Start { get; set; } = 1;
+        public int Length { get; set; } = 100;
+    }
+
     public class QueueItemResponse
     {
         public DownloadQueue QueueItem { get; set; }

@@ -47,7 +47,7 @@ function SelectFeedCategory({ categories, selectedCategoryId, onSelect, onAddCat
       <div className="select-with-icon">
         <Select 
           label="Category" 
-          options={categories.map(cat => ({ value: cat.id, label: cat.title }))} 
+          options={categories.map(cat => ({ value: cat.categoryId, label: cat.title }))} 
           value={selectedCategoryId} 
           onChange={(e) => onSelect(e.target.value)} 
         />

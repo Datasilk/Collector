@@ -7,5 +7,12 @@ CREATE TABLE IF NOT EXISTS public."Chats"
     "Modified" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "Status" INT NOT NULL DEFAULT 1 --0=deleted, 1=active
 );
-ALTER TABLE public."Chats"
-    ADD CONSTRAINT "FK_Chats_AppUsers" FOREIGN KEY ("AppUserId") REFERENCES public."AppUsers"("Id");
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'FK_Chats_AppUsers'
+    ) THEN
+        ALTER TABLE public."Chats"
+            ADD CONSTRAINT "FK_Chats_AppUsers" FOREIGN KEY ("AppUserId") REFERENCES public."AppUsers"("Id");
+    END IF;
+END $$;

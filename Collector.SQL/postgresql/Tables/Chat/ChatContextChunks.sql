@@ -8,7 +8,21 @@ CREATE TABLE IF NOT EXISTS public."ChatContextChunks"
     "Metadata" TEXT NULL,
     "Created" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-ALTER TABLE public."ChatContextChunks"
-    ADD CONSTRAINT "FK_ChatContextChunks_AppUsers" FOREIGN KEY ("AppUserId") REFERENCES public."AppUsers"("Id");
-ALTER TABLE public."ChatContextChunks"
-    ADD CONSTRAINT "FK_ChatContextChunks_Chats" FOREIGN KEY ("ChatId") REFERENCES public."Chats"("Id");
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'FK_ChatContextChunks_AppUsers'
+    ) THEN
+        ALTER TABLE public."ChatContextChunks"
+            ADD CONSTRAINT "FK_ChatContextChunks_AppUsers" FOREIGN KEY ("AppUserId") REFERENCES public."AppUsers"("Id");
+    END IF;
+END $$;
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'FK_ChatContextChunks_Chats'
+    ) THEN
+        ALTER TABLE public."ChatContextChunks"
+            ADD CONSTRAINT "FK_ChatContextChunks_Chats" FOREIGN KEY ("ChatId") REFERENCES public."Chats"("Id");
+    END IF;
+END $$;

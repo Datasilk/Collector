@@ -1,0 +1,54 @@
+.message {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5em;
+    padding: 0.5em 0.75em;
+    margin: 1em 0;
+    border-radius: 0.25em;
+    border: 1px solid transparent;
+}
+
+.message-content {
+    flex: 1;
+}
+
+.message-close {
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: inherit;
+}
+
+.message.info {
+    background: var(--info-bg);
+    border-color: var(--info-border);
+    color: var(--info-text);
+}
+
+.message.info .message-close {
+    color: var(--info-icon);
+}
+
+.message.warning {
+    background: var(--warning-bg);
+    border-color: var(--warning-border);
+    color: var(--warning-text);
+}
+
+.message.warning .message-close {
+    color: var(--warning-icon);
+}
+
+.message.error {
+    background: var(--error-bg);
+    border-color: var(--error-border);
+    color: var(--error-text);
+}
+
+.message.error .message-close {
+    color: var(--error-icon);
+}

@@ -11,5 +11,12 @@ CREATE TABLE IF NOT EXISTS public."Downloads"
     "datecreated" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "datearchived" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-ALTER TABLE public."Downloads"
-    ADD CONSTRAINT "PK_Downloads" PRIMARY KEY ("id");
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conrelid = 'public."Downloads"'::regclass AND contype = 'p'
+    ) THEN
+        ALTER TABLE public."Downloads"
+            ADD CONSTRAINT "PK_Downloads" PRIMARY KEY ("id");
+    END IF;
+END $$;

@@ -1,8 +1,8 @@
 CREATE OR REPLACE FUNCTION public."Article_UpdateUrl"
 (
     p_articleId INT DEFAULT 0,
-    p_url VARCHAR(250),
-    p_domain VARCHAR(250),
+    p_url VARCHAR(250) DEFAULT '',
+    p_domain VARCHAR(250) DEFAULT '',
     p_parentId INT DEFAULT 0
 )
 RETURNS VOID

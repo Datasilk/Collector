@@ -38,7 +38,7 @@ export default function AdminLayout({ children }) {
 
     useEffect(() => {
         setPathClassName(location.pathname.split('/').filter(a => a != '').slice(0, 2).join('-'));
-        setSection(location.pathname.split('/')[1]);
+        setSection(location.pathname.split('/')[2] || '');
     }, [location]);
 
     const handleLogOut = (e) => {
@@ -64,6 +64,7 @@ export default function AdminLayout({ children }) {
                             <MenuItem label="Domains" path="domains" url="/admin/domains" icon="domain"></MenuItem>
                             <MenuItem label="Downloads" path="downloads" url="/admin/downloads" icon="download"></MenuItem>
                             <MenuItem label="Articles" path="articles" url="/admin/articles" icon="article"></MenuItem>
+                            <MenuItem label="Feeds" path="feeds" url="/admin/feeds" icon="rss_feed"></MenuItem>
                             <MenuItem label="Subjects" path="subjects" url="/admin/subjects" icon="graph_2"></MenuItem>
                             <MenuItem label="Blacklists" path="blacklists" url="/admin/blacklists" icon="block"></MenuItem>
                             <MenuItem label="Whitelists" path="whitelists" url="/admin/whitelists" icon="beenhere"></MenuItem>

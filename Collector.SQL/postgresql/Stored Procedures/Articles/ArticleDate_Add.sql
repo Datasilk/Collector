@@ -1,7 +1,7 @@
 CREATE OR REPLACE FUNCTION public."ArticleDate_Add"
 (
     p_articleId INT DEFAULT 0,
-    p_date DATE,
+    p_date DATE DEFAULT NULL,
     p_hasYear BOOLEAN DEFAULT FALSE,
     p_hasMonth BOOLEAN DEFAULT FALSE,
     p_hasDay BOOLEAN DEFAULT FALSE

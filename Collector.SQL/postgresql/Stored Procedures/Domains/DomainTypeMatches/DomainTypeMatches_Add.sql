@@ -2,9 +2,9 @@ CREATE OR REPLACE FUNCTION public."DomainTypeMatches_Add"
 (
     p_type INT,
     p_type2 INT DEFAULT -1,
-    p_words TEXT,
-    p_threshold INT,
-    p_rank INT
+    p_words TEXT DEFAULT '',
+    p_threshold INT DEFAULT 0,
+    p_rank INT DEFAULT 0
 )
 RETURNS VOID
 LANGUAGE plpgsql

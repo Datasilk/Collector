@@ -3,12 +3,12 @@ CREATE OR REPLACE FUNCTION public."JournalEntries_FindSimilar"(
     p_journalId INTEGER,
     p_embeddingJson TEXT,
     p_distance DOUBLE PRECISION DEFAULT 0.3
-);
+)
 RETURNS TABLE (
     "Id" UUID,
     "Title" TEXT,
     "Distance" DOUBLE PRECISION
-);
+)
 LANGUAGE plpgsql
 AS $$
 DECLARE

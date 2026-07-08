@@ -18,7 +18,7 @@ namespace Collector.Common
         /// <param name="url">The URL to download content from</param>
         /// <param name="newUrl">Output parameter that will contain any redirected URL</param>
         /// <returns>The downloaded content as a string</returns>
-        public static string Download(string url, out string newUrl)
+        public static string Download(string url, out string newUrl, Action<string, int> onRedirect = null, Action<string, int> onError = null)
         {
             newUrl = "";
             if (string.IsNullOrEmpty(url)) return "";
@@ -33,6 +33,7 @@ namespace Collector.Common
             var triedHttpAgain = false;
             var wwwAdded = false;
             var i = 0;
+            var attempts = 0;
             
             // Default to HTTPS if using HTTP
             if (wasHttp)
@@ -41,15 +42,15 @@ namespace Collector.Common
             }
             
             // Main loop for handling redirects and retries
-            while ((status < 301 && status > 200) || status == 0)
+            try
             {
-                i++;
-                status = 0;
-                
-                if (i > 12) { break; } // Break on too many iterations
-                
-                try
+                while ((status < 301 && status > 200) || status == 0)
                 {
+                    i++;
+                    status = 0;
+
+                    if (i > 12) { onRedirect?.Invoke(url, 0); break; } // Break on too many iterations
+
                     using (var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) })
                     {
                         // Set up headers to mimic browser
@@ -66,7 +67,7 @@ namespace Collector.Common
                         client.DefaultRequestHeaders.Add("Sec-Fetch-User", "?1");
                         client.DefaultRequestHeaders.Add("Upgrade-Insecure-Requests", "1");
                         client.DefaultRequestHeaders.Add("Cache-Control", "max-age=0");
-                        
+
                         // Try downloading head first to see if the request is actually html or a file
                         try
                         {
@@ -109,14 +110,15 @@ namespace Collector.Common
                                     // If all else fails, don't get response
                                     break;
                                 }
-                                
-                                contentType = response.Content.Headers.ContentType != null ? 
+
+                                contentType = response.Content.Headers.ContentType != null ?
                                     response.Content.Headers.ContentType.ToString().Split(";")[0] : "";
                                 status = (int)response.StatusCode;
+                                attempts = 0;
 
                                 // Check for redirects - checking both headers and content headers
                                 string location = "";
-                                
+
                                 // First check response headers (standard location)
                                 if (response.Headers.Location != null)
                                 {
@@ -131,95 +133,125 @@ namespace Collector.Common
                                         location = header.FirstOrDefault().CleanUrl();
                                     }
                                 }
-                                
+
                                 if (!string.IsNullOrEmpty(location) && location != url.CleanUrl())
                                 {
                                     // URL redirect (301, 302, or 303)
+                                    onRedirect?.Invoke(location, status);
                                     url = location;
                                     method = "HEAD";
                                     continue;
                                 }
                             }
                         }
-                        catch (Exception ex)
+                        catch (TaskCanceledException)
                         {
-                            if (ex.Message.IndexOf("No such host is known") >= 0)
+                            attempts++;
+                            if (attempts >= 2)
                             {
-                                newUrl = "";
+                                onRedirect?.Invoke(url, -1);
+                                throw;
+                            }
+                            onRedirect?.Invoke(url, -2);
+                            if (method == "HEAD")
+                            {
+                                // HEAD timed out; retry with GET like a browser would
+                                method = "GET";
+                                continue;
+                            }
+                            // GET timed out; retry the same request up to 3 total attempts
+                            continue;
+                        }
+                        catch (HttpRequestException ex)
+                        {
+                            // Report SSL connection failures so the caller can mark the domain as empty
+                            var message = ex.Message + (ex.InnerException != null ? " " + ex.InnerException.Message : "");
+                            if (message.IndexOf("SSL connection could not be established", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                message.IndexOf("SSL", StringComparison.OrdinalIgnoreCase) >= 0)
+                            {
+                                onError?.Invoke(url, -1);
                                 return "";
                             }
+                            throw;
                         }
                     }
-                }
-                catch (Exception)
-                {
-                    status = 500;
-                }
-                
-                if (status != 200 && method == "HEAD")
-                {
-                    // Try GET method instead
-                    status = 0;
-                    method = "GET";
-                    continue;
-                }
-                else if (status > 303 && method == "GET" && wasHttp && url.IndexOf("https://") >= 0)
-                {
-                    // Try getting request after going back to HTTP protocol
-                    url = url.Replace("https://", "http://");
-                    method = "HEAD";
-                    status = 0;
-                    continue;
-                }
-                else if (status != 200 && url.IndexOf("/www.") < 0)
-                {
-                    // Try adding www. to the URL
-                    wwwAdded = true;
-                    url = url.Replace("https://", "").Replace("http://", "");
-                    url = "https://www." + url;
-                    method = "HEAD";
-                    status = 0;
-                    continue;
+
+                    if (status != 200 && method == "HEAD")
+                    {
+                        // Try GET method instead
+                        status = 0;
+                        method = "GET";
+                        continue;
+                    }
+                    else if (status > 303 && method == "GET" && wasHttp && url.IndexOf("https://") >= 0)
+                    {
+                        // Try getting request after going back to HTTP protocol
+                        url = url.Replace("https://", "http://");
+                        method = "HEAD";
+                        status = 0;
+                        continue;
+                    }
+                    else if (status != 200 && url.IndexOf("/www.") < 0)
+                    {
+                        // Try adding www. to the URL
+                        wwwAdded = true;
+                        url = url.Replace("https://", "").Replace("http://", "");
+                        url = "https://www." + url;
+                        method = "HEAD";
+                        status = 0;
+                        continue;
+                    }
                 }
             }
-            
+            catch (TaskCanceledException)
+            {
+                // HttpClient was blocked/timed out; fall back to the browser (Charlotte/CefSharp)
+                onRedirect?.Invoke(url, -3);
+                return DownloadViaBrowser(url);
+            }
+
             // Store the final URL
             newUrl = url;
-            
+
             // Process based on content type
             if (contentType == "text/html" || contentType == "")
             {
-                // Call Charlotte Web Router
-                var postData = new StringBuilder();
-                postData.Append(String.Format("{0}={1}&", WebUtility.HtmlEncode("url"), WebUtility.HtmlEncode(url)));
-                postData.Append(String.Format("{0}={1}&", WebUtility.HtmlEncode("session"), false));
-                postData.Append(String.Format("{0}={1}", WebUtility.HtmlEncode("macros"), WebUtility.HtmlEncode("?")));
-                
-                StringContent postContent = new StringContent(postData.ToString(), Encoding.UTF8, "application/x-www-form-urlencoded");
-                
-                using var client = new HttpClient()
-                {
-                    Timeout = TimeSpan.FromSeconds(35) // Increased timeout to accommodate Router's 30-second timeout
-                };
-                
-                try
-                {
-                    HttpResponseMessage message = client.PostAsync(BrowserEndpoint, postContent).GetAwaiter().GetResult();
-                    string result = message.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-                    return result;
-                }
-                catch (Exception ex)
-                {
-                    return $"Error calling Charlotte Web Router: {ex.Message}";
-                }
+                return DownloadViaBrowser(url);
             }
             else if (contentType != "")
             {
                 // Handle all other files
                 return "file:" + contentType;
             }
-            
+
             return "";
+        }
+
+        private static string DownloadViaBrowser(string url)
+        {
+            // Call Charlotte Web Router
+            var postData = new StringBuilder();
+            postData.Append(String.Format("{0}={1}&", WebUtility.HtmlEncode("url"), WebUtility.HtmlEncode(url)));
+            postData.Append(String.Format("{0}={1}&", WebUtility.HtmlEncode("session"), false));
+            postData.Append(String.Format("{0}={1}", WebUtility.HtmlEncode("macros"), WebUtility.HtmlEncode("?")));
+
+            StringContent postContent = new StringContent(postData.ToString(), Encoding.UTF8, "application/x-www-form-urlencoded");
+
+            using var client = new HttpClient()
+            {
+                Timeout = TimeSpan.FromSeconds(35) // Increased timeout to accommodate Router's 30-second timeout
+            };
+
+            try
+            {
+                HttpResponseMessage message = client.PostAsync(BrowserEndpoint, postContent).GetAwaiter().GetResult();
+                string result = message.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return $"Error calling Charlotte Web Router: {ex.Message}";
+            }
         }
     }
 }

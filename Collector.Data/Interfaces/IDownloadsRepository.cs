@@ -12,6 +12,8 @@ namespace Collector.Data.Interfaces
         Int64 AddQueueItem(string url, string domain, int parentId = 0, int feedId = 0);
         DownloadQueue CheckQueue(int feedId = 0, string domain = "", int domaindelay = 60, QueueSort sort = QueueSort.Newest, long queueId = 0);
         int Count();
+        IEnumerable<DownloadQueue> GetQueueList(string search, int status, string sort, int start, int length);
+        int GetQueueCount(string search, int status);
         void Delete(long qid);
         void Move(long qid);
         void Archive(long qid);

@@ -2,7 +2,7 @@ CREATE OR REPLACE FUNCTION public."DownloadQueue_Add"
 (
     p_url TEXT DEFAULT '',
     p_domain VARCHAR(64) DEFAULT '',
-    p_parentId INT,
+    p_parentId INT DEFAULT 0,
     p_feedId INT DEFAULT 0
 )
 RETURNS BIGINT

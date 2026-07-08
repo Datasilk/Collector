@@ -6,5 +6,12 @@ CREATE TABLE IF NOT EXISTS public."Converse"
     "Who" BOOLEAN NOT NULL,
     "Created" TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP
 );
-ALTER TABLE public."Converse"
-    ADD CONSTRAINT "AK_Converse_User_Date" UNIQUE ("AppUserId", "Created");
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'AK_Converse_User_Date'
+    ) THEN
+        ALTER TABLE public."Converse"
+            ADD CONSTRAINT "AK_Converse_User_Date" UNIQUE ("AppUserId", "Created");
+    END IF;
+END $$;

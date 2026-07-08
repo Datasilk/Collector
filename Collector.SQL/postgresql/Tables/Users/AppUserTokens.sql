@@ -10,5 +10,12 @@ CREATE TABLE IF NOT EXISTS public."AppUserTokens"
     "Revoked" TIMESTAMP NULL,
     "ReplacedByToken" VARCHAR(128) NULL
 );
-ALTER TABLE public."AppUserTokens"
-    ADD CONSTRAINT "FK_AppUserTokens_AppUsers" FOREIGN KEY ("AppUserId") REFERENCES public."AppUsers"("Id");
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'FK_AppUserTokens_AppUsers'
+    ) THEN
+        ALTER TABLE public."AppUserTokens"
+            ADD CONSTRAINT "FK_AppUserTokens_AppUsers" FOREIGN KEY ("AppUserId") REFERENCES public."AppUsers"("Id");
+    END IF;
+END $$;

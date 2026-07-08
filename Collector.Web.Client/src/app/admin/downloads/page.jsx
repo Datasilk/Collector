@@ -1,239 +1,341 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
 //styles
-import '@/styles/admin/filter.css';
 import './page.css';
 //components
 import Container from '@/components/admin/container';
-import Modal from '@/components/ui/modal';
 import Icon from '@/components/ui/icon';
-import Select from '@/components/forms/select';
+import Cli from '@/components/ui/cli';
+import Modal from '@/components/ui/modal';
 import Input from '@/components/forms/input';
+import Select from '@/components/forms/select';
 //components
 import AddDownload from './components/add';
 //context
+import { useWorkerHub } from '@/context/workerhub';
 import { useSession } from '@/context/session';
 //api
-import { Downloads } from '@/api/user/downloads';
-//helpers
-import { handleSort, getSortIcon } from '@/helpers/format';
-import { localDateTime, printDate } from '@/helpers/datetime';
-import messages from '@/helpers/messages';
+import { Feeds } from '@/api/user/feeds';
+
+const SORT_OPTIONS = [
+    { value: 0, label: 'Newest First' },
+    { value: 1, label: 'Oldest First' },
+    { value: 2, label: 'Home Pages Only' },
+    { value: 3, label: 'Random' }
+];
+
+function getFilterKey(filters) {
+    return `${filters.sort}-${filters.domain || 'all'}-${filters.feedId || 0}`;
+}
+
+function getFilterTitle(filters, feeds) {
+    const sortLabel = SORT_OPTIONS.find(s => s.value === filters.sort)?.label || `Sort ${filters.sort}`;
+    const feed = feeds.find(f => f.feedId === filters.feedId);
+    let title = sortLabel;
+    if (filters.domain) title += ` - Domain: ${filters.domain}`;
+    if (filters.feedId && feed) title += ` - Feed: ${feed.title || feed.feedId}`;
+    return title;
+}
 
 /**
- * <summary>Admin Downloads List Page</summary>
- * <description>Displays and manages the list of downloads in the admin panel.</description>
+ * <summary>Admin Downloads Management Page</summary>
+ * <description>Console-style interface for running and monitoring multiple filtered download workers.</description>
  */
 export default function AdminDownloads() {
-    const navigate = useNavigate();
+    const { call, stop, getWorkers, subscribe, requestProgress } = useWorkerHub();
     const session = useSession();
-    const { getCount, checkQueue, updateQueueItemStatus } = Downloads(session);
-    
-    const [downloads, setDownloads] = useState([]);
+    const { getList: getFeeds } = Feeds(session);
+
     const [showAdd, setShowAdd] = useState(false);
-    const [domainName, setDomainName] = useState('');
-    const [statusFilters, setStatusFilters] = useState(0);
-    const [statusFiltersList, setStatusFiltersList] = useState([
-        { id: 0, name: 'All Statuses' },
-        { id: 1, name: 'Completed' },
-        { id: 2, name: 'In Progress' },
-        { id: 3, name: 'Failed' }
-    ]);
-    const [sort, setSort] = useState('StartDate DESC');
-    const [cancelModal, setCancelModal] = useState(null);
+    const [feeds, setFeeds] = useState([]);
+    const [filters, setFilters] = useState({ sort: 0, domain: '', feedId: 0 });
+    const [workers, setWorkers] = useState([]);
+    const [showDuplicateModal, setShowDuplicateModal] = useState(false);
 
     useEffect(() => {
-        // Fetch downloads from API
-        fetchDownloads();
-    }, []);
-    
-    const fetchDownloads = () => {
-        // Using proper casing for C# models (CamelCase)
-        checkQueue({
-            FeedId: 0,
-            Domain: domainName || '',
-            DomainDelay: 60,
-            Sort: sort
-        }).then(response => {
-            if (response.data.success) {
-                // Transform the data to match the expected format
-                const formattedDownloads = (response.data.data || []).map(download => ({
-                    id: download.id,
-                    domain: download.domain,
-                    startDate: download.dateCreated,
-                    endDate: download.dateCompleted,
-                    status: getStatusText(download.status),
-                    articlesCount: download.articlesCount || 0,
-                    errors: download.errors || 0
-                }));
-                setDownloads(formattedDownloads);
+        let cancelled = false;
+        getFeeds().then(response => {
+            const data = response?.data?.data;
+            const success = response?.data?.success;
+            if (!cancelled && success && Array.isArray(data)) {
+                setFeeds(data);
             }
-        }).catch(error => {
-            console.error('Error fetching downloads:', error);
+        }).catch(err => console.error('Failed to load feeds:', err));
+        return () => { cancelled = true; };
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        const restoreWorkers = async () => {
+            try {
+                const hubWorkers = await getWorkers();
+                const downloadWorkers = hubWorkers.filter(w => w.route === 'download-worker');
+                for (const hubWorker of downloadWorkers) {
+                    let restoredFilters = null;
+                    try {
+                        restoredFilters = JSON.parse(hubWorker.customId || '{}');
+                    } catch {
+                        continue;
+                    }
+                    const restoredKey = getFilterKey(restoredFilters);
+                    const restoredWorker = {
+                        workerId: hubWorker.workerId,
+                        key: restoredKey,
+                        filters: restoredFilters,
+                        title: getFilterTitle(restoredFilters, feeds),
+                        running: true,
+                        status: 'Running',
+                        cliLines: [{ type: 'info', text: 'Restored worker connection' }],
+                        cliExpanded: false,
+                        processed: 0,
+                        saved: 0,
+                        links: 0,
+                        failed: 0
+                    };
+                    setWorkers(prev => {
+                        if (prev.some(w => w.key === restoredKey)) return prev;
+                        return [...prev, restoredWorker];
+                    });
+                    await subscribe(hubWorker.workerId, makeWorkerHandler(restoredKey));
+                    await requestProgress(hubWorker.workerId);
+                }
+            } catch (err) {
+                console.error('Failed to restore download workers:', err);
+            }
+        };
+        if (feeds.length > 0) {
+            restoreWorkers();
+        }
+        return () => { cancelled = true; };
+    }, [feeds]);
+
+    const feedOptions = useMemo(() => [
+        { value: 0, label: 'All Feeds' },
+        ...feeds.map(f => ({ value: f.feedId, label: f.title || `Feed ${f.feedId}` }))
+    ], [feeds]);
+
+    const updateWorkerByKey = (key, updates) => {
+        setWorkers(prev => prev.map(w => w.key === key ? { ...w, ...updates } : w));
+    };
+
+    const addWorkerLineByKey = (key, line) => {
+        setWorkers(prev => prev.map(w => {
+            if (w.key !== key) return w;
+            const next = [...w.cliLines, line];
+            if (next.length > 5000) next.shift();
+            return { ...w, cliLines: next };
+        }));
+    };
+
+    const makeWorkerHandler = (key) => (msg) => {
+        const { eventName, payload } = msg;
+        let line = null;
+        setWorkers(prev => {
+            const worker = prev.find(w => w.key === key);
+            if (!worker) return prev;
+
+            let updates = {};
+            if (eventName === 'DownloadProgress') {
+                updates = {
+                    processed: payload?.processed || 0,
+                    saved: payload?.saved || 0,
+                    links: payload?.links || 0
+                };
+            } else if (eventName === 'DownloadStarted') {
+                updates = { status: 'Running', running: true };
+                line = { type: 'success', text: `Worker started (feedId=${payload?.feedId}, domain=${payload?.domain || 'all'}, sort=${payload?.sort})` };
+            } else if (eventName === 'DownloadComplete') {
+                updates = { status: 'Completed', running: false };
+                line = { type: 'success', text: `Worker completed. Processed ${payload?.processed}, saved=${payload?.saved}, found ${payload?.links} links.` };
+            } else if (eventName === 'DownloadError') {
+                updates = { status: 'Error', running: false, failed: (worker.failed || 0) + 1 };
+                line = { type: 'error', text: `ERROR: ${payload?.message}` };
+            } else if (eventName === 'DownloadUpdate' && payload?.message) {
+                line = payload.type ? { type: payload.type, text: payload.message } : payload.message;
+                if (payload.html) {
+                    console.log(`[HTML feed: ${payload.message}]\n`, payload.html);
+                }
+            }
+
+            if (line) {
+                const nextLines = [...worker.cliLines, line];
+                if (nextLines.length > 5000) nextLines.shift();
+                updates.cliLines = nextLines;
+            }
+
+            if (Object.keys(updates).length === 0) return prev;
+            return prev.map(w => w.key === key ? { ...w, ...updates } : w);
         });
     };
-    
-    // Helper function to convert status code to text
-    const getStatusText = (statusCode) => {
-        switch(statusCode) {
-            case 0: return 'Pending';
-            case 1: return 'In Progress';
-            case 2: return 'Completed';
-            case 3: return 'Failed';
-            case 4: return 'Cancelled';
-            default: return 'Unknown';
+
+    const handleStartDownloads = async () => {
+        const key = getFilterKey(filters);
+        if (workers.some(w => w.running && w.key === key)) {
+            setShowDuplicateModal(true);
+            return;
+        }
+
+        const worker = {
+            workerId: null,
+            key,
+            filters: { ...filters },
+            title: getFilterTitle(filters, feeds),
+            running: true,
+            status: 'Running',
+            cliLines: [{ type: 'success', text: 'Download worker started' }],
+            cliExpanded: false,
+            processed: 0,
+            saved: 0,
+            links: 0,
+            failed: 0
+        };
+        setWorkers(prev => [...prev, worker]);
+
+        try {
+            const id = await call('download-worker', 'Start', {
+                feedId: filters.feedId,
+                domain: filters.domain,
+                sort: filters.sort
+            }, makeWorkerHandler(key), JSON.stringify(filters));
+            updateWorkerByKey(key, { workerId: id });
+        } catch (err) {
+            console.error('Failed to start download worker:', err);
+            updateWorkerByKey(key, { running: false, status: 'Failed to start' });
         }
     };
 
-    useEffect(() => {
-        filterDownloads();
-    }, [domainName, statusFilters, sort]);
-
-    const filterDownloads = () => {
-        // Just call fetchDownloads since it already handles filtering with proper casing
-        fetchDownloads();
-    };
-
-    const handleCancel = (download) => {
-        setCancelModal(download);
-    };
-
-    const handleCancelClose = () => {
-        setCancelModal(null);
-    };
-
-    const handleCancelConfirmed = (downloadId) => {
-        // Call API to cancel the download - status 4 is 'Cancelled'
-        // Using proper casing for C# models (CamelCase)
-        updateQueueItemStatus(downloadId, 4).then(response => {
-            if (response.data.success) {
-                // Refresh the download list
-                fetchDownloads();
-            } else {
-                console.error('Failed to cancel download:', response.data.message);
+    const handleStopWorker = async (workerId, key) => {
+        try {
+            if (workerId) {
+                await stop(workerId);
             }
-        }).catch(error => {
-            console.error('Error cancelling download:', error);
-        }).finally(() => {
-            handleCancelClose();
-        });
+            updateWorkerByKey(key, { running: false, status: 'Stopped' });
+            addWorkerLineByKey(key, { type: 'warning', text: 'Download worker stopped' });
+        } catch (err) {
+            console.error('Failed to stop download worker:', err);
+            addWorkerLineByKey(key, { type: 'error', text: 'Failed to stop download worker' });
+        }
     };
 
-    const CancelModal = () => {
-        return (<>
-            <Modal
-                title="Cancel Download"
-                onClose={handleCancelClose}
-            >
-                <p>
-                    Do you really want to cancel the download for {cancelModal.domain}?
-                    <br />
-                    This will stop the download process immediately.
-                </p>
-                <div className="buttons">
-                    <button className="submit" onClick={() => { handleCancelConfirmed(cancelModal.id) }}>Yes</button>
-                    <button className="cancel" onClick={handleCancelClose}>Cancel</button>
-                </div>
-            </Modal>
-        </>);
+    const handleClearWorkerCli = (key) => {
+        updateWorkerByKey(key, { cliLines: [] });
+    };
+
+    const handleRemoveWorker = (key) => {
+        setWorkers(prev => prev.filter(w => w.key !== key));
+    };
+
+    const handleToggleCli = (key, expanded) => {
+        updateWorkerByKey(key, { cliExpanded: expanded });
+    };
+
+    const handleFilterChange = (e) => {
+        const { name, value } = e.target;
+        setFilters(prev => ({ ...prev, [name]: name === 'feedId' || name === 'sort' ? parseInt(value, 10) || 0 : value }));
     };
 
     const handleClosedAddDownload = (download) => {
-        if(download) {
-            // Refresh the download list to include the newly added download
-            fetchDownloads();
+        if (download && workers.length > 0) {
+            workers.forEach(w => addWorkerLineByKey(w.key, { type: 'success', text: `Added to queue: ${download.url}` }));
         }
         setShowAdd(false);
     };
 
+    const runningCount = workers.filter(w => w.running).length;
+
     const tools = (<>
-        <button onClick={() => setShowAdd(true)}><Icon name="add"></Icon>New Download</button>
+        <button onClick={() => setShowAdd(true)}><Icon name="add" />New Download</button>
     </>);
 
     return (
         <div className="admin-downloads">
-            {showAdd && <AddDownload onClose={handleClosedAddDownload}></AddDownload>}
-            {cancelModal != null && <CancelModal></CancelModal>}
-            <Container
-                title="Download Management"
-                tools={tools}
-            >
-                <div className="filters">
-                    <Input
-                        name="domainsearch"
-                        type="text"
-                        placeholder="Search by Domain Name"
-                        value={domainName}
-                        onInput={(e) => setDomainName(e.target.value)}
-                        className="domainNameInput"
-                    />
-                    <Select
-                        options={statusFiltersList.map(status => ({ value: status.id, label: status.name }))}
-                        value={statusFilters}
-                        onChange={(e) => setStatusFilters(e.target.value)}
-                    />
+            {showAdd && <AddDownload onClose={handleClosedAddDownload} />}
+            {showDuplicateModal && (
+                <Modal title="Filter Already Running" onClose={() => setShowDuplicateModal(false)}>
+                    <p>A download worker with the same filter is already running.</p>
+                    <div className="buttons">
+                        <button onClick={() => setShowDuplicateModal(false)}>OK</button>
+                    </div>
+                </Modal>
+            )}
+            <Container title="Download Management" tools={tools}>
+                <div className="filters tool-bar">
+                    <div className="form-group">
+                        <Select
+                            label="Sort"
+                            name="sort"
+                            value={filters.sort}
+                            options={SORT_OPTIONS}
+                            onChange={handleFilterChange}
+                        />
+                    </div>
+                    <div className="form-group">
+                        <Input
+                            label="Domain"
+                            name="domain"
+                            value={filters.domain}
+                            onChange={handleFilterChange}
+                            placeholder="example.com"
+                        />
+                    </div>
+                    <div className="form-group">
+                        <Select
+                            label="Feed"
+                            name="feedId"
+                            value={filters.feedId}
+                            options={feedOptions}
+                            onChange={handleFilterChange}
+                        />
+                    </div>
+                    <div className="right-side">
+                        <button onClick={handleStartDownloads} disabled={runningCount > 0 && workers.some(w => w.running && w.key === getFilterKey(filters))}>
+                            <Icon name="play_arrow" />Start Downloads
+                        </button>
+                    </div>
                 </div>
-                <table className="spreadsheet">
-                    <thead>
-                        <tr>
-                            <th onClick={() => setSort(handleSort('Domain', sort))}>
-                                Domain {getSortIcon('Domain', sort) && <span className="material-symbols-rounded">{getSortIcon('Domain', sort)}</span>}
-                            </th>
-                            <th onClick={() => setSort(handleSort('StartDate', sort))}>
-                                Start Date {getSortIcon('StartDate', sort) && <span className="material-symbols-rounded">{getSortIcon('StartDate', sort)}</span>}
-                            </th>
-                            <th onClick={() => setSort(handleSort('EndDate', sort))}>
-                                End Date {getSortIcon('EndDate', sort) && <span className="material-symbols-rounded">{getSortIcon('EndDate', sort)}</span>}
-                            </th>
-                            <th onClick={() => setSort(handleSort('Status', sort))}>
-                                Status {getSortIcon('Status', sort) && <span className="material-symbols-rounded">{getSortIcon('Status', sort)}</span>}
-                            </th>
-                            <th onClick={() => setSort(handleSort('ArticlesCount', sort))}>
-                                Articles {getSortIcon('ArticlesCount', sort) && <span className="material-symbols-rounded">{getSortIcon('ArticlesCount', sort)}</span>}
-                            </th>
-                            <th onClick={() => setSort(handleSort('Errors', sort))}>
-                                Errors {getSortIcon('Errors', sort) && <span className="material-symbols-rounded">{getSortIcon('Errors', sort)}</span>}
-                            </th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {downloads.map(download =>
-                            <tr 
-                                key={download.id} 
-                                onClick={(e) => {
-                                    // Prevent triggering if the event originated from action buttons
-                                    if (e.target.closest('a')) {
-                                        e.stopPropagation();
-                                        return;
-                                    }
-                                    navigate('/admin/downloads/details/' + download.id);
-                                }}
-                            >
-                                <td>{download.domain}</td>
-                                <td>{download.startDate ? printDate(localDateTime(new Date(download.startDate))) : 'N/A'}</td>
-                                <td>{download.endDate ? printDate(localDateTime(new Date(download.endDate))) : 'In Progress'}</td>
-                                <td>{download.status}</td>
-                                <td>{download.articlesCount}</td>
-                                <td>{download.errors}</td>
-                                <td className="buttons">
-                                    <Link to={'/admin/downloads/details/' + download.id} title="view download details"><Icon name="visibility"></Icon></Link>
-                                    {download.status === 'In Progress' && (
-                                        <Link 
-                                            onClick={(e) => { 
-                                                e.preventDefault(); 
-                                                handleCancel(download); 
-                                            }} 
-                                            title="cancel download"
-                                        >
-                                            <Icon name="cancel"></Icon>
-                                        </Link>
+                {runningCount > 0 && (
+                    <div className="worker-status">
+                        <Icon name="progress_activity" spin />
+                        {runningCount} worker{runningCount !== 1 ? 's' : ''} running
+                    </div>
+                )}
+                <div className="worker-clis">
+                    {workers.map(worker => (
+                        <div key={worker.key} className={`worker-cli ${worker.running ? 'running' : 'stopped'}`}>
+                            <div className="worker-cli-header">
+                                <span className={`worker-cli-status ${worker.status.toLowerCase().replace(/\s+/g, '-')}`}>{worker.status}</span>
+                                <span className="worker-cli-counts">
+                                    {worker.processed > 0 && `Processed: ${worker.processed}`}
+                                    {worker.processed > 0 && worker.saved > 0 && ', '}
+                                    {worker.saved > 0 && `Saved: ${worker.saved}`}
+                                    {((worker.processed > 0 || worker.saved > 0) && worker.links > 0) && ', '}
+                                    {worker.links > 0 && `Links: ${worker.links}`}
+                                </span>
+                                <div className="worker-cli-actions">
+                                    {worker.running ? (
+                                        <button onClick={() => handleStopWorker(worker.workerId, worker.key)} className="cancel icon" title="Stop">
+                                            <Icon name="stop" />
+                                        </button>
+                                    ) : (
+                                        <button onClick={() => handleRemoveWorker(worker.key)} className="icon" title="Remove">
+                                            <Icon name="close" />
+                                        </button>
                                     )}
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
+                                    <button onClick={() => handleClearWorkerCli(worker.key)} className="icon" title="Clear CLI">
+                                        <Icon name="clear_all" />
+                                    </button>
+                                </div>
+                            </div>
+                            <Cli
+                                lines={worker.cliLines}
+                                title={worker.title}
+                                expanded={worker.cliExpanded}
+                                onToggle={(expanded) => handleToggleCli(worker.key, expanded)}
+                                processed={worker.processed}
+                                failed={worker.failed}
+                            />
+                        </div>
+                    ))}
+                </div>
             </Container>
         </div>
     );

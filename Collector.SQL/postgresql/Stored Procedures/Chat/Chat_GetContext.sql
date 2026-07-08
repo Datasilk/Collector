@@ -3,12 +3,12 @@ CREATE OR REPLACE FUNCTION public."Chat_GetContext"(
     p_embeddingJson TEXT,
     p_length INTEGER DEFAULT 5,
     p_distance DOUBLE PRECISION DEFAULT NULL
-);
+)
 RETURNS TABLE (
     "Content" TEXT,
     "Metadata" TEXT,
     "Distance" DOUBLE PRECISION
-);
+)
 LANGUAGE plpgsql
 AS $$
 DECLARE

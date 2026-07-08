@@ -45,26 +45,29 @@ namespace Collector.Data.Repositories
 
         public DownloadQueue CheckQueue(int feedId = 0, string domain = "", int domaindelay = 60, QueueSort sort = QueueSort.Newest, long queueId = 0)
         {
-            try
+            var queue = _dbConnection.QueryFirstOrDefault<DownloadQueue>("SELECT * FROM public.\"DownloadQueue_Check\"(@domaindelay, @domain, @feedId, @sort, @queueId)", 
+                new { domaindelay, domain, feedId, sort = (int)sort, queueId });
+            if (queue != null)
             {
-                var queue = _dbConnection.QueryFirstOrDefault<DownloadQueue>("SELECT * FROM public.\"DownloadQueue_Check\"(@domaindelay, @domain, @feedId, @sort, @queueId)", 
-                    new { domaindelay, domain, feedId, sort = (int)sort, queueId });
-                if (queue != null)
-                {
-                    queue.downloadRules = _dbConnection.Query<DownloadRule>("SELECT * FROM public.\"DownloadQueue_Check_DownloadRules\"(@queueId)", new { queueId = queue.qid }).ToList();
-                }
-                return queue;
+                queue.downloadRules = _dbConnection.Query<DownloadRule>("SELECT * FROM public.\"DownloadQueue_Check_DownloadRules\"(@queueId)", new { queueId = queue.qid }).ToList();
             }
-            catch (Exception ex)
-            {
-                // Handle exception as needed - could log here
-                return null;
-            }
+            return queue;
         }
 
         public int Count()
         {
             return _dbConnection.ExecuteScalar<int>("SELECT public.\"Downloads_GetCount\"()");
+        }
+
+        public IEnumerable<DownloadQueue> GetQueueList(string search, int status, string sort, int start, int length)
+        {
+            return _dbConnection.Query<DownloadQueue>("SELECT * FROM public.\"DownloadQueue_GetList\"(@search, @status, @sort, @start, @length)",
+                new { search, status, sort, start, length });
+        }
+
+        public int GetQueueCount(string search, int status)
+        {
+            return _dbConnection.ExecuteScalar<int>("SELECT public.\"DownloadQueue_GetCount\"(@search, @status)", new { search, status });
         }
 
         public void Delete(long qid)

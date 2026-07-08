@@ -47,6 +47,11 @@ namespace Collector.Data.Repositories
             return _dbConnection.QueryFirstOrDefault<Domain>("SELECT * FROM public.\"Domain_GetById\"(@domainId)", new { domainId });
         }
 
+        public Domain GetNextUnanalyzedDomain()
+        {
+            return _dbConnection.QueryFirstOrDefault<Domain>("SELECT * FROM public.\"Domains_GetNextUnanalyzed\"()");
+        }
+
         #endregion
 
         #region "Links"

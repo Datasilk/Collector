@@ -1,7 +1,7 @@
 CREATE OR REPLACE FUNCTION public."Feed_Add"
 (
     p_doctype INT DEFAULT 1,
-    p_categoryId INT,
+    p_categoryId INT DEFAULT 0,
     p_title VARCHAR(100) DEFAULT '',
     p_url VARCHAR(100) DEFAULT '',
     p_domain VARCHAR(64) DEFAULT '',

@@ -1,0 +1,70 @@
+.domain-modal .tab-content {
+    margin:10px -1.5em -1.5em -1.5em;
+    padding:2em 3em 3em 3em;
+    border-top: 1px solid var(--global-border);
+    background: var(--tabs-selected-bg);
+}
+
+.domain-info-tab .form-row,
+.domain-rules-tab .new-rule,
+.domain-download-rules-tab .new-rule,
+.domain-advanced-tab .advanced-section {
+    margin-bottom: 16px;
+}
+
+.domain-info-tab .form-row.two-col {
+    display: grid;
+    grid-template-columns: 25% 75%;
+    gap: 12px;
+}
+
+.domain-info-tab .form-row.three-col {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+.domain-info-tab .form-row.two-col > *,
+.domain-info-tab .form-row.three-col > * {
+    min-width: 0;
+}
+
+.domain-info-tab .form-row.flags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.domain-info-tab .form-row.meta {
+    display: flex;
+    gap: 16px;
+    font-size: 0.9em;
+    color: var(--global-text-muted);
+}
+
+.domain-info-tab .buttons {
+    text-align: right;
+    display:block;
+}
+
+.domain-advanced-tab .advanced-section h4 {
+    margin-bottom: 8px;
+}
+
+.domain-advanced-tab .advanced-section.danger button {
+    background: var(--error-text);
+}
+
+.domain-rules-tab .new-rule,
+.domain-download-rules-tab .new-rule {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.domain-rules-tab .new-rule input,
+.domain-download-rules-tab .new-rule input {
+    flex: 1;
+    min-width: 120px;
+}

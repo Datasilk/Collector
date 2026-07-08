@@ -8,5 +8,12 @@ CREATE TABLE IF NOT EXISTS public."ChatHistory"
     "Created" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "Status" INT NOT NULL DEFAULT 1 --0=deleted, 1=active
 );
-ALTER TABLE public."ChatHistory"
-    ADD CONSTRAINT "FK_ChatHistory_Chats" FOREIGN KEY ("ChatId") REFERENCES public."Chats"("Id");
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'FK_ChatHistory_Chats'
+    ) THEN
+        ALTER TABLE public."ChatHistory"
+            ADD CONSTRAINT "FK_ChatHistory_Chats" FOREIGN KEY ("ChatId") REFERENCES public."Chats"("Id");
+    END IF;
+END $$;

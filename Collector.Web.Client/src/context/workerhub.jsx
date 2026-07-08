@@ -72,7 +72,8 @@ const WorkerHubProvider = ({ children }) => {
                 });
 
                 // Auto-unsubscribe when complete or error
-                if (eventName === 'DownloadComplete' || eventName === 'DownloadError') {
+                if (eventName === 'DownloadComplete' || eventName === 'DownloadError' ||
+                    eventName === 'DomainAnalysisComplete' || eventName === 'DomainAnalysisError') {
                     handlersRef.current.delete(key);
                 }
             });
@@ -183,12 +184,21 @@ const WorkerHubProvider = ({ children }) => {
         await conn.invoke('ProgressAll', appUserId);
     }, [ensureConnection, session]);
 
+    const stop = useCallback(async (workerId) => {
+        const appUserId = session?.user?.appUserId;
+        if (!appUserId || !workerId) return;
+
+        const conn = await ensureConnection();
+        await conn.invoke('Stop', appUserId, workerId);
+    }, [ensureConnection, session]);
+
     const value = {
         call,
         getWorkers,
         subscribe,
         requestProgress,
-        progressAll
+        progressAll,
+        stop
     };
 
     return (

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
 //styles
 import '@/styles/admin/filter.css';
 import './page.css';
@@ -7,15 +6,14 @@ import './page.css';
 import Container from '@/components/admin/container';
 import Modal from '@/components/ui/modal';
 import Icon from '@/components/ui/icon';
-import Select from '@/components/forms/select';
 import Input from '@/components/forms/input';
+import Pager from '@/components/ui/pager';
 //context
 import { useSession } from '@/context/session';
 //api
 import { Blacklists } from '@/api/user/blacklists';
 //helpers
 import { handleSort, getSortIcon } from '@/helpers/format';
-import { localDateTime, printDate } from '@/helpers/datetime';
 import messages from '@/helpers/messages';
 
 /**
@@ -23,22 +21,18 @@ import messages from '@/helpers/messages';
  * <description>Displays and manages the list of blacklists in the admin panel.</description>
  */
 export default function AdminBlacklists() {
-    const navigate = useNavigate();
     const session = useSession();
     const { getDomainsList, getWildcardsList, removeDomain, removeWildcard } = Blacklists(session);
-    
-    const [blacklists, setBlacklists] = useState([]);
-    const [wildcards, setWildcards] = useState([]);
+
+    const [allBlacklists, setAllBlacklists] = useState([]);
+    const [filteredBlacklists, setFilteredBlacklists] = useState([]);
+    const [displayedBlacklists, setDisplayedBlacklists] = useState([]);
     const [showAdd, setShowAdd] = useState(false);
     const [searchName, setSearchName] = useState('');
-    const [statusFilters, setStatusFilters] = useState(0);
-    const [statusFiltersList, setStatusFiltersList] = useState([
-        { id: 0, name: 'All Statuses' },
-        { id: 1, name: 'Active' },
-        { id: 2, name: 'Inactive' }
-    ]);
     const [sort, setSort] = useState('Name ASC');
     const [deleteModal, setDeleteModal] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 100;
 
     useEffect(() => {
         // Fetch blacklists from API when component mounts
@@ -50,34 +44,24 @@ export default function AdminBlacklists() {
         getDomainsList().then(response => {
             if (response.data.success) {
                 const domains = response.data.data || [];
-                // Transform domains into a format suitable for display
                 const formattedDomains = domains.map((domain, index) => ({
-                    id: index + 1,
+                    id: 'domain-' + index,
                     name: domain,
-                    domainCount: 1,
-                    created: new Date().toISOString(), // API doesn't provide this info
-                    lastUpdated: new Date().toISOString(), // API doesn't provide this info
-                    status: 'Active',
                     type: 'domain'
                 }));
-                
+
                 // Get wildcards list
                 getWildcardsList().then(wildcardResponse => {
                     if (wildcardResponse.data.success) {
                         const wildcardDomains = wildcardResponse.data.data || [];
-                        // Transform wildcards into a format suitable for display
                         const formattedWildcards = wildcardDomains.map((domain, index) => ({
-                            id: domains.length + index + 1,
+                            id: 'wildcard-' + index,
                             name: domain,
-                            domainCount: 1, // Each wildcard counts as one entry
-                            created: new Date().toISOString(),
-                            lastUpdated: new Date().toISOString(),
-                            status: 'Active',
                             type: 'wildcard'
                         }));
-                        
+
                         // Combine domains and wildcards
-                        setBlacklists([...formattedDomains, ...formattedWildcards]);
+                        setAllBlacklists([...formattedDomains, ...formattedWildcards]);
                     }
                 }).catch(error => {
                     console.error('Error fetching wildcards:', error);
@@ -90,35 +74,41 @@ export default function AdminBlacklists() {
 
     useEffect(() => {
         filterBlacklists();
-    }, [searchName, statusFilters, sort]);
+    }, [searchName, sort, allBlacklists]);
+
+    useEffect(() => {
+        paginateBlacklists();
+    }, [filteredBlacklists, currentPage]);
 
     const filterBlacklists = () => {
-        // Since we're working with local data after fetching from API,
-        // we'll filter the data client-side
-        let filtered = [...blacklists];
-        
+        let filtered = [...allBlacklists];
+
         if (searchName) {
-            filtered = filtered.filter(blacklist => 
+            filtered = filtered.filter(blacklist =>
                 blacklist.name.toLowerCase().includes(searchName.toLowerCase())
             );
         }
-        
-        if (statusFilters !== 0) {
-            const status = statusFiltersList.find(s => s.id === statusFilters)?.name;
-            filtered = filtered.filter(blacklist => blacklist.status === status);
-        }
-        
-        // Sort logic
-        const [field, direction] = sort.split(' ');
+
         filtered.sort((a, b) => {
-            let comparison = 0;
-            if (a[field.toLowerCase()] < b[field.toLowerCase()]) comparison = -1;
-            if (a[field.toLowerCase()] > b[field.toLowerCase()]) comparison = 1;
-            return direction === 'ASC' ? comparison : -comparison;
+            const direction = sort.toLowerCase().endsWith(' desc') ? -1 : 1;
+            return a.name.localeCompare(b.name) * direction;
         });
-        
-        setBlacklists(filtered);
+
+        setFilteredBlacklists(filtered);
+        setCurrentPage(1);
     };
+
+    const paginateBlacklists = () => {
+        const start = (currentPage - 1) * pageSize;
+        const end = start + pageSize;
+        setDisplayedBlacklists(filteredBlacklists.slice(start, end));
+    };
+
+    const handlePageChange = (page) => {
+        setCurrentPage(page);
+    };
+
+    const totalPages = Math.ceil(filteredBlacklists.length / pageSize) || 1;
 
     const handleDelete = (blacklist) => {
         setDeleteModal(blacklist);
@@ -136,7 +126,7 @@ export default function AdminBlacklists() {
             
         deletePromise.then(response => {
             if (response.data.success) {
-                setBlacklists(blacklists.filter(item => item.id !== blacklist.id));
+                setAllBlacklists(allBlacklists.filter(item => item.id !== blacklist.id));
                 messages.success(`${blacklist.type === 'domain' ? 'Domain' : 'Wildcard'} removed successfully`);
             } else {
                 messages.error(`Failed to remove ${blacklist.type}`);
@@ -197,11 +187,6 @@ export default function AdminBlacklists() {
                         onInput={(e) => setSearchName(e.target.value)}
                         className="nameInput"
                     />
-                    <Select
-                        options={statusFiltersList.map(status => ({ value: status.id, label: status.name }))}
-                        value={statusFilters}
-                        onChange={(e) => setStatusFilters(e.target.value)}
-                    />
                 </div>
                 <table className="spreadsheet">
                     <thead>
@@ -209,55 +194,33 @@ export default function AdminBlacklists() {
                             <th onClick={() => setSort(handleSort('Name', sort))}>
                                 Name {getSortIcon('Name', sort) && <span className="material-symbols-rounded">{getSortIcon('Name', sort)}</span>}
                             </th>
-                            <th onClick={() => setSort(handleSort('DomainCount', sort))}>
-                                Domains {getSortIcon('DomainCount', sort) && <span className="material-symbols-rounded">{getSortIcon('DomainCount', sort)}</span>}
-                            </th>
-                            <th onClick={() => setSort(handleSort('Created', sort))}>
-                                Created {getSortIcon('Created', sort) && <span className="material-symbols-rounded">{getSortIcon('Created', sort)}</span>}
-                            </th>
-                            <th onClick={() => setSort(handleSort('LastUpdated', sort))}>
-                                Last Updated {getSortIcon('LastUpdated', sort) && <span className="material-symbols-rounded">{getSortIcon('LastUpdated', sort)}</span>}
-                            </th>
-                            <th onClick={() => setSort(handleSort('Status', sort))}>
-                                Status {getSortIcon('Status', sort) && <span className="material-symbols-rounded">{getSortIcon('Status', sort)}</span>}
+                            <th onClick={() => setSort(handleSort('Type', sort))}>
+                                Type {getSortIcon('Type', sort) && <span className="material-symbols-rounded">{getSortIcon('Type', sort)}</span>}
                             </th>
                             <th></th>
                         </tr>
                     </thead>
                     <tbody>
-                        {blacklists.map(blacklist =>
-                            <tr 
-                                key={blacklist.id} 
-                                onClick={(e) => {
-                                    // Prevent triggering if the event originated from action buttons
-                                    if (e.target.closest('a')) {
-                                        e.stopPropagation();
-                                        return;
-                                    }
-                                    navigate('/admin/blacklists/edit/' + blacklist.id);
-                                }}
+                        {displayedBlacklists.map(blacklist =>
+                            <tr
+                                key={blacklist.id}
                             >
                                 <td>{blacklist.name}</td>
-                                <td>{blacklist.domainCount}</td>
-                                <td>{blacklist.created ? printDate(localDateTime(new Date(blacklist.created))) : 'N/A'}</td>
-                                <td>{blacklist.lastUpdated ? printDate(localDateTime(new Date(blacklist.lastUpdated))) : 'N/A'}</td>
-                                <td>{blacklist.status}</td>
+                                <td>{blacklist.type === 'domain' ? 'Domain' : 'Wildcard'}</td>
                                 <td className="buttons">
-                                    <Link to={'/admin/blacklists/edit/' + blacklist.id} title="edit blacklist"><Icon name="edit_square"></Icon></Link>
-                                    <Link 
-                                        onClick={(e) => { 
-                                            e.preventDefault(); 
-                                            handleDelete(blacklist); 
-                                        }} 
-                                        title="delete blacklist"
-                                    >
+                                    <button className="icon" onClick={() => handleDelete(blacklist)} title="delete blacklist">
                                         <Icon name="delete"></Icon>
-                                    </Link>
+                                    </button>
                                 </td>
                             </tr>
                         )}
                     </tbody>
                 </table>
+                <Pager
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={handlePageChange}
+                />
             </Container>
         </div>
     );

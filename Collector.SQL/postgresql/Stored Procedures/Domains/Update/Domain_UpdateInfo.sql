@@ -1,8 +1,8 @@
 CREATE OR REPLACE FUNCTION public."Domain_UpdateInfo"
 (
     p_domainId INT DEFAULT 0,
-    p_title VARCHAR(128),
-    p_description VARCHAR(255),
+    p_title VARCHAR(128) DEFAULT '',
+    p_description VARCHAR(255) DEFAULT '',
     p_lang CHAR(2) DEFAULT 'en'
 )
 RETURNS VOID

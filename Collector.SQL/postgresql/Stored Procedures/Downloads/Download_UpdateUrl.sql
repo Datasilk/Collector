@@ -1,8 +1,8 @@
 CREATE OR REPLACE FUNCTION public."Download_UpdateUrl"
 (
     p_qId BIGINT DEFAULT 0,
-    p_url VARCHAR(250),
-    p_domain VARCHAR(250)
+    p_url VARCHAR(250) DEFAULT '',
+    p_domain VARCHAR(250) DEFAULT ''
 )
 RETURNS VOID
 LANGUAGE plpgsql

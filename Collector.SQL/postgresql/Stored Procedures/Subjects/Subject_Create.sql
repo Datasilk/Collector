@@ -3,7 +3,7 @@ CREATE OR REPLACE FUNCTION public."Subject_Create"
     p_parentId INT DEFAULT 0,
     p_grammartype INT DEFAULT 0,
     p_score INT DEFAULT 0,
-    p_title VARCHAR(50),
+    p_title VARCHAR(50) DEFAULT '',
     p_breadcrumb TEXT DEFAULT ''
 )
 RETURNS INT

@@ -1,4 +1,6 @@
-CREATE OR REPLACE FUNCTION public."Domain_GetInfo"
+DROP FUNCTION IF EXISTS public."Domain_GetInfo";
+
+CREATE FUNCTION public."Domain_GetInfo"
 (
     p_domain VARCHAR(64)
 )
@@ -14,7 +16,7 @@ AS $$
 BEGIN
     RETURN QUERY
     SELECT d.*,
-        (SELECT COUNT(*) FROM public."Articles" a WHERE a."domainId" = d."domainId") AS totalArticles,
+        (SELECT COUNT(*)::INT FROM public."Articles" a WHERE a."domainId" = d."domainId") AS totalArticles,
         CASE WHEN EXISTS(SELECT 1 FROM public."Whitelist_Domains" wl WHERE wl."domain" = p_domain) THEN 1 ELSE 0 END AS whitelisted,
         CASE WHEN EXISTS(SELECT 1 FROM public."Blacklist_Domains" bl WHERE bl."domain" = d."domain") THEN 1 ELSE 0 END AS blacklisted
     FROM public."Domains" d

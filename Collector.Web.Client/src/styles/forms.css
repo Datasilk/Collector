@@ -46,6 +46,10 @@ form .form-group,
     white-space:nowrap;
 }
 
+.form-group .form-field input.wide{
+    width:100%;
+}
+
 .form-group .note {
     color: var(--input-label);
     margin-bottom: 0.35rem;
