@@ -2,10 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import appRoutes from './app-routes-lazy';
 import adminRoutes from './admin-routes-lazy';
+import webRoutes from './web-routes-lazy';
 import journalRoutes from './journal-routes-lazy';
 
 import RootLayout from '@/layout';
 import AdminLayout from '@/app/admin/layout';
+import WebLayout from '@/app/web/layout';
 import JournalLayout from '@/app/journal/layout';
 
 const RouteElement = ({ path, Element, layout }) => {
@@ -28,6 +30,7 @@ export default function BaseRoutes() {
   return (<Routes>
     {appRoutes.map(route => RouteElement({...route, layout: RootLayout}))}
     {adminRoutes.map(route => RouteElement({...route, layout: AdminLayout}))}
+    {webRoutes.map(route => RouteElement({...route, layout: WebLayout}))}
     {journalRoutes.map(route => RouteElement({...route, layout: JournalLayout}))}
   </Routes>);
 };

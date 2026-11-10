@@ -529,6 +529,8 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         };
 
         const triggerHlsGeneration = async () => {
+            // HLS generation disabled
+            return;
             if (isGeneratingHls || !module.videoPath) return;
             
             // Check if a worker already exists for this video path
@@ -695,6 +697,8 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
 
     // Generate HLS playlist on demand
     const handleGenerateHls = async () => {
+        // HLS generation disabled
+        return;
         if (!module.videoId || isGeneratingHls) return;
 
         setIsGeneratingHls(true);

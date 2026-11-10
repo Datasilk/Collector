@@ -398,7 +398,7 @@ export default function EntryToolbar({
                         )}
                         <div className="right-side btn-settings">
                             <button className="icon" onClick={handleOpenSettings} ref={settingsButtonRef}>
-                                <Icon name="settings" />
+                                <Icon name="book_ribbon" />
                             </button>
                         </div>
                         <div className={`right-side entry-tools${showMobileEntryTools ? ' show-mobile' : ''}`} ref={entryToolsRef}>

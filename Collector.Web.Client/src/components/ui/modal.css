@@ -70,3 +70,25 @@
     padding-top:1em;
     text-align:right;
 }
+
+@media screen and (max-width: 700px) {
+    .modal {
+        padding-left: 0em;
+        padding-right: 0em;
+    }
+    .modal-title-bar h3 {
+        margin-left: 1em;
+    }
+    .modal-close-btn {
+        margin-right: 1em;
+    }
+    .modal .tabs-row{
+        padding-left:0em;
+        margin-top:0.5em;
+    }
+
+    .modal .tab-label{
+        margin:0.5em 0.15em 0 0;
+        vertical-align: top;
+    }
+}

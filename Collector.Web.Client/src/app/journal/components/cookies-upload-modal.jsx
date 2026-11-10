@@ -86,7 +86,7 @@ export default function CookiesUploadModal({ onClose, onSuccess }) {
 
         try {
             // Get cookies from Chrome Extension
-            const cookies = await getCookiesForDomain('youtube.com');
+            const cookies = await getCookiesForDomain('youtube.com', session);
             
             if (!cookies || cookies.length === 0) {
                 setError('No YouTube cookies found. Make sure you are logged into YouTube and the Chrome Extension is installed.');

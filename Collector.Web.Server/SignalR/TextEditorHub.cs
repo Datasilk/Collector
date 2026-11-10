@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.SignalR;
-using Collector.Common;
+using Collector.AI;
 
 namespace Collector.Web.Server.SignalR
 {
@@ -36,7 +36,7 @@ Keep the tone professional and informative.
                 string assistantPrompt = "";
 
                 // Generate content using the LLMs service
-                string generatedContent = await LLMs.Prompt(systemPrompt, assistantPrompt, prompt);
+                string generatedContent = await OpenAI.Prompt(systemPrompt, assistantPrompt, prompt);
                 
                 // Send the generated content back to the client
                 await Clients.Caller.SendAsync("ReceiveContent", generatedContent);

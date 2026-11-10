@@ -16,6 +16,7 @@ const Journals = (args) => Api({...args, useToken:true}).endpoints(({api}) => {
         
         // Journals
         getJournals: () => api.get(apiPath),
+        getArchivedJournals: () => api.get(`${apiPath}/archived`),
         getJournal: (id) => api.get(`${apiPath}/${id}`),
         getOrCreateCustomModulesJournal: () => api.get(`${apiPath}/custom-modules-journal`),
         addJournal: (journal) => api.post(`${apiPath}/add`, journal),

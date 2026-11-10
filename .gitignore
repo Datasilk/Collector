@@ -12,6 +12,7 @@ config.*.json
 RECOVER_*
 *.jfm
 Collector.SQL.Migrate
+deprecated
 
 
 # Build results

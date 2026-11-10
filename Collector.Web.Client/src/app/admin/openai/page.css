@@ -1,0 +1,29 @@
+.admin-openai .spreadsheet td {
+    cursor: pointer;
+}
+
+.admin-openai .spreadsheet .checkbox-cell {
+    width: 40px;
+    text-align: center;
+    cursor: default;
+}
+
+.admin-openai .spreadsheet .checkbox-cell input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.admin-openai .spreadsheet button.icon {
+    margin-right: 0.5rem;
+    vertical-align: middle;
+}
+
+.admin-openai .spreadsheet button.icon.favorite,
+.admin-openai .spreadsheet .tool-bar button.icon.favorite {
+    color: #f5b400;
+}
+
+.admin-openai .spreadsheet .tool-bar button.icon.favorite:hover {
+    border-color: #f5b400;
+}

@@ -41,19 +41,21 @@ if %ERRORLEVEL% EQU 0 (
 )
 
 REM Check for yt-dlp and always update to latest version
-where yt-dlp >nul 2>&1
-if %ERRORLEVEL% EQU 0 (
-    echo yt-dlp is already in PATH
+REM Note: check for the bundled exe FIRST - 'where' also searches the working
+REM directory (which IS TOOLS_DIR), so it would always find yt-dlp and skip updates
+if exist "%TOOLS_DIR%yt-dlp.exe" (
+    echo Updating yt-dlp to latest version...
+    "%TOOLS_DIR%yt-dlp.exe" --update
+    if !ERRORLEVEL! EQU 0 (
+        echo yt-dlp updated successfully
+    ) else (
+        echo yt-dlp update failed, downloading fresh copy...
+        powershell -Command "$ProgressPreference = 'SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe' -OutFile '%TOOLS_DIR%yt-dlp.exe'"
+    )
 ) else (
-    if exist "%TOOLS_DIR%yt-dlp.exe" (
-        echo Updating yt-dlp to latest version...
-        "%TOOLS_DIR%yt-dlp.exe" --update
-        if %ERRORLEVEL% EQU 0 (
-            echo yt-dlp updated successfully
-        ) else (
-            echo yt-dlp update failed, downloading fresh copy...
-            powershell -Command "$ProgressPreference = 'SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe' -OutFile '%TOOLS_DIR%yt-dlp.exe'"
-        )
+    where yt-dlp >nul 2>&1
+    if !ERRORLEVEL! EQU 0 (
+        echo yt-dlp is already in PATH
     ) else (
         echo Downloading yt-dlp...
         powershell -Command "$ProgressPreference = 'SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe' -OutFile '%TOOLS_DIR%yt-dlp.exe'"

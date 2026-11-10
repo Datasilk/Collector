@@ -246,6 +246,24 @@ namespace Collector.API.Controllers
             }
         }
 
+        [HttpGet("archived")]
+        public IActionResult GetArchivedJournals()
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var journals = _journalsRepository.GetArchivedByUserId(userId);
+                return Json(new ApiResponse { success = true, data = journals });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
         [HttpGet("custom-modules-journal")]
         public IActionResult GetOrCreateCustomModulesJournal()
         {

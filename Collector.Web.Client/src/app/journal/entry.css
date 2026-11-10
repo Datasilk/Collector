@@ -5,6 +5,7 @@
 
 .entry-content{
     padding:0 0.5em 0 0.5em;
+    width:100%;
 }
 
 /* Header styles */
@@ -52,6 +53,12 @@ body.scrolled .entry-header  .add-module-container{
 .tag-pointer .material-symbols-rounded{
     font-size:1.2em;
     cursor:default;
+}
+
+.module-text-editor{
+    text-overflow: ellipsis;
+    max-width:100vw;
+    overflow-y:hidden;
 }
 
 .info-toolbar{
@@ -1098,7 +1105,6 @@ body.scrolled .entry-header .add-module-container{
     background-color: var(--code-bg);
     padding: 0.1em 0.25em;
     border-radius: 0.25em;
-    user-select: none;
 }
 
 .entry-modules .pdf-viewer-container .pdf-page-viewport-content {
@@ -2750,13 +2756,14 @@ body:not(.is-mobile) .entry-tools .back-button,
     display:block;
     position:fixed;
     top:3.5em;
-    left:1em;
+    left:0;
     background-color:var(--container-bg);
     padding:1em;
     border-radius:0.5em;
     box-shadow:var(--container-shadow);
     z-index:200;
-    width:25em;
+    width:100%;
+    max-width:25em;
 }
 
 .is-mobile.scrolled .entry-tools.show-mobile{

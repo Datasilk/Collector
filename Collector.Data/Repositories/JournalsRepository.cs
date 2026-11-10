@@ -50,6 +50,14 @@ namespace Collector.Data.Repositories
                 new { appUserId, status });
         }
 
+        public List<Journal> GetArchivedByUserId(Guid appUserId)
+        {
+            return _dbConnection.Query<Journal>(@"SELECT * FROM public.""Journals"" 
+                WHERE ""AppUserId"" = @appUserId AND ""Status"" = 2
+                ORDER BY ""Title""", 
+                new { appUserId }).ToList();
+        }
+
         public void Rename(int journalId, string title)
         {
             _dbConnection.Execute(@"UPDATE public.""Journals"" 

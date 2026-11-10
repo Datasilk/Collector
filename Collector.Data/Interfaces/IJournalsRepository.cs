@@ -9,6 +9,7 @@ namespace Collector.Data.Interfaces
         List<Journal> GetAllByUserId(Guid appUserId, bool includeArchived = false);
         Journal GetById(int journalId);
         Journal GetByUserIdAndStatus(Guid appUserId, int status);
+        List<Journal> GetArchivedByUserId(Guid appUserId);
         void Rename(int journalId, string title);
         void ChangeColor(int journalId, string color);
         void ChangeCategory(int journalId, int categoryId);

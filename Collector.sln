@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.14.36121.58
+# Visual Studio Version 18
+VisualStudioVersion = 18.7.11919.86 stable
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{8EC462FD-D22E-90A8-E5CE-7E832BA40C5D}"
 	ProjectSection(SolutionItems) = preProject
@@ -30,6 +30,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Collector.Web.Server", "Collector.Web.Server\Collector.Web.Server.csproj", "{9EEF0FB5-B176-0B73-5DEE-7077583E2450}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Collector.Chat", "Collector.Chat\Collector.Chat.csproj", "{A7D9E3F2-4B8C-4D5A-9E1F-3C6B8D2E5A4F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Collector.AI", "Collector.AI\Collector.AI.csproj", "{A0CDE6A3-4C71-4480-B6B7-02B1F2336101}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Collector.Workers", "Collector.Workers\Collector.Workers.csproj", "{B99BE870-1032-4119-8195-D329DE816DB7}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -127,6 +131,22 @@ Global
 		{A7D9E3F2-4B8C-4D5A-9E1F-3C6B8D2E5A4F}.Release|Any CPU.Build.0 = Release|Any CPU
 		{A7D9E3F2-4B8C-4D5A-9E1F-3C6B8D2E5A4F}.Release|x64.ActiveCfg = Release|x64
 		{A7D9E3F2-4B8C-4D5A-9E1F-3C6B8D2E5A4F}.Release|x64.Build.0 = Release|x64
+		{A0CDE6A3-4C71-4480-B6B7-02B1F2336101}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A0CDE6A3-4C71-4480-B6B7-02B1F2336101}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A0CDE6A3-4C71-4480-B6B7-02B1F2336101}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A0CDE6A3-4C71-4480-B6B7-02B1F2336101}.Debug|x64.Build.0 = Debug|Any CPU
+		{A0CDE6A3-4C71-4480-B6B7-02B1F2336101}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A0CDE6A3-4C71-4480-B6B7-02B1F2336101}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A0CDE6A3-4C71-4480-B6B7-02B1F2336101}.Release|x64.ActiveCfg = Release|Any CPU
+		{A0CDE6A3-4C71-4480-B6B7-02B1F2336101}.Release|x64.Build.0 = Release|Any CPU
+		{B99BE870-1032-4119-8195-D329DE816DB7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B99BE870-1032-4119-8195-D329DE816DB7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B99BE870-1032-4119-8195-D329DE816DB7}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{B99BE870-1032-4119-8195-D329DE816DB7}.Debug|x64.Build.0 = Debug|Any CPU
+		{B99BE870-1032-4119-8195-D329DE816DB7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B99BE870-1032-4119-8195-D329DE816DB7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B99BE870-1032-4119-8195-D329DE816DB7}.Release|x64.ActiveCfg = Release|Any CPU
+		{B99BE870-1032-4119-8195-D329DE816DB7}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

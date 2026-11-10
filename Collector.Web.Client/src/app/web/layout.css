@@ -1,0 +1,91 @@
+.admin .body{
+  width:100%;
+  background-color: var(--global-bg);
+}
+
+.admin-form{padding:2em;}
+
+.submitting{text-align:right; padding:10px 10px 0 0;}
+
+.admin .sidebar {
+    width: 100%;
+    max-width: 13em;
+    background-color: var(--admin-header-bg);
+    color: var(--admin-header-text);
+    padding: 0.5em 0 0 0;
+    text-align: left;
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    height: fit-content;
+  }
+  
+  .admin .sidebar ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  
+  .admin .sidebar li {
+    white-space: nowrap;
+    font-size: 0.9em;
+    padding: 0;
+    margin: 0;
+  }
+  
+  .admin .sidebar li:hover {
+    background-color: var(--nav-menu-hover-bg);
+  }
+
+  .admin .sidebar li.selected,
+  .admin .sidebar li.selected:hover {
+    background-color: var(--button-bg);
+  }
+
+  .admin .sidebar li.selected a {
+    color: var(--button-text);
+  }
+  
+  .admin .sidebar li a {
+    padding: 0.8em 3em 0.8em 1.5em;
+    display: flex;
+    align-items: center;
+    color: var(--nav-menu-text);
+  }
+  
+  .admin .sidebar li .material-symbols-rounded {
+    margin: 0 0.7em 0 0;
+  }
+
+  .admin .filters{
+    padding:1em 0 0 1em;
+  }
+
+  .admin .filters .form-group{
+    padding-right:1em;
+  }
+
+/* mobile header & sidebar */
+
+.is-mobile .admin .sidebar {
+    display: none;
+}
+
+.is-mobile .admin .sidebar.show-mobile {
+    display: block;
+    position: fixed;
+    top: 3.5em;
+    left: 0;
+    width: 100%;
+    max-width: none;
+    max-height: calc(100vh - 3.5em);
+    z-index: 150;
+    background-color: var(--container-bg);
+    overflow-y: auto;
+    box-shadow: var(--container-shadow);
+}
+
+.is-mobile.scrolled .admin .sidebar.show-mobile {
+    top: 3em;
+    max-height: calc(100vh - 3em);
+}

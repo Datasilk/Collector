@@ -1,18 +1,13 @@
 using Microsoft.AspNetCore.SignalR;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
 using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.WebUtilities;
 using Collector.Common;
-using Collector.Common.Models;
+using Collector.AI;
 using Collector.Common.Models.JournalModules;
 using Collector.Data.Entities;
 using Collector.Data.Interfaces;
@@ -304,7 +299,7 @@ namespace Collector.Web.Server.SignalR
             _logger.LogInformation("First metadata attempt failed, requesting fresh cookies from extension for user {AppUserId}", appUserId);
             await Clients.Caller.SendAsync("ScrapeStatus", "Refreshing YouTube cookie...");
 
-            var freshCookies = await Workers.RequestCookiesFromClientAsync(appUserId, Guid.Empty, "youtube.com", CancellationToken.None);
+            var freshCookies = await Collector.Workers.SignalR.Workers.RequestCookiesFromClientAsync(appUserId, Guid.Empty, "youtube.com", CancellationToken.None);
             if (!string.IsNullOrEmpty(freshCookies))
             {
                 // Save fresh cookies to main cookie file
@@ -867,7 +862,7 @@ namespace Collector.Web.Server.SignalR
                             $"\n}}\n\n" +
                             $"Content:\n{contentForAnalysis}";
 
-                    var analysisJson = await Common.LLMs.Prompt(
+                    var analysisJson = await OpenAI.Prompt(
                         "You are a research assistant that analyzes YouTube transcripts and/or comments and organizes them into structured chapters. Be thorough and specific - " +
                         "identify ALL distinct topics, people, events, and things being discussed. Return only valid JSON with plain ASCII characters (no Unicode escape sequences). Return only the JSON, no additional text.",
                         "I will comprehensively analyze the content and return a valid JSON object with chapters for every distinct topic, person, event, or thing being discussed. I will use only plain ASCII characters and avoid Unicode escape sequences.",
@@ -1026,7 +1021,7 @@ namespace Collector.Web.Server.SignalR
                         try
                         {
 
-                            var chapterContent = await Common.LLMs.Prompt(
+                            var chapterContent = await OpenAI.Prompt(
                                 "You are a research writer creating detailed, informative content based on community discussions.",
                                 "I will write a thorough, well-structured chapter with multiple paragraphs using proper HTML formatting.",
                                 chapterPrompt
@@ -1117,7 +1112,7 @@ namespace Collector.Web.Server.SignalR
                     
                     try
                     {
-                        var content = await Common.LLMs.Prompt(
+                        var content = await OpenAI.Prompt(
                             "You are a research writer creating detailed, informative content based on YouTube content.",
                             "I will write thorough, well-structured content with multiple paragraphs using proper HTML formatting.",
                             contentPrompt

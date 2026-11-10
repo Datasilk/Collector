@@ -1,0 +1,14 @@
+CREATE TABLE IF NOT EXISTS public."LLM_Models"
+(
+    "modelId" SERIAL PRIMARY KEY,
+    "name" VARCHAR(128) NOT NULL,
+    "model" VARCHAR(128) NOT NULL,
+    "endpoint" VARCHAR(512) NOT NULL,
+    "privateKey" VARCHAR(1024) NOT NULL DEFAULT '',
+    "type" INT NOT NULL DEFAULT 1, -- 0 = local, 1 = cloud
+    "enabled" BOOLEAN NOT NULL DEFAULT FALSE,
+    "preferred" BOOLEAN NOT NULL DEFAULT FALSE,
+    "extraBody" TEXT NOT NULL DEFAULT '',
+    "datecreated" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "dateupdated" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

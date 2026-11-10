@@ -22,6 +22,7 @@
     <ProjectReference Include="..\Collector.Auth\Collector.Auth.csproj" />
     <ProjectReference Include="..\Collector.Common\Collector.Common.csproj" />
     <ProjectReference Include="..\Collector.Data\Collector.Data.csproj" />
+    <ProjectReference Include="..\Collector.AI\Collector.AI.csproj" />
   </ItemGroup>
 
 </Project>

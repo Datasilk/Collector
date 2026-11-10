@@ -1,0 +1,146 @@
+.account-container {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  min-height: calc(100vh - 200px);
+  padding: 2rem;
+}
+
+.account-card {
+  background: var(--container-bg);
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: var(--container-shadow);
+  width: 100%;
+  max-width: 500px;
+}
+
+.account-card h2 {
+  margin: 0 0 1.5rem;
+  font-family: Georgia, serif;
+  color: var(--global-text);
+  font-size: 1.75rem;
+  text-align: center;
+}
+
+.account-section {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--global-separator);
+}
+
+.account-section:last-of-type {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.account-section h3 {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  color: var(--global-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.account-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 0;
+}
+
+.account-row .label {
+  font-weight: 600;
+  color: var(--global-text);
+  min-width: 120px;
+}
+
+.account-row .value {
+  flex: 1;
+  color: var(--global-text-muted);
+  word-break: break-all;
+}
+
+.account-row .action {
+  margin-left: 1rem;
+}
+
+.account-card .form-group {
+  margin-bottom: 1rem;
+}
+
+.account-card .buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.account-card .buttons button {
+  padding: 0.625rem 1.25rem;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.account-card .buttons button.submit {
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  border: none;
+}
+
+.account-card .buttons button.submit:hover {
+  background-color: var(--button-hover-bg);
+}
+
+.account-card .buttons button.cancel {
+  background-color: var(--button-cancel-bg);
+  color: var(--button-cancel-text);
+  border: none;
+}
+
+.account-card .buttons button.cancel:hover {
+  background-color: var(--button-cancel-hover-bg);
+}
+
+.account-card .buttons button:active {
+  transform: translateY(1px);
+}
+
+.account-card .error-message {
+  background: var(--error-bg);
+  color: var(--error-text);
+  border: 1px solid var(--error-border);
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.account-card .success-message {
+  background: var(--status-active-bg);
+  color: var(--status-active-text);
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.account-logout {
+  text-align: center;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--global-separator);
+}
+
+.account-logout a {
+  color: var(--link-text);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.account-logout a:hover {
+  color: var(--link-hover-text);
+}

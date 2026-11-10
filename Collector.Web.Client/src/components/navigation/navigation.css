@@ -462,3 +462,36 @@ body.scrolled .nav-container .notification-dot {
   padding:0.25em 1em;
   gap:0.5em;
 }
+
+/* Sidebar mobile toggle button */
+.sidebar-mobile-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: var(--nav-text);
+  width: 2.5em;
+  height: 2.5em;
+  border-radius: 50%;
+  background: none;
+  border: none;
+  padding: 0;
+  margin:-0.5em 0 0 -0.5em;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.sidebar-mobile-toggle:hover {
+  background-color: var(--nav-menu-hover-bg);
+}
+
+.sidebar-mobile-toggle .material-icons,
+.sidebar-mobile-toggle svg {
+  font-size: 1.5rem;
+  color: var(--nav-text);
+}
+
+body:not(.is-mobile) .sidebar-mobile-toggle {
+  display: none;
+}

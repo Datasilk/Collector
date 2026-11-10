@@ -206,6 +206,8 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
         });
         //re-attach secret content event listeners
         const secrets = elem.querySelectorAll('.secret-content');
+        console.log(secrets);
+        let timestart = null;
         secrets.forEach(secret => {
             // Store the actual text in a data attribute and replace with asterisks
             if (!secret.hasAttribute('data-secret-text')) {
@@ -213,9 +215,16 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                 secret.setAttribute('data-secret-text', actualText);
                 secret.textContent = '*'.repeat(actualText.length);
             }
+            console.log('found secret', secret);
+
+            secret.addEventListener('mousedown', (e) => {
+                timestart = Date.now();
+            });
             
-            secret.onclick = (e) => {
+            secret.addEventListener('click', (e) => {
+                console.log('clicked secret');
                 e.preventDefault();
+                if(Date.now() - timestart > 100){return;}
                 const target = e.target;
                 const actualText = target.getAttribute('data-secret-text');
                 
@@ -226,7 +235,7 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
                     // Currently hidden, show it
                     target.textContent = actualText;
                 }
-            };
+            });
         });
         removeEditorEventListeners();
         addEditorEventListeners();

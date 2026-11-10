@@ -1,18 +1,17 @@
 using System.Data;
 using System.Reflection;
+using System.Net.NetworkInformation;
 using Serilog;
 using Serilog.Events;
 using Collector.Common;
 using Collector.Auth.Services;
 using Collector.API.Services;
-using Collector.Web.Server.Workers;
-using Microsoft.AspNetCore.SignalR;
-
-using Microsoft.AspNetCore.Http.Features;
 using Collector.Web.Server.SignalR;
+using Collector.Workers;
+using Collector.Workers.SignalR;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.StaticFiles;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -120,44 +119,38 @@ builder.Services.AddSwaggerGen(e =>
     e.SchemaFilter<Collector.API.Swagger.EnumSchemaFilter>();
 });
 
-//load LLM keys
-foreach (var llm in Collector.Common.LLMs.Available)
-{
-    llm.Value.PrivateKey = builder.Configuration["LLM:" + llm.Key + ":PrivateKey"] ?? "";
-}
-
 // Configure Ollama for local LLM reasoning
-LLMOllama.Url = builder.Configuration["Ollama:Url"] ?? "http://localhost:11434";
-LLMOllama.Model = builder.Configuration["Ollama:Model"] ?? "qwen2.5:0.5b";
-LLMOllama.UseGpu = builder.Configuration.GetValue<bool>("Ollama:UseGpu", false);
-LLMOllama.NumGpu = builder.Configuration.GetValue<int>("Ollama:NumGpu", 1);
-LLMOllama.ContextSize = builder.Configuration.GetValue<int>("Ollama:ContextSize", 2048); //2048 (96MB), 4096 (192MB), 8192 (384MB), or 32768 (1.5GB)
-LLMOllama.Temperature = builder.Configuration.GetValue<float>("Ollama:Temperature", 0.7f);
-LLMOllama.AutoPullModel = builder.Configuration.GetValue<bool>("Ollama:AutoPullModel", true);
+Collector.AI.Ollama.Config.Url = builder.Configuration["Ollama:Url"] ?? "http://localhost:11434";
+Collector.AI.Ollama.Config.Model = builder.Configuration["Ollama:Model"] ?? "qwen2.5:0.5b";
+Collector.AI.Ollama.Config.UseGpu = builder.Configuration.GetValue<bool>("Ollama:UseGpu", false);
+Collector.AI.Ollama.Config.NumGpu = builder.Configuration.GetValue<int>("Ollama:NumGpu", 1);
+Collector.AI.Ollama.Config.ContextSize = builder.Configuration.GetValue<int>("Ollama:ContextSize", 2048); //2048 (96MB), 4096 (192MB), 8192 (384MB), or 32768 (1.5GB)
+Collector.AI.Ollama.Config.Temperature = builder.Configuration.GetValue<float>("Ollama:Temperature", 0.7f);
+Collector.AI.Ollama.Config.AutoPullModel = builder.Configuration.GetValue<bool>("Ollama:AutoPullModel", true);
 
-builder.Services.AddSingleton(sp => new OllamaSharp.OllamaApiClient(LLMOllama.Url));
+builder.Services.AddSingleton(sp => new OllamaSharp.OllamaApiClient(Collector.AI.Ollama.Config.Url));
 
 Console.WriteLine($"Ollama Configuration:");
-Console.WriteLine($"  URL: {LLMOllama.Url}");
-Console.WriteLine($"  Model: {LLMOllama.Model}");
-Console.WriteLine($"  GPU: {(LLMOllama.UseGpu ? $"Enabled ({LLMOllama.NumGpu} GPU(s))" : "Disabled")}");
-Console.WriteLine($"  Context Size: {LLMOllama.ContextSize}");
-Console.WriteLine($"  Temperature: {LLMOllama.Temperature}");
+Console.WriteLine($"  URL: {Collector.AI.Ollama.Config.Url}");
+Console.WriteLine($"  Model: {Collector.AI.Ollama.Config.Model}");
+Console.WriteLine($"  GPU: {(Collector.AI.Ollama.Config.UseGpu ? $"Enabled ({Collector.AI.Ollama.Config.NumGpu} GPU(s))" : "Disabled")}");
+Console.WriteLine($"  Context Size: {Collector.AI.Ollama.Config.ContextSize}");
+Console.WriteLine($"  Temperature: {Collector.AI.Ollama.Config.Temperature}");
 
-if (LLMOllama.AutoPullModel)
+if (Collector.AI.Ollama.Config.AutoPullModel)
 {
     try
     {
-        var tempOllama = new OllamaSharp.OllamaApiClient(LLMOllama.Url);
+        var tempOllama = new OllamaSharp.OllamaApiClient(Collector.AI.Ollama.Config.Url);
         var models = await tempOllama.ListLocalModelsAsync();
 
         // Check and pull main chat model
-        var modelExists = models.Any(m => m.Name == LLMOllama.Model);
+        var modelExists = models.Any(m => m.Name == Collector.AI.Ollama.Config.Model);
         if (!modelExists)
         {
-            Console.WriteLine($"\n{LLMOllama.Model} model not found. Pulling from Ollama...");
+            Console.WriteLine($"\n{Collector.AI.Ollama.Config.Model} model not found. Pulling from Ollama...");
             Console.WriteLine("This may take several minutes depending on your connection...");
-            var pullRequest = new OllamaSharp.Models.PullModelRequest { Model = LLMOllama.Model };
+            var pullRequest = new OllamaSharp.Models.PullModelRequest { Model = Collector.AI.Ollama.Config.Model };
             await foreach (var status in tempOllama.PullModelAsync(pullRequest))
             {
                 if (status?.Status != null)
@@ -165,11 +158,11 @@ if (LLMOllama.AutoPullModel)
                     Console.WriteLine($"  {status.Status}");
                 }
             }
-            Console.WriteLine($"{LLMOllama.Model} model pulled successfully.\n");
+            Console.WriteLine($"{Collector.AI.Ollama.Config.Model} model pulled successfully.\n");
         }
         else
         {
-            Console.WriteLine($"{LLMOllama.Model} model is already available.\n");
+            Console.WriteLine($"{Collector.AI.Ollama.Config.Model} model is already available.\n");
         }
 
         // Check and pull embedding model for RAG
@@ -195,7 +188,7 @@ if (LLMOllama.AutoPullModel)
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"\n⚠️  WARNING: Could not connect to Ollama at {LLMOllama.Url}");
+        Console.WriteLine($"\n⚠️  WARNING: Could not connect to Ollama at {Collector.AI.Ollama.Config.Url}");
         Console.WriteLine($"Error: {ex.Message}\n");
         Console.WriteLine("To use the AI chat feature, you need to:");
         Console.WriteLine("1. Download Ollama from: https://ollama.ai/download");
@@ -309,6 +302,42 @@ catch (Exception ex)
     Console.WriteLine($"Warning: Failed to reset PostgreSQL sequences: {ex.Message}");
 }
 
+// Load enabled LLM models from PostgreSQL into the OpenAI registry
+try
+{
+    using var scope = app.Services.CreateScope();
+    var llmRepo = scope.ServiceProvider.GetRequiredService<Collector.Data.Interfaces.ILLMModelsRepository>();
+    var models = llmRepo.GetAll();
+    foreach (var model in models)
+    {
+        if (!model.Enabled) continue;
+        Collector.AI.OpenAI.AddModel(new Collector.AI.Models.LLMModel
+        {
+            ModelId = model.ModelId,
+            Name = model.Name,
+            Model = model.Model,
+            Endpoint = model.Endpoint,
+            PrivateKey = model.PrivateKey,
+            Type = model.Type,
+            Enabled = model.Enabled,
+            Preferred = model.Preferred,
+            ExtraBody = string.IsNullOrWhiteSpace(model.ExtraBody)
+                ? new System.Collections.Generic.Dictionary<string, object>()
+                : System.Text.Json.JsonSerializer.Deserialize<System.Collections.Generic.Dictionary<string, object>>(model.ExtraBody)
+        });
+    }
+    var preferred = models.FirstOrDefault(m => m.Enabled && m.Preferred);
+    if (preferred != null)
+    {
+        Collector.AI.OpenAI.PreferredModel = preferred.ModelId;
+    }
+    Console.WriteLine($"Loaded {Collector.AI.OpenAI.Available.Count} enabled LLM model(s) from PostgreSQL.");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Warning: Failed to load LLM models from PostgreSQL: {ex.Message}");
+}
+
 // Map SignalR hubs BEFORE static files and controllers
 app.MapHub<TextEditorHub>("/text-editor");
 app.MapHub<VideoHub>("/video-download");
@@ -346,15 +375,53 @@ Console.WriteLine(
         .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
         ?.InformationalVersion.Split("+")[0] ?? "unknown");
 
-// Display all URLs the server is listening on
-var addresses = app.Urls;
-if (addresses.Any())
+// Display all available IP addresses
+Console.WriteLine("\nAvailable IP addresses:");
+foreach (var networkInterface in NetworkInterface.GetAllNetworkInterfaces())
 {
-    Console.WriteLine("\nListening on:");
-    foreach (var address in addresses)
+    if (networkInterface.OperationalStatus == OperationalStatus.Up)
     {
-        Console.WriteLine($"  {address}");
+        var ipProperties = networkInterface.GetIPProperties();
+        foreach (var unicastAddress in ipProperties.UnicastAddresses)
+        {
+            if (unicastAddress.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+            {
+                Console.WriteLine($"  {unicastAddress.Address} ({networkInterface.Description})");
+            }
+        }
     }
 }
+
+// Display all URLs the server is listening on
+var urls = builder.Configuration.GetSection("Urls").Value;
+if (!string.IsNullOrEmpty(urls))
+{
+    Console.WriteLine("\nListening on:");
+    foreach (var url in urls.Split(';'))
+    {
+        Console.WriteLine($"  {url}");
+    }
+}
+else
+{
+    // Fallback to checking ASPNETCORE_URLS environment variable
+    var aspnetUrls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
+    if (!string.IsNullOrEmpty(aspnetUrls))
+    {
+        Console.WriteLine("\nListening on:");
+        foreach (var url in aspnetUrls.Split(';'))
+        {
+            Console.WriteLine($"  {url}");
+        }
+    }
+    else
+    {
+        // Default fallback
+        Console.WriteLine("\nListening on:");
+        Console.WriteLine("  http://0.0.0.0:7780");
+        Console.WriteLine("  https://0.0.0.0:7781");
+    }
+}
+
 
 app.Run();

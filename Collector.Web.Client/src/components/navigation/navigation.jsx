@@ -9,6 +9,7 @@ import workers from './workers';
 import { useSession } from '@/context/session';
 import { useWorkerHub } from '@/context/workerhub';
 import { useTheme } from '@/context/theme';
+import { useNavigationContext } from '@/context/navigation';
 
 const Navigation = () => {
   //context
@@ -17,6 +18,7 @@ const Navigation = () => {
   const { user, logout } = useSession();
   const { getWorkers, progressAll, subscribe } = useWorkerHub();
   const { theme, toggleTheme } = useTheme();
+  const { onToggleSidebar } = useNavigationContext();
 
   //state
   const [section, setSection] = useState('');
@@ -132,6 +134,11 @@ const Navigation = () => {
   return (
     <nav className="nav-container">
       <div className="nav-left">
+        {onToggleSidebar && (
+          <button className="sidebar-mobile-toggle" onClick={onToggleSidebar}>
+            <Icon name="menu" />
+          </button>
+        )}
         <svg className="logo" viewBox="0 0 550 130">
           <use href="#logo" />
         </svg>
@@ -146,6 +153,7 @@ const Navigation = () => {
             {(user.isAdmin) && <>
               <Link to="/admin" className={'nav-link' + (section == 'admin' ? ' selected' : '')}>Administration</Link>
             </>}
+            <Link to="/web" className={'nav-link' + (section == 'web' ? ' selected' : '')}>Web</Link>
             <Link to="/journal" className={'nav-link' + (section == 'journal' ? ' selected' : '')}>Journal</Link>
             <a href="#" title="Notifications" className="notifications-icon" onClick={handleNotificationsClick}>
               <Icon name="notifications" />
@@ -167,6 +175,9 @@ const Navigation = () => {
               {(user.isAdmin) && <>
                 <li className="user-menu-item show-mobile-only">
                   <Link to="/admin"><Icon name="admin_panel_settings" /> Administration</Link>
+                </li>
+                <li className="user-menu-item show-mobile-only">
+                  <Link to="/web"><Icon name="public" /> Web</Link>
                 </li>
               </>}
               <li className="user-menu-item show-mobile-only">

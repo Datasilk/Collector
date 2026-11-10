@@ -36,15 +36,25 @@
   .admin .sidebar li:hover {
     background-color: var(--nav-menu-hover-bg);
   }
+
+  .admin .sidebar li.selected,
+  .admin .sidebar li.selected:hover {
+    background-color: var(--button-bg);
+  }
+
+  .admin .sidebar li.selected a {
+    color: var(--button-text);
+  }
   
   .admin .sidebar li a {
     padding: 0.8em 3em 0.8em 1.5em;
-    display: inline-block;
+    display: flex;
+    align-items: center;
     color: var(--nav-menu-text);
   }
   
   .admin .sidebar li .material-symbols-rounded {
-    margin: -0.15em 0.7em 0 0;
+    margin: 0 0.7em 0 0;
   }
 
   .admin .filters{
@@ -54,3 +64,28 @@
   .admin .filters .form-group{
     padding-right:1em;
   }
+
+/* mobile header & sidebar */
+
+.is-mobile .admin .sidebar {
+    display: none;
+}
+
+.is-mobile .admin .sidebar.show-mobile {
+    display: block;
+    position: fixed;
+    top: 3.5em;
+    left: 0;
+    width: 100%;
+    max-width: none;
+    max-height: calc(100vh - 3.5em);
+    z-index: 150;
+    background-color: var(--container-bg);
+    overflow-y: auto;
+    box-shadow: var(--container-shadow);
+}
+
+.is-mobile.scrolled .admin .sidebar.show-mobile {
+    top: 3em;
+    max-height: calc(100vh - 3em);
+}

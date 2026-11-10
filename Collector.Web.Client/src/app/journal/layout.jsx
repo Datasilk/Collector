@@ -26,6 +26,7 @@ export default function JournalLayout({ children }) {
     const [isAuth, setAuth] = useState(null);
     const [mounted, setMounted] = useState(false);
     const [categories, setCategories] = useState([]);
+    const [archivedJournals, setArchivedJournals] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [editingCategoryId, setEditingCategoryId] = useState(null);
@@ -69,6 +70,7 @@ export default function JournalLayout({ children }) {
             } else {
                 setAuth(true);
                 fetchCategories();
+                fetchArchivedJournals();
                 loadToggleStates();
             }
         }
@@ -140,6 +142,7 @@ export default function JournalLayout({ children }) {
         Journals(session).getCategories().then(response => {
             if (response.data && response.data.success) {
                 setCategories(response.data.data);
+                fetchArchivedJournals();
             } else {
                 setError(response.data?.message || 'Failed to load categories');
             }
@@ -162,6 +165,17 @@ export default function JournalLayout({ children }) {
             console.error('Error fetching categories:', err);
         }).finally(() => {
             setLoading(false);
+        });
+    };
+
+    // Fetch archived journals
+    const fetchArchivedJournals = () => {
+        Journals(session).getArchivedJournals().then(response => {
+            if (response.data && response.data.success) {
+                setArchivedJournals(response.data.data || []);
+            }
+        }).catch(err => {
+            console.error('Error fetching archived journals:', err);
         });
     };
 
@@ -553,6 +567,47 @@ export default function JournalLayout({ children }) {
                                             </div>
                                         </TreeView>
                                     ))
+                                )}
+
+                                {archivedJournals.length > 0 && (
+                                    <TreeView
+                                        key="archived-journals"
+                                        defaultOpen={false}
+                                        label={
+                                            <span className="archived-label">
+                                                <Icon name="inventory_2"></Icon>Archived
+                                            </span>
+                                        }
+                                        className="treeview-category archived-category"
+                                    >
+                                        <div className="tree-view-scrollable">
+                                            {archivedJournals.map(journal => (
+                                                <div
+                                                    key={`archived-journal-${journal.id}`}
+                                                    className={"treeview-journal" + (journalId == journal.id ? ' selected' : '')}
+                                                >
+                                                    <div className="tree-view-header">
+                                                        <div className="tree-view-toggle">
+                                                            <span className="tree-view-spacer"></span>
+                                                        </div>
+                                                        <div
+                                                            className="tree-view-label"
+                                                            onClick={() => {
+                                                                if (document.body.classList.contains('is-mobile')) {
+                                                                    document.querySelector('.sidebar').classList.remove('show-mobile');
+                                                                }
+                                                                saveSelectedJournal(journal.id);
+                                                            }}
+                                                        >
+                                                            <Link to={`/journal/${journal.id}`} className="tree-view-link">
+                                                                <span>{journal.title}</span>
+                                                            </Link>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </TreeView>
                                 )}
 
                                 <div className="tool-bar">

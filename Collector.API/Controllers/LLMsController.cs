@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Collector.API.Models;
-using Collector.Common;
 
 namespace Collector.API.Controllers
 {
@@ -18,7 +17,7 @@ namespace Collector.API.Controllers
         {
             try
             {
-                var llms = LLMs.Available.Select(kvp => new
+                var llms = Collector.AI.OpenAI.Available.Select(kvp => new
                 {
                     key = kvp.Key.ToString(),
                     model = kvp.Value.Model,

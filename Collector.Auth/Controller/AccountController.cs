@@ -37,37 +37,62 @@ namespace Collector.Auth.Controller
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody]LoginCredentials loginUser)
         {
-            var result = await _authService.Authenticate(loginUser.Username, loginUser.Password, IPAddress);
-            switch (result.ResponseCode)
+            Console.WriteLine($"[AUTH] Login attempt - Username: {loginUser?.Username}, IP: {IPAddress}");
+            try
             {
-                case AuthenticationResponseCode.LocalSuccess:
-                case AuthenticationResponseCode.RemoteSuccess:
-                    {
-                        var refreshToken = await _authService.GenerateRefreshToken(IPAddress, AppUserId: result.UserId, SpecialUser: result.SpecialUserName);
-						
-                        return Ok(new { success = true, data = new
+                var result = await _authService.Authenticate(loginUser.Username, loginUser.Password, IPAddress);
+                Console.WriteLine($"[AUTH] Login result - ResponseCode: {result.ResponseCode}, UserId: {result.UserId}");
+                switch (result.ResponseCode)
+                {
+                    case AuthenticationResponseCode.LocalSuccess:
+                    case AuthenticationResponseCode.RemoteSuccess:
                         {
-                            appUserId = result.UserId,
-                            displayName = result.DisplayName != "" ? result.DisplayName : result.Email.Split("@")[0],
-                            token = result.JwtToken,
-                            refreshToken = refreshToken.Token,
-                            roles = result.Roles
-                        } });
-                    }
-                case AuthenticationResponseCode.AccountLocked:
-                    return Ok(new { success = false, message = "Your account has been locked. Too many invalid login attempts." });
-                default:
-                    return Ok(new { success = false, message = "Invalid username and/or password." });
-            }    
+                            var refreshToken = await _authService.GenerateRefreshToken(IPAddress, AppUserId: result.UserId, SpecialUser: result.SpecialUserName);
+                            Console.WriteLine($"[AUTH] Login successful - UserId: {result.UserId}, DisplayName: {result.DisplayName}");
+                            return Ok(new { success = true, data = new
+                            {
+                                appUserId = result.UserId,
+                                displayName = result.DisplayName != "" ? result.DisplayName : result.Email.Split("@")[0],
+                                token = result.JwtToken,
+                                refreshToken = refreshToken.Token,
+                                roles = result.Roles
+                            } });
+                        }
+                    case AuthenticationResponseCode.AccountLocked:
+                        Console.WriteLine($"[AUTH] Account locked - Username: {loginUser?.Username}");
+                        return Ok(new { success = false, message = "Your account has been locked. Too many invalid login attempts." });
+                    default:
+                        Console.WriteLine($"[AUTH] Invalid credentials - Username: {loginUser?.Username}");
+                        return Ok(new { success = false, message = "Invalid username and/or password." });
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[AUTH] Login exception - Username: {loginUser?.Username}, Error: {ex.Message}, StackTrace: {ex.StackTrace}");
+                return Ok(new { success = false, message = "An error occurred during login. Please contact support." });
+            }
         }
 
         [HttpPost("refresh-token")]
         public async Task<IActionResult> RefreshToken([FromBody]RefreshToken refreshtoken)
         {
-            var result = await _authService.RefreshUserToken(refreshtoken.Token, IPAddress);
-            if (string.IsNullOrEmpty(result))
-                return Ok(new { success = false, message = "RefreshToken is invalid" });
-            return Ok(new { success = true, data = new { token = result } });
+            Console.WriteLine($"[AUTH] RefreshToken attempt - IP: {IPAddress}");
+            try
+            {
+                var result = await _authService.RefreshUserToken(refreshtoken.Token, IPAddress);
+                if (string.IsNullOrEmpty(result))
+                {
+                    Console.WriteLine($"[AUTH] RefreshToken failed - Invalid token");
+                    return Ok(new { success = false, message = "RefreshToken is invalid" });
+                }
+                Console.WriteLine($"[AUTH] RefreshToken successful");
+                return Ok(new { success = true, data = new { token = result } });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[AUTH] RefreshToken exception - Error: {ex.Message}, StackTrace: {ex.StackTrace}");
+                return Ok(new { success = false, message = "An error occurred during token refresh. Please contact support." });
+            }
         }
 
         [HttpGet("check-auth")]
@@ -176,40 +201,55 @@ namespace Collector.Auth.Controller
 			return Ok(new { success = false, msg = "Invalid email address." });
 		}
 
-		[HttpPost("email-auth")]
-		public async Task<IActionResult> EmailVerify([FromBody] EmailAuth emailAuthHash)
-		{
-			var user = await _authService.EmailAuthToken(emailAuthHash.Token);
-			if (user != null)
+        [HttpPost("email-auth")]
+        public async Task<IActionResult> EmailVerify([FromBody] EmailAuth emailAuthHash)
+        {
+            Console.WriteLine($"[AUTH] EmailVerify attempt - Token: {emailAuthHash?.Token?.Substring(0, Math.Min(10, emailAuthHash.Token?.Length ?? 0))}...");
+            try
             {
-				var result = await _authService.AuthenticateOneTimeEmailLogin(user);
-				switch (result.ResponseCode)
-				{
-					case AuthenticationResponseCode.LocalSuccess:
-					case AuthenticationResponseCode.RemoteSuccess:
-						{
-							var refreshToken = await _authService.GenerateRefreshToken(IPAddress, AppUserId: result.UserId, SpecialUser: result.SpecialUserName);
-							int? districtId = null;
-							return Ok(new
-							{
-								success = true,
-								data = new
-								{
-									token = result.JwtToken,
-									refreshToken = refreshToken.Token,
-									displayName = result.DisplayName,
-									email = result.Email,
-									districtId,
-								}
-							});
-						}
-					case AuthenticationResponseCode.AccountLocked:
-						return Ok(new { success = false, message = "Your account has been locked. Too many invalid login attempts." });
-					default:
-						return Ok(new { success = false, message = "Invalid username and/or password." });
-				}
-			}
-            return Ok(new { success = false, message = "Invalid token." });
+                var user = await _authService.EmailAuthToken(emailAuthHash.Token);
+                if (user != null)
+                {
+                    Console.WriteLine($"[AUTH] EmailVerify - User found: {user.Email}");
+                    var result = await _authService.AuthenticateOneTimeEmailLogin(user);
+                    Console.WriteLine($"[AUTH] EmailVerify - Auth result: {result.ResponseCode}");
+                    switch (result.ResponseCode)
+                    {
+                        case AuthenticationResponseCode.LocalSuccess:
+                        case AuthenticationResponseCode.RemoteSuccess:
+                            {
+                                var refreshToken = await _authService.GenerateRefreshToken(IPAddress, AppUserId: result.UserId, SpecialUser: result.SpecialUserName);
+                                int? districtId = null;
+                                Console.WriteLine($"[AUTH] EmailVerify successful - UserId: {result.UserId}");
+                                return Ok(new
+                                {
+                                    success = true,
+                                    data = new
+                                    {
+                                        token = result.JwtToken,
+                                        refreshToken = refreshToken.Token,
+                                        displayName = result.DisplayName,
+                                        email = result.Email,
+                                        districtId,
+                                    }
+                                });
+                            }
+                        case AuthenticationResponseCode.AccountLocked:
+                            Console.WriteLine($"[AUTH] EmailVerify - Account locked: {user.Email}");
+                            return Ok(new { success = false, message = "Your account has been locked. Too many invalid login attempts." });
+                        default:
+                            Console.WriteLine($"[AUTH] EmailVerify - Invalid credentials: {user.Email}");
+                            return Ok(new { success = false, message = "Invalid username and/or password." });
+                    }
+                }
+                Console.WriteLine($"[AUTH] EmailVerify - Invalid token");
+                return Ok(new { success = false, message = "Invalid token." });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[AUTH] EmailVerify exception - Error: {ex.Message}, StackTrace: {ex.StackTrace}");
+                return Ok(new { success = false, message = "An error occurred during email authentication. Please contact support." });
+            }
         }
 
         #region "Helpers"

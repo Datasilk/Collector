@@ -10,6 +10,7 @@ import Navigation from '@/components/navigation/navigation';
 import Icon from '@/components/ui/icon';
 //context
 import { useSession } from '@/context/session';
+import { NavigationProvider } from '@/context/navigation';
 
 export default function AdminLayout({ children }) {
     const navigate = useNavigate();
@@ -48,40 +49,63 @@ export default function AdminLayout({ children }) {
         navigate('/login');
     }
 
+    const handleToggleSidebar = () => {
+        const target = document.querySelector('.admin > .sidebar');
+        const showing = target.className.includes('show-mobile');
+        if (!showing) {
+            target.classList.add('show-mobile');
+            document.addEventListener('mousedown', handleMouseDownSidebar);
+        } else {
+            target.classList.remove('show-mobile');
+            document.removeEventListener('mousedown', handleMouseDownSidebar);
+        }
+    }
+
+    const handleMouseDownSidebar = (e) => {
+        let target = e.target;
+        while (target) {
+            const classes = target.classList;
+            if (classes?.contains('admin')) {
+                document.removeEventListener('mousedown', handleMouseDownSidebar);
+                const sidebar = document.querySelector('.admin > .sidebar');
+                sidebar.classList.remove('show-mobile');
+                return;
+            };
+            if (classes?.contains('sidebar-mobile-toggle') || classes?.contains('sidebar')) return;
+            target = target.parentNode;
+        }
+    }
+
     const MenuItem = ({ label, path, url, icon, onClick }) => {
         return <li className={section == path ? 'selected' : ''}><Link to={url} onClick={onClick}><Icon name={icon}></Icon>{label}</Link></li>
     }
 
     return (
-        <div className={"app-container " + pathClassName}>
-            <header className="main-header">
-                <Navigation />
-            </header>
-            {isAuth && user?.isAdmin ?
-                <main className="admin has-sidebar">
-                    <div className='sidebar'>
-                        <ul>
-                            <MenuItem label="Domains" path="domains" url="/admin/domains" icon="domain"></MenuItem>
-                            <MenuItem label="Downloads" path="downloads" url="/admin/downloads" icon="download"></MenuItem>
-                            <MenuItem label="Articles" path="articles" url="/admin/articles" icon="article"></MenuItem>
-                            <MenuItem label="Feeds" path="feeds" url="/admin/feeds" icon="rss_feed"></MenuItem>
-                            <MenuItem label="Subjects" path="subjects" url="/admin/subjects" icon="graph_2"></MenuItem>
-                            <MenuItem label="Blacklists" path="blacklists" url="/admin/blacklists" icon="block"></MenuItem>
-                            <MenuItem label="Whitelists" path="whitelists" url="/admin/whitelists" icon="beenhere"></MenuItem>
-                            <MenuItem label="Users" path="users" url="/admin/users" icon="group"></MenuItem>
-                            <MenuItem label="Ollama" path="ollama" url="/admin/ollama" icon="smart_toy"></MenuItem>
-                            <MenuItem label="Logout" path="logout" url="/login" onClick={handleLogOut} icon="logout"></MenuItem>
-                        </ul>
-                    </div>
-                    <div className="body">
-                        {children}
-                    </div>
-                </main>
-                :
-                <main className="main-content">
-                </main>
-            }
-        </div>
+        <NavigationProvider onToggleSidebar={handleToggleSidebar}>
+            <div className={"app-container " + pathClassName}>
+                <header className="main-header">
+                    <Navigation />
+                </header>
+                {isAuth && user?.isAdmin ?
+                    <main className="admin has-sidebar">
+                        <div className='sidebar'>
+                            <ul>
+                                <MenuItem label="Users" path="users" url="/admin/users" icon="group"></MenuItem>
+                                <MenuItem label="Open AI" path="openai" url="/admin/openai" icon="chat"></MenuItem>
+                                <MenuItem label="Ollama" path="ollama" url="/admin/ollama" icon="smart_toy"></MenuItem>
+                                <MenuItem label="Logout" path="logout" url="/login" onClick={handleLogOut} icon="logout"></MenuItem>
+                            </ul>
+                        </div>
+                        <div className="body">
+                            {children}
+                        </div>
+                    </main>
+                    :
+                    <main className="main-content">
+                    </main>
+                }
+            </div>
+        </NavigationProvider>
 
     );
 }

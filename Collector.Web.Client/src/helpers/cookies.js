@@ -3,42 +3,82 @@
  * to retrieve cookies for authenticated requests (e.g., YouTube downloads)
  */
 
-// Chrome extension ID - update this after installing the extension
-const EXTENSION_ID = 'omhamibneeckmnjdbbknljgfaagdhjhh';
+import React from 'react';
+import ExtensionIdModal from './extension-id-modal';
+
+// localStorage key holding the Chrome extension ID
+const EXTENSION_ID_STORAGE_KEY = 'Collector:ExtentionId';
+
+// dedupe concurrent extension-id prompts so only one modal shows at a time
+let extensionIdPrompt = null;
+
+function getStoredExtensionId() {
+    return localStorage.getItem(EXTENSION_ID_STORAGE_KEY);
+}
+
+function promptForExtensionId(session) {
+    if (!session || typeof session.showModal !== 'function') {
+        return Promise.resolve(null);
+    }
+    if (!extensionIdPrompt) {
+        extensionIdPrompt = new Promise((resolve) => {
+            const finish = (id) => {
+                extensionIdPrompt = null;
+                session.hideModal();
+                resolve(id);
+            };
+            const handleSave = (id) => {
+                localStorage.setItem(EXTENSION_ID_STORAGE_KEY, id);
+                finish(id);
+            };
+            const handleCancel = () => finish(null);
+            session.showModal(() => React.createElement(ExtensionIdModal, {
+                onSave: handleSave,
+                onCancel: handleCancel
+            }));
+        });
+    }
+    return extensionIdPrompt;
+}
 
 /**
  * Check if the Chrome extension messaging is available
  * Note: chrome.runtime.sendMessage with extension ID is available to web pages
- * when the extension has externally_connectable configured
- * @returns {boolean} True if the extension messaging API is available
+ * when the extension has externally_connectable configured. If no extension ID
+ * is stored, the user is prompted to enter it before continuing.
+ * @param {object} session - The session context (provides showModal/hideModal)
+ * @returns {Promise<boolean>} True if the extension messaging API is available and an extension ID is set
  */
-export function isExtensionAvailable() {
+export async function isExtensionAvailable(session) {
+    const extensionId = getStoredExtensionId() || await promptForExtensionId(session);
     const available = typeof chrome !== 'undefined' &&
         chrome.runtime &&
-        typeof chrome.runtime.sendMessage === 'function';
+        typeof chrome.runtime.sendMessage === 'function' &&
+        !!extensionId;
     console.log('isExtensionAvailable:', available, 'chrome:', typeof chrome, 'runtime:', chrome?.runtime);
     return available;
 }
 
 /**
  * Send a message to the Chrome extension and wait for a response
+ * @param {object} session - The session context (provides showModal/hideModal)
  * @param {object} message - The message to send
  * @param {number} timeoutMs - Timeout in milliseconds (default 10000)
  * @returns {Promise<object>} The response from the extension
  */
-function sendExtensionMessage(message, timeoutMs = 10000) {
-    return new Promise((resolve, reject) => {
-        if (!isExtensionAvailable()) {
-            reject(new Error('Chrome extension not available'));
-            return;
-        }
+async function sendExtensionMessage(session, message, timeoutMs = 10000) {
+    if (!await isExtensionAvailable(session)) {
+        throw new Error('Chrome extension not available');
+    }
+    const extensionId = getStoredExtensionId();
 
+    return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
             reject(new Error('Extension request timed out'));
         }, timeoutMs);
 
         try {
-            chrome.runtime.sendMessage(EXTENSION_ID, message, (response) => {
+            chrome.runtime.sendMessage(extensionId, message, (response) => {
                 clearTimeout(timeout);
 
                 if (chrome.runtime.lastError) {
@@ -58,12 +98,13 @@ function sendExtensionMessage(message, timeoutMs = 10000) {
 /**
  * Request cookies for a specific domain from the Chrome extension
  * @param {string} domain - The domain to get cookies for (e.g., 'youtube.com')
+ * @param {object} session - The session context (provides showModal/hideModal)
  * @returns {Promise<Array>} Array of cookie objects
  */
-export async function getCookiesForDomain(domain) {
+export async function getCookiesForDomain(domain, session) {
     console.log('getCookiesForDomain called for:', domain);
     try {
-        const response = await sendExtensionMessage({
+        const response = await sendExtensionMessage(session, {
             type: 'GET_COOKIES',
             domain: domain
         });
@@ -109,11 +150,12 @@ export function cookiesToNetscapeFormat(cookies) {
 
 /**
  * Check if the Chrome extension is connected and authenticated
+ * @param {object} session - The session context (provides showModal/hideModal)
  * @returns {Promise<object>} Extension state including authentication status
  */
-export async function getExtensionState() {
+export async function getExtensionState(session) {
     try {
-        const response = await sendExtensionMessage({
+        const response = await sendExtensionMessage(session, {
             type: 'GET_STATE'
         });
 
@@ -126,9 +168,10 @@ export async function getExtensionState() {
 
 /**
  * Get YouTube cookies specifically, formatted for yt-dlp
+ * @param {object} session - The session context (provides showModal/hideModal)
  * @returns {Promise<string>} Netscape format cookie string for YouTube
  */
-export async function getYouTubeCookies() {
-    const cookies = await getCookiesForDomain('youtube.com');
+export async function getYouTubeCookies(session) {
+    const cookies = await getCookiesForDomain('youtube.com', session);
     return cookiesToNetscapeFormat(cookies);
 }

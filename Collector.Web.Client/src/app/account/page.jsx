@@ -4,6 +4,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import './page.css';
 //context
 import { useSession } from '@/context/session';
 //api
@@ -11,15 +12,17 @@ import { Users } from '@/api/account/users';
 //components
 import Input from '@/components/forms/input';
 import Modal from '@/components/ui/modal';
+import Icon from '@/components/ui/icon';
 
 const Account = () => {
   //context
   const navigate = useNavigate();
   const session = useSession();
-  const {logout} = session;
+  const { logout } = session;
   //state
   const [user, setUser] = useState(null);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
   const [showChangeEmail, setShowChangeEmail] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [newEmail, setNewEmail] = useState('');
@@ -28,6 +31,16 @@ const Account = () => {
 
   //api
   const { getMyInfo, resetPassword, edit, updateEmail } = Users(useSession());
+
+  const clearMessages = () => {
+    setError(null);
+    setSuccess(null);
+  };
+
+  const showSuccess = (message) => {
+    setSuccess(message);
+    setTimeout(() => setSuccess(null), 3000);
+  };
 
   //effect
   useEffect(() => {
@@ -46,17 +59,19 @@ const Account = () => {
   //actions
   const handleSaveEmail = async () => {
     if (!user) return;
-    setError(null);
+    clearMessages();
     const originalEmail = user.email;
     user.email = newEmail;
     try {
       const response = await updateEmail(user);
       if (response.data && response.data.success !== true) {
         setError(response.data.message);
+        user.email = originalEmail;
+      } else {
+        showSuccess('Email address updated successfully');
       }
-      // Optionally show a success message here
     } catch (err) {
-      user.email = originalEmail; // revert on error
+      user.email = originalEmail;
       setError(err.message);
     }
     setShowChangeEmail(false);
@@ -64,20 +79,20 @@ const Account = () => {
 
   const handleSavePassword = async () => {
     if (!user) return;
+    clearMessages();
     try {
       await resetPassword(user);
-      // Optionally show a success message here
+      showSuccess('Password reset email sent');
     } catch (err) {
       setError(err.message);
     }
     setShowChangePassword(false);
   };
 
-  // Save changes handler
   const handleSaveChanges = async () => {
     if (!user) return;
     setSaving(true);
-    setError(null);
+    clearMessages();
     try {
       const updatedUser = {
         ...user,
@@ -86,7 +101,7 @@ const Account = () => {
       const response = await edit(updatedUser);
       if (response.data && response.data.success) {
         setUser(response.data.data);
-        // Optionally show a success message
+        showSuccess('Profile saved successfully');
       } else {
         setError(response.data?.message || 'Failed to save changes');
       }
@@ -101,87 +116,99 @@ const Account = () => {
     e.stopPropagation();
     logout();
     navigate('/login');
-  }
+  };
 
   return (
-    <div className="hero-container">
-      <h2>Account Management</h2>
-      
-      {showChangeEmail && (
-        <Modal onClose={() => setShowChangeEmail(false)}>
-          <p>Enter your new email address below.</p>
-          <Input
-            type="email"
-            placeholder="New Email Address"
-            value={newEmail}
-            onInput={e => setNewEmail(e.target.value)}
-          ></Input>
-          <button onClick={handleSaveEmail}>Save Changes</button>
-        </Modal>
-      )}
+    <div className="account-container">
+      <div className="account-card">
+        <h2>Account Management</h2>
 
-      {showChangePassword && (
-        <Modal onClose={() => setShowChangePassword(false)}>
-          <p>You will be sent an email with instructions to change your password.</p>
-          <button onClick={handleSavePassword}>Okay</button>
-          <button className='cancel' onClick={() => setShowChangePassword(false)}>Cancel</button>
-        </Modal>
-      )}
+        {error && <div className="error-message">{error}</div>}
+        {success && <div className="success-message">{success}</div>}
 
-      {error && <div className="error-message">{error}</div>}
-      
-      {user && (
-        <div className="account-details">
-          <div>
-            <label>Email Address: </label>
-            <span>{user.email}</span>
-            <a
-              href="#"
-              className="action-link"
-              onClick={e => { e.preventDefault(); setShowChangeEmail(true); }}
-              style={{ marginLeft: 8 }}
-            >
-              Change Email Address
-            </a>
-            <br /><br />
-          </div>
-
-          <div>
-            <label>Password: </label>
-            <span>***********</span>
-            <a
-              href="#"
-              className="action-link"
-              onClick={e => { e.preventDefault(); setShowChangePassword(true); }}
-              style={{ marginLeft: 8 }}
-            >
-              Change Password
-            </a>
-            <br /><br />
-          </div>
-
-          <div className='form-row'>
+        {showChangeEmail && (
+          <Modal title="Change Email Address" onClose={() => setShowChangeEmail(false)}>
+            <p>Enter your new email address below.</p>
             <Input
-              label="Full Name:"
-              type="text"
-              value={fullName}
-              onInput={e => setFullName(e.target.value)}
+              type="email"
+              placeholder="New Email Address"
+              value={newEmail}
+              onInput={e => setNewEmail(e.target.value)}
+              wide={true}
             />
-          </div>
-          
-          <div style={{ marginTop: 10 }}>
-            <button
-              onClick={handleSaveChanges}
-              disabled={saving}
-            >
-              {saving ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
-        </div>
-      )}
+            <div className="buttons">
+              <button className="submit" onClick={handleSaveEmail}>Save</button>
+              <button className="cancel" onClick={() => setShowChangeEmail(false)}>Cancel</button>
+            </div>
+          </Modal>
+        )}
 
-      <br />
-      <Link to="/login" onClick={handleLogOut}>Log out</Link>
+        {showChangePassword && (
+          <Modal title="Change Password" onClose={() => setShowChangePassword(false)}>
+            <p>You will be sent an email with instructions to change your password.</p>
+            <div className="buttons">
+              <button className="submit" onClick={handleSavePassword}>Send Email</button>
+              <button className="cancel" onClick={() => setShowChangePassword(false)}>Cancel</button>
+            </div>
+          </Modal>
+        )}
+
+        {user && (
+          <>
+            <div className="account-section">
+              <h3>Profile</h3>
+              <Input
+                label="Full Name"
+                type="text"
+                value={fullName}
+                onInput={e => setFullName(e.target.value)}
+                wide={true}
+              />
+              <div className="buttons">
+                <button
+                  className="submit"
+                  onClick={handleSaveChanges}
+                  disabled={saving}
+                >
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+
+            <div className="account-section">
+              <h3>Account Information</h3>
+              <div className="account-row">
+                <span className="label">Email</span>
+                <span className="value">{user.email}</span>
+                <button
+                  className="icon"
+                  onClick={() => setShowChangeEmail(true)}
+                  title="Change email address"
+                >
+                  <Icon name="edit" />
+                </button>
+              </div>
+              <div className="account-row">
+                <span className="label">Password</span>
+                <span className="value">***********</span>
+                <button
+                  className="icon"
+                  onClick={() => setShowChangePassword(true)}
+                  title="Change password"
+                >
+                  <Icon name="edit" />
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        <div className="account-logout">
+          <Link to="/login" onClick={handleLogOut}>
+            <Icon name="logout" /> Log out
+          </Link>
+        </div>
+      </div>
     </div>
   );
 };
