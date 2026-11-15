@@ -8,34 +8,17 @@ const SessionContext = React.createContext({});
 const SessionProvider = ({children}) => {
     // context states
     const [user, setUser] = useState(getUser());
-    const [modal, setModal] = useState(null);
     const [customModulesJournalId, setCustomModulesJournalId] = useState(null);
 
     // context properties passed to consumer
     const context = {
         ...userContext(user, setUser),
-        modal,
-        setModal,
         customModulesJournalId
     };
 
     //actions
     const handleLogOut = () => {
         context.setUser(null);
-    }
-
-    const showModal = (componentOrFunction) => {
-        // If it's a function, store it as-is so it can be called fresh each render
-        // If it's a component, wrap it in a function
-        if (typeof componentOrFunction === 'function') {
-            context.setModal(componentOrFunction);
-        } else {
-            context.setModal(() => componentOrFunction);
-        }
-    };
-
-    const hideModal = () => {
-        context.setModal(null);
     }
 
     const loadCustomModulesJournal = async () => {
@@ -66,15 +49,10 @@ const SessionProvider = ({children}) => {
     }, [user]);
 
     context.logout = handleLogOut;
-    context.showModal = showModal;
-    context.hideModal = hideModal;
 
     return (
         <SessionContext.Provider value={context}>
-            <>
-            {modal ? (typeof modal === 'function' ? modal() : modal) : <></>}
             {children}
-            </>
         </SessionContext.Provider>
     )
 };

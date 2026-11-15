@@ -1,3 +1,4 @@
+import { showModal, hideModal } from '@/context/modal';
 import { useState, useEffect } from 'react';
 import Icon from '@/components/ui/icon';
 import { useSession } from '@/context/session';
@@ -78,12 +79,12 @@ export default function CalendarModule({ module, onUpdate, isEditable = true, ta
             onUpdate({ ...module, crossedOffDays, dayNotes: newDayNotes });
         };
         
-        session.showModal(
+        showModal(
             <NotesModal
                 dateString={dateString}
                 initialNote={dayNotes[dateString] || ''}
                 onSave={handleSaveNote}
-                onClose={() => session.hideModal()}
+                onClose={() => hideModal()}
             />
         );
     };

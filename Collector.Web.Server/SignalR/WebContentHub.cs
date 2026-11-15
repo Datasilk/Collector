@@ -11,24 +11,25 @@ using Collector.AI;
 using Collector.Common.Models.JournalModules;
 using Collector.Data.Entities;
 using Collector.Data.Interfaces;
+using Collector.Workers;
 
 namespace Collector.Web.Server.SignalR
 {
     public class WebContentHub : Hub
     {
         private readonly ILogger<WebContentHub> _logger;
-        private readonly IJournalEntriesRepository _entriesRepository;
+        private readonly YouTubeEntryCreator _entryCreator;
         private readonly Random _random;
 
-        public WebContentHub(ILogger<WebContentHub> logger, IJournalEntriesRepository entriesRepository)
+        public WebContentHub(ILogger<WebContentHub> logger, YouTubeEntryCreator entryCreator)
         {
             _logger = logger;
-            _entriesRepository = entriesRepository;
+            _entryCreator = entryCreator;
             _random = new Random();
             _logger.LogInformation("WebContentHub instance created");
         }
 
-        public async Task<object> ScrapeUrl(string url, int journalId, Guid? parentEntryId = null, string appUserId = null)
+        public async Task<object> ScrapeUrl(string url, int journalId, Guid? parentEntryId = null, string appUserId = null, int[] tagIds = null)
         {
             try
             {
@@ -42,151 +43,77 @@ namespace Collector.Web.Server.SignalR
                     return new { success = false, message = "URL is required" };
                 }
 
-                var modules = new List<object>();
-                string title = string.Empty;
-                string description = string.Empty;
-
-                // Determine title based on content type
-                if (IsYouTubeUrl(url))
+                // YouTube video URLs are handled by the shared YouTubeEntryCreator
+                if (YouTubeEntryCreator.IsYouTubeUrl(url))
                 {
                     _logger.LogInformation($"Detected YouTube URL: {url}");
 
-                    // Remove playlist (list) parameter from YouTube URLs so yt-dlp
-                    // and the stored entry refer to a single video, not a playlist
-                    var videoUrl = RemoveYouTubeListParameter(url);
+                    var result = await _entryCreator.CreateEntryFromYouTubeVideo(
+                        url,
+                        journalId,
+                        parentEntryId,
+                        appUserId,
+                        Guid.Empty,
+                        tagIds?.ToList(),
+                        s => Clients.Caller.SendAsync("ScrapeStatus", s),
+                        s => Clients.Caller.SendAsync("OnError", s));
 
-                    await Clients.Caller.SendAsync("ScrapeStatus", "Getting metadata from YouTube...");
-
-                    // Get YouTube video title & description using yt-dlp
-                    var metadata = await GetYouTubeMetadata(videoUrl, appUserId);
-                    if (metadata.Title == null)
+                    if (result == null)
                     {
-                        await Clients.Caller.SendAsync("OnError", "Failed to retrieve YouTube metadata. Please ensure the Chrome extension for Collector is installed and try again.");
                         return new { success = false, message = "Failed to retrieve YouTube metadata" };
                     }
-                    title = metadata.Title;
-                    description = metadata.Description;
 
-                    // Truncate title to 128 characters
-                    if (!string.IsNullOrEmpty(title) && title.Length > 128)
+                    await Clients.Caller.SendAsync("ScrapeStatus", "Completed scraping web content.");
+
+                    // Return entryId and title back to the client
+                    return new
                     {
-                        title = title.Substring(0, 128);
-                    }
+                        success = true,
+                        entryId = result.EntryId,
+                        title = result.Title
+                    };
+                }
 
-                    // Create a video player module with autoTryAgain enabled and random ID
-                    modules.Add(new VideoPlayer
-                    {
-                        Id = GenerateRandomId(),
-                        Url = videoUrl,
-                        AutoTryAgain = true,
-                        Title = title
-                    });
+                _logger.LogInformation($"URL is not a YouTube URL, attempting to download HTML: {url}");
 
-                    // Add a text-editor module with video title and description
-                    var encodedTitle = WebUtility.HtmlEncode(title ?? string.Empty);
+                await Clients.Caller.SendAsync("ScrapeStatus", "Downloading HTML web page...");
 
-                    // Break description into paragraphs by double line breaks, and
-                    // convert single line breaks within a paragraph into <br/>
-                    var descriptionText = description ?? string.Empty;
+                string title = string.Empty;
 
-                    // Normalize newlines to \n
-                    var normalized = descriptionText.Replace("\r\n", "\n").Replace('\r', '\n');
+                // Download article DOM JSON via Charlotte router
+                string resolvedUrl;
+                var domJson = Common.Article.Download(url, out resolvedUrl);
 
-                    // Split on two or more consecutive newlines to get paragraphs
-                    var rawParagraphs = Regex.Split(normalized, "\n{2,}");
-
-                    var paragraphHtml = string.Join(string.Empty,
-                        rawParagraphs
-                            .Select(p => p.Trim('\n', '\r', ' '))
-                            .Where(p => !string.IsNullOrWhiteSpace(p))
-                            .Select(p =>
-                            {
-                                var lines = p.Split('\n');
-                                var encodedLines = lines.Select(line => WebUtility.HtmlEncode(line));
-                                var innerHtml = string.Join("<br/>", encodedLines);
-                                return $"<p>{innerHtml}</p>";
-                            }));
-
-                    var html = $"<h4>{encodedTitle}</h4>{paragraphHtml}";
-
-                    modules.Add(new
-                    {
-                        id = GenerateRandomId(),
-                        type = "text-editor",
-                        html,
-                        manuallyAdded = false
-                    });
+                if (string.IsNullOrWhiteSpace(domJson) || domJson.StartsWith("file:") || domJson.StartsWith("Error"))
+                {
+                    _logger.LogWarning("Failed to download or parse article DOM for URL {Url}. Result prefix: {Prefix}", url, domJson?.Substring(0, Math.Min(domJson.Length, 32)));
                 }
                 else
                 {
-                    _logger.LogInformation($"URL is not a YouTube URL, attempting to download HTML: {url}");
-
-                    await Clients.Caller.SendAsync("ScrapeStatus", "Downloading HTML web page...");
-
-                    // Download article DOM JSON via Charlotte router
-                    string resolvedUrl;
-                    var domJson = Common.Article.Download(url, out resolvedUrl);
-
-                    if (string.IsNullOrWhiteSpace(domJson) || domJson.StartsWith("file:") || domJson.StartsWith("Error"))
+                    try
                     {
-                        _logger.LogWarning("Failed to download or parse article DOM for URL {Url}. Result prefix: {Prefix}", url, domJson?.Substring(0, Math.Min(domJson.Length, 32)));
+                        await Clients.Caller.SendAsync("ScrapeStatus", "Analyzing HTML document...");
+
+                        var analyzedArticle = Html.DeserializeArticle(domJson);
+                        Html.GetArticleInfoFromDOM(analyzedArticle);
+                        title = analyzedArticle.title ?? string.Empty;
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        try
-                        {
-                            await Clients.Caller.SendAsync("ScrapeStatus", "Analyzing HTML document...");
-
-                            var analyzedArticle = Html.DeserializeArticle(domJson);
-                            Html.GetArticleInfoFromDOM(analyzedArticle);
-                            title = analyzedArticle.title ?? string.Empty;
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex, "Error analyzing article DOM for URL {Url}", url);
-                        }
+                        _logger.LogError(ex, "Error analyzing article DOM for URL {Url}", url);
                     }
                 }
+
                 // Fallback title if we couldn't determine one
                 if (string.IsNullOrWhiteSpace(title))
                 {
                     title = url;
                 }
 
-                // Create a new journal entry with the derived title
-                var entry = new JournalEntry
-                {
-                    JournalId = journalId,
-                    ParentEntryId = parentEntryId,
-                    Title = title,
-                    Description = string.Empty,
-                    Url = url
-                };
-
-                var entryId = _entriesRepository.Add(entry);
-                _logger.LogInformation("Journal entry created from web content. JournalId={JournalId}, EntryId={EntryId}, Title={Title}", journalId, entryId, title);
-
                 // Build entry content JSON and save it to the journal files folder
                 await Clients.Caller.SendAsync("ScrapeStatus", "Saving journal entry content...");
 
-                var entryContent = new
-                {
-                    modules = modules.Count > 0 ? modules : null
-                };
-
-                var jsonOptions = new JsonSerializerOptions
-                {
-                    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-                };
-
-                var contentJson = JsonSerializer.Serialize(entryContent, jsonOptions);
-                var filePath = $"{entryId:N}.json";
-                var saveSuccess = Files.SaveFile(Files.Paths.Journal, filePath, contentJson);
-
-                if (!saveSuccess)
-                {
-                    _logger.LogWarning("Failed to save journal entry content JSON for EntryId={EntryId}", entryId);
-                }
+                var entryId = await _entryCreator.CreateEntry(journalId, parentEntryId, title, url, null, tagIds?.ToList());
 
                 await Clients.Caller.SendAsync("ScrapeStatus", "Completed scraping web content.");
 
@@ -210,126 +137,6 @@ namespace Collector.Web.Server.SignalR
             return _random.Next(1, 10000000).ToString();
         }
 
-        private bool IsYouTubeUrl(string url)
-        {
-            if (string.IsNullOrWhiteSpace(url))
-                return false;
-
-            // Match various YouTube URL formats:
-            // - https://www.youtube.com/watch?v=VIDEO_ID
-            // - https://youtu.be/VIDEO_ID
-            // - https://m.youtube.com/watch?v=VIDEO_ID
-            // - https://youtube.com/watch?v=VIDEO_ID
-            var youtubePattern = @"^(https?://)?(www\.|m\.)?(youtube\.com/(watch\?v=|embed/|v/)|youtu\.be/)[\w-]+";
-            return Regex.IsMatch(url, youtubePattern, RegexOptions.IgnoreCase);
-        }
-
-        private string RemoveYouTubeListParameter(string url)
-        {
-            if (string.IsNullOrWhiteSpace(url)) return url;
-
-            try
-            {
-                var uri = new Uri(url);
-
-                // Only clean standard YouTube watch URLs; leave others untouched
-                if (!uri.Host.Contains("youtube.com", StringComparison.OrdinalIgnoreCase))
-                {
-                    return url;
-                }
-
-                var queryDict = QueryHelpers.ParseQuery(uri.Query);
-
-                if (!queryDict.ContainsKey("list"))
-                {
-                    return url;
-                }
-
-                // Remove the 'list' parameter
-                queryDict.Remove("list");
-
-                // Rebuild query string without 'list'
-                var newQuery = string.Join("&",
-                    queryDict.SelectMany(kvp => kvp.Value.Select(v => $"{kvp.Key}={WebUtility.UrlEncode(v)}")));
-
-                var builder = new UriBuilder(uri)
-                {
-                    Query = newQuery
-                };
-
-                return builder.Uri.ToString();
-            }
-            catch
-            {
-                // If anything goes wrong, fall back to the original URL
-                return url;
-            }
-        }
-
-        private static readonly string CookiesFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content", "cookies");
-
-        private string GetCookiesArgument(string appUserId)
-        {
-            if (string.IsNullOrEmpty(appUserId))
-                return string.Empty;
-
-            // Check if user has saved cookies
-            if (Guid.TryParse(appUserId, out var userId))
-            {
-                var cookiePath = Path.Combine(CookiesFolder, $"cookies-youtube-{userId}.txt");
-                if (File.Exists(cookiePath))
-                {
-                    return $"--cookies \"{cookiePath}\" ";
-                }
-            }
-
-            return string.Empty;
-        }
-
-        private async Task<(string Title, string Description)> GetYouTubeMetadata(string url, string appUserId)
-        {
-            // First attempt with existing cookies
-            var result = await TryGetYouTubeMetadata(url, appUserId);
-            if (!string.IsNullOrEmpty(result.Title))
-            {
-                return result;
-            }
-
-            // If failed, try to get fresh cookies from extension and retry
-            _logger.LogInformation("First metadata attempt failed, requesting fresh cookies from extension for user {AppUserId}", appUserId);
-            await Clients.Caller.SendAsync("ScrapeStatus", "Refreshing YouTube cookie...");
-
-            var freshCookies = await Collector.Workers.SignalR.Workers.RequestCookiesFromClientAsync(appUserId, Guid.Empty, "youtube.com", CancellationToken.None);
-            if (!string.IsNullOrEmpty(freshCookies))
-            {
-                // Save fresh cookies to main cookie file
-                if (Guid.TryParse(appUserId, out var parsedUserId))
-                {
-                    var cookiePath = Path.Combine(CookiesFolder, $"cookies-youtube-{parsedUserId}.txt");
-                    Directory.CreateDirectory(CookiesFolder);
-                    await File.WriteAllTextAsync(cookiePath, freshCookies);
-                    _logger.LogInformation("Received fresh cookies from extension, saved to {Path}", cookiePath);
-                }
-
-                // Retry with fresh cookies
-                await Clients.Caller.SendAsync("ScrapeStatus", "Retrying metadata fetch with fresh cookie...");
-                result = await TryGetYouTubeMetadata(url, appUserId);
-                if (string.IsNullOrEmpty(result.Title))
-                {
-                    await Clients.Caller.SendAsync("OnError", "Failed to retrieve YouTube metadata. Please ensure the Chrome extension for Collector is installed and try again.");
-                    return (null, null);
-                }
-            }
-            else
-            {
-                _logger.LogWarning("Failed to get fresh cookies from extension for user {AppUserId}", appUserId);
-                await Clients.Caller.SendAsync("OnError", "Failed to retrieve YouTube metadata. Please ensure the Chrome extension for Collector is installed and try again.");
-                return (null, null);
-            }
-
-            return result;
-        }
-
         private async Task CheckYtDlpVersionWarning(string stderr)
         {
             if (!string.IsNullOrEmpty(stderr) && 
@@ -348,7 +155,7 @@ namespace Collector.Web.Server.SignalR
             {
                 // Use yt-dlp to download transcript files without downloading the video
                 var tempBaseName = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
-                var cookiesArg = GetCookiesArgument(appUserId);
+                var cookiesArg = YouTubeEntryCreator.GetCookiesArgument(appUserId);
                 var arguments = $"{cookiesArg}--js-runtimes node --write-auto-subs --write-subs --skip-download -o \"{tempBaseName}\" \"{url}\"";
                 _logger.LogInformation("GetYouTubeTranscript yt-dlp arguments: {Arguments}", arguments);
 
@@ -455,126 +262,6 @@ namespace Collector.Web.Server.SignalR
             }
         }
 
-        private async Task<(string Title, string Description)> TryGetYouTubeMetadata(string url, string appUserId)
-        {
-            try
-            {
-                // Use yt-dlp to write a JSON metadata file without downloading the video.
-                // We'll create a random temp base path and let yt-dlp append .info.json.
-                var tempBaseName = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
-                var expectedJsonPath = tempBaseName + ".info.json";
-                var cookiesArg = GetCookiesArgument(appUserId);
-                var arguments = $"{cookiesArg}--js-runtimes node --skip-download --write-info-json -o \"{tempBaseName}\" \"{url}\"";
-                
-                // Log cookie file path for debugging
-                if (Guid.TryParse(appUserId, out var userId))
-                {
-                    var cookiePath = Path.Combine(CookiesFolder, $"cookies-youtube-{userId}.txt");
-                    _logger.LogInformation("TryGetYouTubeMetadata - Cookie file path: {CookiePath}, Exists: {Exists}", cookiePath, File.Exists(cookiePath));
-                }
-                
-                _logger.LogInformation("TryGetYouTubeMetadata yt-dlp arguments: {Arguments}", arguments);
-
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = "yt-dlp",
-                    Arguments = arguments,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                
-                // Ensure PATH is inherited so yt-dlp can find Node.js for n challenge solving
-                startInfo.EnvironmentVariables["PATH"] = Environment.GetEnvironmentVariable("PATH");
-
-                using (var process = Process.Start(startInfo))
-                {
-                    if (process == null)
-                    {
-                        _logger.LogWarning("Failed to start yt-dlp process when getting metadata for URL {Url}", url);
-                        return (string.Empty, string.Empty);
-                    }
-
-                    var stderrTask = process.StandardError.ReadToEndAsync();
-                    var stdoutTask = process.StandardOutput.ReadToEndAsync();
-
-                    await Task.WhenAll(stderrTask, stdoutTask, process.WaitForExitAsync());
-
-                    var stderr = await stderrTask;
-                    var stdout = await stdoutTask;
-                    
-                    _logger.LogInformation("TryGetYouTubeMetadata - Exit Code: {ExitCode}", process.ExitCode);
-                    _logger.LogInformation("TryGetYouTubeMetadata - STDOUT: {StdOut}", stdout);
-                    _logger.LogInformation("TryGetYouTubeMetadata - STDERR: {StdErr}", stderr);
-                    
-                    await CheckYtDlpVersionWarning(stderr);
-
-                    if (process.ExitCode != 0)
-                    {
-                        _logger.LogWarning("yt-dlp exited with code {Code} for URL {Url}. Error: {Error}", process.ExitCode, url, stderr);
-                        return (string.Empty, string.Empty);
-                    }
-
-                    if (!File.Exists(expectedJsonPath))
-                    {
-                        _logger.LogWarning("yt-dlp did not produce expected JSON file for URL {Url}. Expected path: {Path}", url, expectedJsonPath);
-                        return (string.Empty, string.Empty);
-                    }
-
-                    try
-                    {
-                        var json = await File.ReadAllTextAsync(expectedJsonPath, Encoding.UTF8);
-                        if (string.IsNullOrWhiteSpace(json))
-                        {
-                            return (string.Empty, string.Empty);
-                        }
-
-                        using var doc = JsonDocument.Parse(json);
-                        var root = doc.RootElement;
-
-                        string title = string.Empty;
-                        string description = string.Empty;
-
-                        if (root.TryGetProperty("fulltitle", out var fullTitleProp) && fullTitleProp.ValueKind == JsonValueKind.String)
-                        {
-                            title = fullTitleProp.GetString();
-                        }
-                        else if (root.TryGetProperty("title", out var titleProp) && titleProp.ValueKind == JsonValueKind.String)
-                        {
-                            title = titleProp.GetString();
-                        }
-
-                        if (root.TryGetProperty("description", out var descProp) && descProp.ValueKind == JsonValueKind.String)
-                        {
-                            description = descProp.GetString();
-                        }
-
-                        return (title ?? string.Empty, description ?? string.Empty);
-                    }
-                    finally
-                    {
-                        try
-                        {
-                            if (File.Exists(expectedJsonPath))
-                            {
-                                File.Delete(expectedJsonPath);
-                            }
-                        }
-                        catch (Exception cleanupEx)
-                        {
-                            _logger.LogWarning(cleanupEx, "Failed to delete yt-dlp metadata file {Path}", expectedJsonPath);
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting YouTube metadata for URL {Url}", url);
-                return (string.Empty, string.Empty);
-            }
-        }
-
         public async Task GenerateContent(string url, bool includeVideo, bool includeTitle, bool includeDescription, bool includeTranscriptResearch, bool includeCommentsResearch, string appUserId, string cacheJson = "", string userInstructions = "", bool generateChapters = true, string chapterCount = "any")
         {
             try
@@ -606,13 +293,13 @@ namespace Collector.Web.Server.SignalR
                 await Clients.Caller.SendAsync("GenerateStatus", cache != null ? "Resuming content generation..." : "Starting content generation...");
                 await Clients.Caller.SendAsync("GenerateProgress", 0);
 
-                if (string.IsNullOrWhiteSpace(url) || !IsYouTubeUrl(url))
+                if (string.IsNullOrWhiteSpace(url) || !YouTubeEntryCreator.IsYouTubeUrl(url))
                 {
                     await Clients.Caller.SendAsync("GenerateError", "Invalid YouTube URL");
                     return;
                 }
 
-                var videoUrl = RemoveYouTubeListParameter(url);
+                var videoUrl = YouTubeEntryCreator.RemoveYouTubeListParameter(url);
                 var totalSteps = 0;
                 var currentStep = 0;
 
@@ -626,7 +313,12 @@ namespace Collector.Web.Server.SignalR
                 bool skipInitialModules = cache?.CompletedChapters?.Any() == true;
                 
                 await Clients.Caller.SendAsync("GenerateStatus", "Getting YouTube metadata...");
-                var metadata = await GetYouTubeMetadata(videoUrl, appUserId);
+                var metadata = await _entryCreator.GetYouTubeMetadata(
+                    videoUrl,
+                    appUserId,
+                    Guid.Empty,
+                    s => Clients.Caller.SendAsync("ScrapeStatus", s),
+                    s => Clients.Caller.SendAsync("OnError", s));
 
                 if (string.IsNullOrEmpty(metadata.Title))
                 {
@@ -1156,7 +848,7 @@ namespace Collector.Web.Server.SignalR
             {
                 var tempBaseName = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
                 var expectedJsonPath = tempBaseName + ".info.json";
-                var cookiesArg = GetCookiesArgument(appUserId);
+                var cookiesArg = YouTubeEntryCreator.GetCookiesArgument(appUserId);
                 var arguments = $"{cookiesArg}--js-runtimes node --skip-download --write-info-json --write-comments --extractor-args \"youtube:max_comments={maxComments}\" -o \"{tempBaseName}\" \"{url}\"";
 
                 _logger.LogInformation("GetYouTubeComments yt-dlp arguments: {Arguments}", arguments);

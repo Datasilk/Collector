@@ -92,6 +92,8 @@ builder.AddAuthService();
 
 // Register workers
 builder.Services.AddTransient<VideoWorker>();
+builder.Services.AddTransient<YoutubeChannelWorker>();
+builder.Services.AddTransient<YouTubeEntryCreator>();
 builder.Services.AddTransient<ChatWorker>();
 builder.Services.AddTransient<DownloadWorker>();
 builder.Services.AddTransient<DomainWorker>();
@@ -347,6 +349,7 @@ app.MapHub<ChromeExtensionHub>("/chrome-extension");
 
 // Register worker routes
 WorkerRoutes.Register<VideoWorker>("video-worker");
+WorkerRoutes.Register<YoutubeChannelWorker>("youtube-channel-worker");
 WorkerRoutes.Register<ChatWorker>("chat-worker");
 WorkerRoutes.Register<DownloadWorker>("download-worker");
 WorkerRoutes.Register<DomainWorker>("domain-worker");

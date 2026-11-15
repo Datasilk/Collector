@@ -1,3 +1,4 @@
+import { showModal, hideModal } from '@/context/modal';
 import { useState, useEffect, useRef } from 'react';
 import './ckeditor.css';
 import './ckeditor/ai-generator.css';
@@ -774,7 +775,7 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
             editorRef.current = null;
             loadHtml();
         }
-        session.hideModal();
+        hideModal();
         setShowToolbar(false);
         addEditorEventListeners();
     };
@@ -796,7 +797,7 @@ export default function CKEditorModule({ module, onUpdate, isEditable = true, ma
         const ckeditorDiv = document.querySelector(`.module-id-${module.id} .ck.ck-content`);
         if (!ckeditorDiv) return;
         inModal.current = true; // Set inModal ref to true when opening modal
-        session.showModal(<AIGeneratorModal module={module} onClose={handleCloseAIModal} onGenerated={handleContentGenerated} />);
+        showModal(<AIGeneratorModal module={module} onClose={handleCloseAIModal} onGenerated={handleContentGenerated} />);
         setShowAIModal(true);
         disableEditorEvents();
     };

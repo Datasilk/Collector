@@ -12,6 +12,7 @@ namespace Collector.Workers
     public class VideoWorker : IWorker
     {
         private readonly IJournalVideosRepository _videoRepo;
+        private readonly IJournalEntriesRepository _entriesRepository;
         private readonly ILogger<VideoWorker> _logger;
         private readonly IHubContext<WorkerHub> _hubContext;
         private readonly object _stateLock = new();
@@ -19,9 +20,10 @@ namespace Collector.Workers
         private string _currentStatus = "";
         private string _title = "";
 
-        public VideoWorker(IJournalVideosRepository videoRepo, ILogger<VideoWorker> logger, IHubContext<WorkerHub> hubContext)
+        public VideoWorker(IJournalVideosRepository videoRepo, IJournalEntriesRepository entriesRepository, ILogger<VideoWorker> logger, IHubContext<WorkerHub> hubContext)
         {
             _videoRepo = videoRepo;
+            _entriesRepository = entriesRepository;
             _logger = logger;
             _hubContext = hubContext;
         }
@@ -155,6 +157,9 @@ namespace Collector.Workers
                             videoPath = relativePath.Replace("\\", "/"),
                             title = title
                         }, cancellationToken);
+
+                        // If the journal entry doesn't have a thumbnail yet, use the video thumbnail
+                        SetEntryThumbnailIfMissing(entryId, thumbRelativePath, moduleId);
 
                         // Notify client that the video is already downloaded
                         lock (_stateLock)
@@ -290,6 +295,10 @@ namespace Collector.Workers
 
                 await _videoRepo.UpdateDownloaded(videoId, true, fileName, duration, width, height, fileSizeMb);
                 _logger.LogInformation("Video {VideoId} download completed in VideoWorker", videoId);
+
+                // If the journal entry doesn't have a thumbnail yet, use the video thumbnail
+                SetEntryThumbnailIfMissing(entryId, thumbnailRelativePath, moduleId);
+
                 await SendWorkerMessage(appUserId, workerId, "DownloadComplete", new
                 {
                     id = videoId,
@@ -327,6 +336,32 @@ namespace Collector.Workers
                     _currentStatus = ex.Message;
                 }
                 await SendWorkerMessage(appUserId, workerId, "DownloadError", new { message = _currentStatus }, CancellationToken.None);
+            }
+        }
+
+        /// <summary>
+        /// Sets the journal entry's thumbnail to the video thumbnail if the entry
+        /// doesn't have a thumbnail yet.
+        /// </summary>
+        private void SetEntryThumbnailIfMissing(string entryId, string thumbnailRelativePath, string moduleId)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(thumbnailRelativePath)) return;
+                if (!Guid.TryParse(entryId, out var entryGuid)) return;
+
+                var thumbnailFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), thumbnailRelativePath);
+                if (!File.Exists(thumbnailFullPath)) return;
+
+                var entry = _entriesRepository.GetById(entryGuid);
+                if (entry == null || !string.IsNullOrEmpty(entry.Thumbnail)) return;
+
+                _entriesRepository.UpdateThumbnail(entryGuid, thumbnailRelativePath.Replace("\\", "/"), moduleId);
+                _logger.LogInformation("Set journal entry thumbnail to video thumbnail for EntryId={EntryId}", entryId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to set journal entry thumbnail for EntryId={EntryId}", entryId);
             }
         }
 

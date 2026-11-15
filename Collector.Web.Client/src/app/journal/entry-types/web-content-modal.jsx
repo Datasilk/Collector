@@ -1,13 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as signalR from '@microsoft/signalr';
 import Modal from '@/components/ui/modal';
 import Input from '@/components/forms/input';
 import Icon from '@/components/ui/icon';
 import SelectJournal from '@/components/forms/select-journal';
+import NewEntryTag from '../components/new-entry-tag';
+import TagsList from '../components/tags-list';
 import { apiBasePath } from '@/helpers/endpoints.js';
 import { useSession } from '@/context/session';
-import { JournalTags } from '@/api/user/journal-tags';
+import { useWorkerHub } from '@/context/workerhub';
+import '../entry.css';
 
 /**
  * <summary>Web Content Modal</summary>
@@ -16,22 +19,61 @@ import { JournalTags } from '@/api/user/journal-tags';
 export default function WebContentModal({ onClose, journalId = null, entryId = null, defaultTagIds = null }) {
     const navigate = useNavigate();
     const session = useSession();
-    const { addTagToEntry } = JournalTags(session);
+    const { call: callWorker } = useWorkerHub();
 
     const [url, setUrl] = useState('');
     const [selectedJournalId, setSelectedJournalId] = useState('');
+    const [selectedTags, setSelectedTags] = useState([]);
     const [selectionLoading, setSelectionLoading] = useState(false);
     const [isScraping, setIsScraping] = useState(false);
     const [scrapeStatusMessage, setScrapeStatusMessage] = useState('');
     const [error, setError] = useState(null);
-    const [loading, setLoading] = useState(false);
-    const [videoMetadata, setVideoMetadata] = useState(null);
+
+    const isYouTubeChannelUrl = (value) => {
+        return /^https?:\/\/(www\.|m\.)?youtube\.com\/(@|channel\/|c\/|user\/)[\w.-]+/i.test((value || '').trim());
+    };
+
+    const getSelectedTagIds = () => {
+        const tagIds = [...(defaultTagIds || []), ...selectedTags.map(t => t.tagId)];
+        return [...new Set(tagIds)];
+    };
+
+    const handleAddTag = (tag) => {
+        if (!tag || tag.id == null) return;
+        setSelectedTags(prev => {
+            if (prev.some(t => t.tagId === tag.id)) return prev;
+            return [...prev, { tagId: tag.id, name: tag.tag }];
+        });
+    };
+
+    const handleRemoveTag = (tag) => {
+        setSelectedTags(prev => prev.filter(t => t.tagId !== tag.tagId));
+    };
 
     const handleScrape = async () => {
         if (!url.trim() || !selectedJournalId || isScraping || selectionLoading) return;
 
         const urlToScrape = url.trim();
         const journalId = parseInt(selectedJournalId);
+
+        // YouTube channel URLs are handled by the YoutubeChannelWorker, which
+        // imports every video in the channel in the background. Progress is
+        // shown in the notifications dropdown instead of redirecting.
+        if (isYouTubeChannelUrl(urlToScrape)) {
+            try {
+                await callWorker('youtube-channel-worker', 'ImportChannel', {
+                    channelUrl: urlToScrape,
+                    journalId,
+                    parentEntryId: entryId || null,
+                    tagIds: getSelectedTagIds()
+                }, null, `channel:${urlToScrape}`, urlToScrape);
+                onClose();
+            } catch (err) {
+                console.error('Error starting YouTube channel worker:', err);
+                setError('Failed to start the YouTube channel import. Please try again.');
+            }
+            return;
+        }
 
         const webContentHub = new signalR.HubConnectionBuilder()
             .withUrl(apiBasePath() + '/web-content', {
@@ -53,19 +95,9 @@ export default function WebContentModal({ onClose, journalId = null, entryId = n
 
             await webContentHub.start();
             const appUserId = session?.user?.appUserId;
-            const result = await webContentHub.invoke('ScrapeUrl', urlToScrape, journalId, entryId, appUserId);
+            const result = await webContentHub.invoke('ScrapeUrl', urlToScrape, journalId, entryId, appUserId, getSelectedTagIds());
 
             if (result && result.success && result.entryId) {
-                if (Array.isArray(defaultTagIds) && defaultTagIds.length > 0) {
-                    try {
-                        await Promise.all(
-                            defaultTagIds.map(tagId => addTagToEntry(result.entryId, tagId))
-                        );
-                    } catch (err) {
-                        console.error('Error applying default tags to scraped entry:', err);
-                    }
-                }
-
                 const navOptions = { replace: true };
                 const state = {};
 
@@ -99,11 +131,6 @@ export default function WebContentModal({ onClose, journalId = null, entryId = n
         }
     };
 
-    const handleError = (errorMessage) => {
-        setError(errorMessage);
-        setLoading(false);
-    };
-
     if (error) {
         return (
             <Modal title="Error" onClose={onClose} width="500px" className="web-content-modal error-modal">
@@ -128,7 +155,7 @@ export default function WebContentModal({ onClose, journalId = null, entryId = n
                         <div className="row">
                             <SelectJournal
                                 journalId={journalId}
-                                onChange={({ categoryId, journalId: selectedId, loading }) => {
+                                onChange={({ journalId: selectedId, loading }) => {
                                     setSelectedJournalId(selectedId || '');
                                     setSelectionLoading(loading);
                                 }}
@@ -145,8 +172,22 @@ export default function WebContentModal({ onClose, journalId = null, entryId = n
                                 autoFocus
                             />
                         </div>
+                        {selectedTags.length > 0 && (
+                            <div className="row web-content-tags-row">
+                                <TagsList
+                                    tags={selectedTags}
+                                    onRemoveTag={handleRemoveTag}
+                                />
+                            </div>
+                        )}
                         <div className="row">
-                            <div className="buttons">
+                            <div className="buttons web-content-buttons">
+                                {selectedJournalId && (
+                                    <NewEntryTag
+                                        journalId={selectedJournalId}
+                                        onAddTag={handleAddTag}
+                                    />
+                                )}
                                 <button className="cancel" onClick={onClose}>Cancel</button>
                                 <button
                                     onClick={handleScrape}
@@ -168,6 +209,24 @@ export default function WebContentModal({ onClose, journalId = null, entryId = n
                     </div>
                 )}
             </div>
+            <style>{`
+                .web-content-tags-row {
+                    display: flex;
+                    align-items: flex-start;
+                    flex-wrap: wrap;
+                    gap: 0.5em;
+                }
+
+                .web-content-buttons {
+                    display: flex;
+                    align-items: center;
+                }
+
+                .web-content-buttons .entry-tags-region {
+                    margin-right: auto;
+                    margin-left: 0;
+                }
+            `}</style>
         </Modal>
     );
 }

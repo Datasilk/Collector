@@ -83,7 +83,7 @@ const WorkerHubProvider = ({ children }) => {
                 const { requestId, workerId, domain } = request;
                 
                 try {
-                    const cookies = await getCookiesForDomain(domain, session);
+                    const cookies = await getCookiesForDomain(domain);
                     const cookieData = cookiesToNetscapeFormat(cookies);
                     await conn.invoke('CookieResponse', requestId, cookieData);
                 } catch (error) {

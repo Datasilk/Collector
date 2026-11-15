@@ -7,6 +7,7 @@ import './styles/App.css';
 import { BrowserRouter as Router } from 'react-router-dom';
 import { SessionProvider } from './context/session';
 import { WorkerHubProvider } from './context/workerhub';
+import { ModalProvider } from './context/modal';
 import { VideoPiPProvider } from './context/videopip';
 import { ThemeProvider } from './context/theme';
 import { addSvg } from './helpers/svg';
@@ -55,9 +56,11 @@ function App() {
       <Router>
         <SessionProvider>
           <WorkerHubProvider>
+            <ModalProvider>
             <VideoPiPProvider>
               <Content />
             </VideoPiPProvider>
+            </ModalProvider>
           </WorkerHubProvider>
         </SessionProvider>
       </Router>

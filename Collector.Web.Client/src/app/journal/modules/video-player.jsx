@@ -1,3 +1,4 @@
+import { showModal, hideModal } from '@/context/modal';
 import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 import Hls from 'hls.js';
 //components
@@ -702,7 +703,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         if (!module.videoId || isGeneratingHls) return;
 
         setIsGeneratingHls(true);
-        session.showModal(() => (
+        showModal(() => (
             <Modal title="Generating Adaptive Streaming" hideButtons={true}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '20px' }}>
                     <Icon name="progress_activity" className="spin" />
@@ -721,7 +722,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
             console.error('Error generating HLS:', err);
         } finally {
             setIsGeneratingHls(false);
-            session.hideModal();
+            hideModal();
         }
     };
 
@@ -731,7 +732,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         const currentTime = videoRef.current.currentTime;
 
         // Show loading modal
-        session.showModal(() => (
+        showModal(() => (
             <Modal title="Generating Thumbnail" hideButtons={true}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '20px' }}>
                     <Icon name="progress_activity" className="spin" />
@@ -752,7 +753,7 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         } catch (err) {
             console.error('Error generating thumbnail at position:', err);
         } finally {
-            session.hideModal();
+            hideModal();
         }
     };
 
@@ -1081,14 +1082,14 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
                 showmodal = true;
             }
             if (showmodal) {
-                session.showModal(() => (
+                showModal(() => (
                     <CookiesUploadModal
                         onClose={() => {
-                            session.hideModal();
+                            hideModal();
                             setPendingDownloadUrl(null);
                         }}
                         onSuccess={() => {
-                            session.hideModal();
+                            hideModal();
                             startDownload(url);
                             setPendingDownloadUrl(null);
                         }}

@@ -1,3 +1,4 @@
+import { showModal, hideModal } from '@/context/modal';
 import { useState, useRef, useEffect } from 'react';
 //components
 import Icon from '@/components/ui/icon';
@@ -149,11 +150,11 @@ export default function FileDownloadModule({ module, entryId, journalId, onUpdat
 
     const handleShowSettingsModal = () => {
         // Pass a function that returns the component, using moduleRef to get the latest value
-        session.showModal(() => (
+        showModal(() => (
             <FileDownloadModal 
                 module={moduleRef.current}
                 onUpdate={onUpdate}
-                onClose={() => session.hideModal()}
+                onClose={() => hideModal()}
             />
         ));
     };
@@ -163,8 +164,8 @@ export default function FileDownloadModule({ module, entryId, journalId, onUpdat
         
         const downloadUrl = `${apiBasePath()}/file/${journalId}/${entryId}/${module.filename}`;
         
-        session.showModal(
-            <Modal title="Download Warning" onClose={() => session.hideModal()}>
+        showModal(
+            <Modal title="Download Warning" onClose={() => hideModal()}>
                 <div style={{ padding: '1em' }}>
                     <p style={{ marginBottom: '1em' }}>
                         <strong>Please read the following warnings before downloading:</strong>
@@ -190,7 +191,7 @@ export default function FileDownloadModule({ module, entryId, journalId, onUpdat
                         <a 
                             href={downloadUrl}
                             className="button"
-                            onClick={() => session.hideModal()}
+                            onClick={() => hideModal()}
                             download
                         >
                             <Icon name="download" />
@@ -198,7 +199,7 @@ export default function FileDownloadModule({ module, entryId, journalId, onUpdat
                         </a>
                         <button 
                             className="cancel"
-                            onClick={() => session.hideModal()}
+                            onClick={() => hideModal()}
                         >
                             Cancel
                         </button>

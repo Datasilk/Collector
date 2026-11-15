@@ -1,3 +1,4 @@
+import { hideModal } from '@/context/modal';
 import { useState, useEffect } from 'react';
 //components
 import Input from '@/components/forms/input';
@@ -30,7 +31,7 @@ export default function ChecklistSettingsModal({ checklistId, title, description
     } = JournalChecklists(session);
 
     const handleClose = () => {
-        session.hideModal();
+        hideModal();
     };
 
     const handleSave = async () => {
@@ -56,7 +57,7 @@ export default function ChecklistSettingsModal({ checklistId, title, description
                 onSaved(tempTitle, tempDescription);
             }
 
-            session.hideModal();
+            hideModal();
         } catch (err) {
             console.error('Error saving checklist settings:', err);
         } finally {
@@ -125,7 +126,7 @@ export default function ChecklistSettingsModal({ checklistId, title, description
         if (selectedChecklist && onSaved) {
             onSaved(selectedChecklist.title, selectedChecklist.description, selectedChecklist.items, selectedChecklist.id);
         }
-        session.hideModal();
+        hideModal();
     };
 
     const handleCancelLoad = () => {

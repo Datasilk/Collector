@@ -1,3 +1,4 @@
+import { showModal, hideModal } from '@/context/modal';
 import React, { useState, useEffect, useRef } from 'react';
 import * as signalR from '@microsoft/signalr';
 import Icon from '@/components/ui/icon';
@@ -222,7 +223,7 @@ export default function GenerateContentModule({
             handleGenerate(settings);
         };
 
-        session.showModal(() => (
+        showModal(() => (
             <GenerateContentModal
                 initialUrl={url}
                 initialIncludeVideo={includeVideo}
@@ -234,7 +235,7 @@ export default function GenerateContentModule({
                 initialChapterCount={chapterCount}
                 initialUserInstructions={userInstructions}
                 onGenerate={handleModalGenerate}
-                onClose={() => session.hideModal()}
+                onClose={() => hideModal()}
             />
         ));
     };

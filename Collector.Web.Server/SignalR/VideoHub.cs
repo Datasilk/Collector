@@ -12,11 +12,13 @@ namespace Collector.Web.Server.SignalR
     public class VideoHub : Hub
     {
         private readonly IJournalVideosRepository _videoRepo;
+        private readonly IJournalEntriesRepository _entriesRepository;
         private readonly ILogger<VideoHub> _logger;
 
-        public VideoHub(IJournalVideosRepository videoRepo, ILogger<VideoHub> logger)
+        public VideoHub(IJournalVideosRepository videoRepo, IJournalEntriesRepository entriesRepository, ILogger<VideoHub> logger)
         {
             _videoRepo = videoRepo;
+            _entriesRepository = entriesRepository;
             _logger = logger;
             _logger.LogInformation("VideoHub instance created");
         }
@@ -91,6 +93,9 @@ namespace Collector.Web.Server.SignalR
                                 thumbnailPath = thumbnailRelativePath2.Replace("\\", "/");
                             }
                         }
+                        // If the journal entry doesn't have a thumbnail yet, use the video thumbnail
+                        SetEntryThumbnailIfMissing(entryId, thumbnailPath, moduleId);
+
                         await Clients.Caller.SendAsync("DownloadProgress", 100, "Already downloaded");
                         await Clients.Caller.SendAsync("DownloadComplete", new
                         {
@@ -373,6 +378,9 @@ namespace Collector.Web.Server.SignalR
                 _logger.LogInformation("Video {VideoId} download completed", videoId);
                 Console.WriteLine($"[VideoHub] Updated JournalVideo.Downloaded=true for Id={videoId}.");
 
+                // If the journal entry doesn't have a thumbnail yet, use the video thumbnail
+                SetEntryThumbnailIfMissing(entryId, thumbnailRelativePath, moduleId);
+
                 await Clients.Caller.SendAsync("DownloadProgress", 100, "Complete!");
                 Console.WriteLine($"[VideoHub] DownloadVideo flow completed successfully for videoId={videoId}.");
             }
@@ -381,6 +389,31 @@ namespace Collector.Web.Server.SignalR
                 Console.WriteLine($"[VideoHub] DownloadVideo error: {ex.Message}");
                 Console.WriteLine($"[VideoHub] Stack trace: {ex.StackTrace}");
                 await Clients.Caller.SendAsync("DownloadError", $"Error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Sets the journal entry's thumbnail to the video thumbnail if the entry
+        /// doesn't have a thumbnail yet.
+        /// </summary>
+        private void SetEntryThumbnailIfMissing(string entryId, string thumbnailRelativePath, string moduleId)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(thumbnailRelativePath)) return;
+                if (!Guid.TryParse(entryId, out var entryGuid)) return;
+
+                var thumbnailFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), thumbnailRelativePath);
+                if (!File.Exists(thumbnailFullPath)) return;
+
+                var entry = _entriesRepository.GetById(entryGuid);
+                if (entry == null || !string.IsNullOrEmpty(entry.Thumbnail)) return;
+
+                _entriesRepository.UpdateThumbnail(entryGuid, thumbnailRelativePath.Replace("\\", "/"), moduleId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to set journal entry thumbnail for EntryId={EntryId}", entryId);
             }
         }
 

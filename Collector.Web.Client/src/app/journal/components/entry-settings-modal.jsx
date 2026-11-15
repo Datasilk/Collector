@@ -1,3 +1,4 @@
+import { hideModal } from '@/context/modal';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Modal from '@/components/ui/modal';
@@ -306,7 +307,7 @@ export default function SettingsModal({
 
     const handleEntryMoved = async (targetJournal) => {
         // Navigate to the new journal/entry URL
-        session.hideModal();
+        hideModal();
         navigate(`/journal/${targetJournal.id}/entry/${entry.id}`);
     };
 

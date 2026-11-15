@@ -1,3 +1,4 @@
+import { showModal, hideModal } from '@/context/modal';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 // components
 import Icon from '@/components/ui/icon';
@@ -270,10 +271,10 @@ export default function ImageGalleryModule({
             }
         };
 
-        session.showModal(() => (
+        showModal(() => (
             <Modal
                 title="Upload Images"
-                onClose={() => session.hideModal()}
+                onClose={() => hideModal()}
             >
                 <div
                     style={{
@@ -360,10 +361,10 @@ export default function ImageGalleryModule({
         const fileName = images[value];
         if (!fileName) return;
         const fullSrc = getFullImageSrc(fileName);
-        session.showModal(() => (
+        showModal(() => (
             <Modal
                 title="Image Preview"
-                onClose={() => session.hideModal()}
+                onClose={() => hideModal()}
                 className="image-gallery-preview-modal"
                 wide={true}
             >
@@ -429,13 +430,13 @@ export default function ImageGalleryModule({
 
     const handleShowSettings = useCallback(() => {
         if (!isEditable) return;
-        session.showModal(() => (
+        showModal(() => (
             <ImageGallerySettingsModal
                 thumbnailsPerRow={thumbnailsPerRow}
                 galleryType={galleryTypeState}
                 thumbnailSize={thumbnailSize}
                 onSave={handleSaveSettings}
-                onClose={() => session.hideModal()}
+                onClose={() => hideModal()}
             />
         ));
     }, [galleryTypeState, handleSaveSettings, isEditable, session, thumbnailSize, thumbnailsPerRow]);

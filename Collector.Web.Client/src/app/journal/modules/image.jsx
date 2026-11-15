@@ -1,3 +1,4 @@
+import { showModal, hideModal } from '@/context/modal';
 import { useState, useRef, useEffect, useCallback } from 'react';
 //components
 import Icon from '@/components/ui/icon';
@@ -126,7 +127,7 @@ export default function ImageModule({ module, entryId, journalId, onUpdate, isEd
             const files = e.dataTransfer?.files;
             if (files && files.length > 0) {
                 await processImageUpload(files[0]);
-                session.hideModal();
+                hideModal();
             }
         };
 
@@ -151,14 +152,14 @@ export default function ImageModule({ module, entryId, journalId, onUpdate, isEd
             const file = e.target.files[0];
             if (file) {
                 await processImageUpload(file);
-                session.hideModal();
+                hideModal();
             }
         };
 
-        session.showModal(() => (
+        showModal(() => (
             <Modal
                 title="Replace Image"
-                onClose={() => session.hideModal()}
+                onClose={() => hideModal()}
             >
                 <div
                     style={{
@@ -209,15 +210,15 @@ export default function ImageModule({ module, entryId, journalId, onUpdate, isEd
     }, [session, isUploading, processImageUpload]);
 
     const handleShowSettings = useCallback(() => {
-        session.showModal((
+        showModal((
             <ImageSettingsModal
                 module={module}
                 onSave={(settings) => {
                     const updatedModule = { ...module, ...settings };
                     onUpdate(updatedModule);
-                    session.hideModal();
+                    hideModal();
                 }}
-                onClose={() => session.hideModal()}
+                onClose={() => hideModal()}
             />
         ));
     }, [session, module, onUpdate]);

@@ -1,3 +1,4 @@
+import { showModal, hideModal } from '@/context/modal';
 import React, { useState, useEffect, useRef } from 'react';
 import Icon from '@/components/ui/icon';
 import { useSession } from '@/context/session';
@@ -16,9 +17,9 @@ export default function NewEntry({ journalId = null, entryId = null, defaultTagI
     const handleSelectEntryType = (entryType) => {
         setShowEntryTypeDropdown(false);
 
-        session.showModal(() => (
+        showModal(() => (
             <entryType.modal
-                onClose={() => session.hideModal()}
+                onClose={() => hideModal()}
                 journalId={journalId}
                 entryId={entryId}
                 defaultTagIds={defaultTagIds}

@@ -1,3 +1,4 @@
+import { showModal } from '@/context/modal';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '@/components/ui/icon';
@@ -189,7 +190,7 @@ export default function EntriesListModule({ module, journalId, entryId, entry, c
     }, [module]);
 
     const handleShowSettingsModal = useCallback(() => {
-        session.showModal(() => (
+        showModal(() => (
             <EntriesListSettingsModal
                 journalId={journalId}
                 entryId={entryId}

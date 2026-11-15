@@ -1,3 +1,4 @@
+import { hideModal } from '@/context/modal';
 import { useState } from 'react';
 //components
 import Modal from '@/components/ui/modal';
@@ -10,7 +11,7 @@ export default function TabsSettingsModal({ module, onUpdate }) {
     const [styleValue, setStyleValue] = useState(module.style ?? 0);
 
     const handleClose = () => {
-        session.hideModal();
+        hideModal();
     };
 
     const handleStyleChange = (e) => {
@@ -29,7 +30,7 @@ export default function TabsSettingsModal({ module, onUpdate }) {
             onUpdate(updatedModule);
         }
 
-        session.hideModal();
+        hideModal();
     };
 
     return (

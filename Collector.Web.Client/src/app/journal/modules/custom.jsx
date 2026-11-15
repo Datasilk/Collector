@@ -1,3 +1,4 @@
+import { showModal, hideModal } from '@/context/modal';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Icon from '@/components/ui/icon';
 import Select from '@/components/forms/select';
@@ -236,12 +237,12 @@ export default function CustomModule({ module, onUpdate, isEditable = true, entr
             return;
         }
 
-        session.showModal(() => (
+        showModal(() => (
             <Modal
                 title="New Custom Module"
                 onClose={() => {
                     loadCustomModuleEntries(session.customModulesJournalId);
-                    session.hideModal();
+                    hideModal();
                 }}
                 wide={true}
                 className="custom-module-modal"
@@ -252,7 +253,7 @@ export default function CustomModule({ module, onUpdate, isEditable = true, entr
                     onSave={handleSaveNewCustomModule}
                     onCancel={() => {
                         loadCustomModuleEntries(session.customModulesJournalId);
-                        session.hideModal();
+                        hideModal();
                     }}
                 />
             </Modal>
@@ -263,7 +264,7 @@ export default function CustomModule({ module, onUpdate, isEditable = true, entr
         try {
             await loadCustomModuleEntries(session.customModulesJournalId);
             await loadAndAddEntryContent(eId);
-            session.hideModal();
+            hideModal();
         } catch (err) {
             console.error('Error saving custom module:', err);
         }
@@ -323,10 +324,10 @@ export default function CustomModule({ module, onUpdate, isEditable = true, entr
             }
         }
         
-        session.showModal(() => (
+        showModal(() => (
             <Modal
                 title="Custom Module Settings"
-                onClose={() => session.hideModal()}
+                onClose={() => hideModal()}
             >
                 <div className="custom-module-settings">
                     <Select
@@ -393,7 +394,7 @@ export default function CustomModule({ module, onUpdate, isEditable = true, entr
             ...moduleRef.current,
             columnsPerRow: newColumnsPerRow
         });
-        session.hideModal();
+        hideModal();
     }, [onUpdate, session]);
 
     const handleModuleListClick = (index) => {

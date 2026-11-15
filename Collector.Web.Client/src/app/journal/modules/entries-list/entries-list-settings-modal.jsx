@@ -1,3 +1,4 @@
+import { hideModal } from '@/context/modal';
 import { useState, useEffect } from 'react';
 // components
 import Modal from '@/components/ui/modal';
@@ -76,7 +77,7 @@ export default function EntriesListSettingsModal({
     }, [journalId, module, session]);
 
     const handleClose = () => {
-        session.hideModal();
+        hideModal();
     };
 
     const handleColumnToggle = (columnName, checked) => {
@@ -102,7 +103,7 @@ export default function EntriesListSettingsModal({
                 onSaved(viewType, columns, parsedEntriesPerPage, tagIds, parseInt(gridColumns, 10) || 0, aspectRatio, roundedCorners);
             }
 
-            session.hideModal();
+            hideModal();
         } catch (err) {
             console.error('Error saving entry list settings:', err);
         } finally {

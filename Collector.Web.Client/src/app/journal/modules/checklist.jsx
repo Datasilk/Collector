@@ -1,3 +1,4 @@
+import { showModal } from '@/context/modal';
 import { useState, useEffect, useRef } from 'react';
 //components
 import Checkbox from '@/components/forms/checkbox';
@@ -348,7 +349,7 @@ export default function ChecklistModule({ module, entryId, onUpdate, isEditable 
             onUpdate({ ...module, checklistId: id });
         }
 
-        session.showModal(() => (
+        showModal(() => (
             <ChecklistSettingsModal
                 checklistId={id}
                 title={checklistTitle}

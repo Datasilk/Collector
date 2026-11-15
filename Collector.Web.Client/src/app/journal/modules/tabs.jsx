@@ -1,3 +1,4 @@
+import { showModal } from '@/context/modal';
 import { useState, useEffect, useRef, useCallback } from 'react';
 //components
 import Icon from '@/components/ui/icon';
@@ -344,7 +345,7 @@ export default function TabsModule({ module, entryId, entry, journalId, journal,
     };
 
     const handleShowSettingsModal = useCallback(() => {
-        session.showModal(() => (
+        showModal(() => (
             <TabsSettingsModal
                 module={module}
                 onUpdate={onUpdate}
