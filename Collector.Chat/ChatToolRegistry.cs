@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Threading;
 using Collector.Chat.Models;
 
 namespace Collector.Chat;
@@ -64,7 +65,10 @@ public class ChatToolRegistry
             .Select(t =>
             {
                 var paramList = t.Parameters?.Any() == true
-                    ? string.Join(", ", t.Parameters.Select(p => $"{p.Key}: {p.DataType}"))
+                    ? string.Join(", ", t.Parameters.Select(p =>
+                        string.IsNullOrWhiteSpace(p.Description)
+                            ? $"{p.Key}: {p.DataType}"
+                            : $"{p.Key}: {p.DataType} — {p.Description}"))
                     : "none";
                 return $"- {t.ToolKey}: {t.Description} (args: {paramList})";
             }));
@@ -73,6 +77,12 @@ public class ChatToolRegistry
             "DECISION:\n" +
             "- If user wants a simple answer/conversation → return message only (no steps)\n" +
             "- If user needs actions performed → return message AND steps\n\n" +
+            "RULES:\n" +
+            "- Use ONLY the tools listed below — never invent tool names or args\n" +
+            "- Steps execute in order; research requests should plan a single \"gather-research\" step (it expands into scrape + entry-integration automatically)\n" +
+            "- If the user asks to change an existing journal entry (rearrange, add, remove content), plan an \"add-edit-journal-entry\" step — it edits the current entry in place\n" +
+            "- When uncertain what to do, return a message only and ask the user to clarify\n" +
+            "- Keep plans short: typically 1-2 steps\n\n" +
             "AVAILABLE TOOLS (use their exact tool keys):\n" +
             toolList +
             "RESPONSE FORMAT:\n" +
@@ -104,22 +114,26 @@ public class ChatToolRegistry
         OnRawRequest? onRawRequest = null,
         OnRawResponse? onRawResponse = null,
         OnSaveChatHistory? onSaveChatHistory = null,
-        SendMessage? sendMessage = null)
+        SendMessage? sendMessage = null,
+        Action<int, int, PlanStep>? onStepStart = null,
+        CancellationToken cancellationToken = default)
     {
         var totalSteps = plan.Steps.Count;
 
         for (int i = 0; i < totalSteps; i++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var step = plan.Steps[i];
             var tool = GetTool(step.Tool);
+            var stepNumber = i + 1;
+
+            onStepStart?.Invoke(stepNumber, totalSteps, step);
 
             if (tool == null)
             {
                 onToolError(step.Tool, $"Tool '{step.Tool}' not found in registry.", null);
                 continue;
             }
-
-            var stepNumber = i + 1;
 
             await tool.Run(
                 userMessage,
@@ -134,7 +148,8 @@ public class ChatToolRegistry
                 onRawRequest,
                 onRawResponse,
                 onSaveChatHistory,
-                sendMessage
+                sendMessage,
+                cancellationToken
             );
 
             // Update total steps in case new steps were added

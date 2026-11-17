@@ -531,16 +531,15 @@ export default function ModuleList({
         // Always prevent default browser behavior (which can open the file in a new tab)
         e.preventDefault();
 
-        if (!canDragDrop || window.noDrag == true) {
-            return;
-        }
         // Remove event listener
         document.removeEventListener('drop', handleDrop);
         e.stopPropagation();
 
-        // Handle external file drop from filesystem
+        // Handle external file drop from filesystem FIRST.
+        // window.noDrag only guards internal module re-order drags — it must not
+        // block file drops (it can be left true by hovering .ck/.no-drag elements).
         const files = e.dataTransfer?.files;
-        if (files && files.length > 0) {
+        if (files && files.length > 0 && canDragDrop) {
             const fileArray = Array.from(files);
             const imageFile = fileArray.find(f => f.type && f.type.startsWith('image/'));
             const pdfFile = fileArray.find(f => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
@@ -840,6 +839,10 @@ export default function ModuleList({
 
                 return;
             }
+        }
+
+        if (!canDragDrop || window.noDrag == true) {
+            return;
         }
 
         // Try to get drag data for cross-container drops

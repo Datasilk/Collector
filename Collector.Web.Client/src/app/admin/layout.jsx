@@ -93,6 +93,7 @@ export default function AdminLayout({ children }) {
                                 <MenuItem label="Users" path="users" url="/admin/users" icon="group"></MenuItem>
                                 <MenuItem label="Open AI" path="openai" url="/admin/openai" icon="chat"></MenuItem>
                                 <MenuItem label="Ollama" path="ollama" url="/admin/ollama" icon="smart_toy"></MenuItem>
+                                <MenuItem label="Search Engines" path="search-engines" url="/admin/search-engines" icon="search"></MenuItem>
                                 <MenuItem label="Logout" path="logout" url="/login" onClick={handleLogOut} icon="logout"></MenuItem>
                             </ul>
                         </div>

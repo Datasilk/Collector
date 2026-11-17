@@ -149,13 +149,27 @@ namespace Collector.Common
                 postData.Append(String.Format("{0}={1}&", WebUtility.HtmlEncode("session"), false));
                 postData.Append(String.Format("{0}={1}", WebUtility.HtmlEncode("macros"), WebUtility.HtmlEncode("?")));
                 StringContent postContent = new StringContent(postData.ToString(), Encoding.UTF8, "application/x-www-form-urlencoded");
-                HttpClient client = new HttpClient()
+                // RouterEndpoint is only set when Charlotte:RouterEndpoint is
+                // configured; otherwise reuse Article's endpoint, which already
+                // defaults to the local Charlotte router (localhost:7007).
+                var endpoint = !string.IsNullOrEmpty(RouterEndpoint)
+                    ? RouterEndpoint + "/GetDOM"
+                    : Article.BrowserEndpoint;
+                try
                 {
-                    Timeout = TimeSpan.FromSeconds(32)
-                };
-                HttpResponseMessage message = client.PostAsync(RouterEndpoint + "/GetDOM", postContent).GetAwaiter().GetResult();
-                string result = message.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-                return result;
+                    HttpClient client = new HttpClient()
+                    {
+                        Timeout = TimeSpan.FromSeconds(32)
+                    };
+                    HttpResponseMessage message = client.PostAsync(endpoint, postContent).GetAwaiter().GetResult();
+                    string result = message.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                    return result;
+                }
+                catch (Exception ex)
+                {
+                    newUrl = url;
+                    return $"Error calling Charlotte Web Router: {ex.Message}";
+                }
             }
             else if (contentType != "")
             {

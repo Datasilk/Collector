@@ -126,7 +126,6 @@ Collector.AI.Ollama.Config.Url = builder.Configuration["Ollama:Url"] ?? "http://
 Collector.AI.Ollama.Config.Model = builder.Configuration["Ollama:Model"] ?? "qwen2.5:0.5b";
 Collector.AI.Ollama.Config.UseGpu = builder.Configuration.GetValue<bool>("Ollama:UseGpu", false);
 Collector.AI.Ollama.Config.NumGpu = builder.Configuration.GetValue<int>("Ollama:NumGpu", 1);
-Collector.AI.Ollama.Config.ContextSize = builder.Configuration.GetValue<int>("Ollama:ContextSize", 2048); //2048 (96MB), 4096 (192MB), 8192 (384MB), or 32768 (1.5GB)
 Collector.AI.Ollama.Config.Temperature = builder.Configuration.GetValue<float>("Ollama:Temperature", 0.7f);
 Collector.AI.Ollama.Config.AutoPullModel = builder.Configuration.GetValue<bool>("Ollama:AutoPullModel", true);
 
@@ -136,7 +135,6 @@ Console.WriteLine($"Ollama Configuration:");
 Console.WriteLine($"  URL: {Collector.AI.Ollama.Config.Url}");
 Console.WriteLine($"  Model: {Collector.AI.Ollama.Config.Model}");
 Console.WriteLine($"  GPU: {(Collector.AI.Ollama.Config.UseGpu ? $"Enabled ({Collector.AI.Ollama.Config.NumGpu} GPU(s))" : "Disabled")}");
-Console.WriteLine($"  Context Size: {Collector.AI.Ollama.Config.ContextSize}");
 Console.WriteLine($"  Temperature: {Collector.AI.Ollama.Config.Temperature}");
 
 if (Collector.AI.Ollama.Config.AutoPullModel)
@@ -147,7 +145,12 @@ if (Collector.AI.Ollama.Config.AutoPullModel)
         var models = await tempOllama.ListLocalModelsAsync();
 
         // Check and pull main chat model
-        var modelExists = models.Any(m => m.Name == Collector.AI.Ollama.Config.Model);
+        // Ollama returns names with tags (e.g. "nomic-embed-text:latest"), so
+        // compare against the full name or the untagged base + ":latest".
+        bool ModelExists(string name) => models.Any(m =>
+            m.Name == name || m.Name == name + ":latest" ||
+            (!name.Contains(':') && m.Name.StartsWith(name + ":")));
+        var modelExists = ModelExists(Collector.AI.Ollama.Config.Model);
         if (!modelExists)
         {
             Console.WriteLine($"\n{Collector.AI.Ollama.Config.Model} model not found. Pulling from Ollama...");
@@ -168,7 +171,7 @@ if (Collector.AI.Ollama.Config.AutoPullModel)
         }
 
         // Check and pull embedding model for RAG
-        var embeddingModelExists = models.Any(m => m.Name == "nomic-embed-text");
+        var embeddingModelExists = ModelExists("nomic-embed-text");
         if (!embeddingModelExists)
         {
             Console.WriteLine("\nnomic-embed-text embedding model not found. Pulling from Ollama...");

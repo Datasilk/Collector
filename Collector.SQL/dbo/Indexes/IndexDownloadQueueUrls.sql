@@ -1,1 +1,0 @@
-﻿CREATE INDEX [IndexDownloadQueueUrl] ON [dbo].[DownloadQueue] ([url])

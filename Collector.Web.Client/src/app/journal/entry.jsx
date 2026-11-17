@@ -8,6 +8,7 @@ import ModuleList from './module-list';
 import EntryToolbar from './components/entry-toolbar';
 //context
 import { useSession } from '@/context/session';
+import { useWorkerHub } from '@/context/workerhub';
 //api
 import { Journals } from '@/api/user/journals';
 import { JournalTags } from '@/api/user/journal-tags';
@@ -23,6 +24,7 @@ export default function JournalEntryPage() {
     const navigate = useNavigate();
     const location = useLocation();
     const session = useSession();
+    const workerHub = useWorkerHub();
 
     //state
     const [entry, setEntry] = useState(null);
@@ -40,6 +42,7 @@ export default function JournalEntryPage() {
     // refs
     const entryRef = useRef(null);
     const entryJsonRef = useRef(null);
+    const entryUnsubRef = useRef(null);
     const secretsTimerRef = useRef(null);
     const saveTimerRef = useRef(null);
     const currentChapterName = useRef(null);
@@ -70,6 +73,12 @@ export default function JournalEntryPage() {
         secretsTimerRef.current = null;
         currentChapterName.current = null;
         currentChapter.current = null;
+
+        //unsubscribe from previous entry's live updates
+        if (entryUnsubRef.current) {
+            entryUnsubRef.current();
+            entryUnsubRef.current = null;
+        }
 
         //load entry details
         fetchEntryDetails();
@@ -217,6 +226,30 @@ export default function JournalEntryPage() {
                 }
                 window.scrollTo(0, 0);
             }
+            // Live updates: refetch + merge when the chat agent (or another
+            // session) writes to this entry's content file.
+            if (workerHub?.subscribeEntry && newEntryId && newEntryId !== 'new') {
+                try {
+                    entryUnsubRef.current = await workerHub.subscribeEntry(newEntryId, async (payload) => {
+                        try {
+                            const contentResponse = await getEntryContent(newEntryId);
+                            if (!contentResponse.data?.success || !contentResponse.data?.data) return;
+                            const remoteJson = JSON.parse(contentResponse.data.data || '{modules:[]}');
+                            remoteJson.modules?.forEach(m => {
+                                delete m.manuallyAdded;
+                                if (m.id == null) m.id = generateRandomId();
+                            });
+                            mergeRemoteEntryJson(remoteJson);
+                            flashAgentModules(payload?.ops);
+                        } catch (err) {
+                            console.error('Error applying live entry update:', err);
+                        }
+                    });
+                } catch (err) {
+                    console.error('Error subscribing to entry updates:', err);
+                }
+            }
+
             if (location.search == '?edit') {
                 setIsEditing(true);
             }
@@ -377,6 +410,65 @@ export default function JournalEntryPage() {
     const showError = (message) => {
         setError(message);
         setLoading(false);
+    };
+
+    // Merge a remote entry-content update into the live view. Modules the user
+    // is actively editing (focused inside a .module-id-{id} element) keep their
+    // local data so typing isn't clobbered; everything else takes the new tree.
+    const mergeRemoteEntryJson = (remoteJson) => {
+        if (!remoteJson || !Array.isArray(remoteJson.modules)) return;
+        const local = entryJsonRef.current || { modules: [] };
+
+        const focusedEl = document.activeElement?.closest?.('[class*="module-id-"]');
+        const focusedId = focusedEl
+            ? ([...focusedEl.classList].find(c => c.startsWith('module-id-')) || '').replace('module-id-', '')
+            : null;
+
+        const mergeModules = (remoteMods, localMods) => {
+            if (!Array.isArray(localMods)) return remoteMods;
+            const localById = new Map(localMods.map(m => [String(m.id), m]));
+            return remoteMods.map(remoteMod => {
+                const localMod = localById.get(String(remoteMod.id));
+                if (focusedId && String(remoteMod.id) === String(focusedId) && localMod) {
+                    return localMod; // user is typing here — keep local version
+                }
+                if (localMod && remoteMod.modules && localMod.modules) {
+                    return { ...remoteMod, modules: mergeModules(remoteMod.modules, localMod.modules) };
+                }
+                if (localMod && remoteMod.tabs && localMod.tabs) {
+                    const mergedTabs = remoteMod.tabs.map(rt => {
+                        const lt = localMod.tabs.find(t => String(t.id) === String(rt.id));
+                        return lt ? { ...rt, modules: mergeModules(rt.modules, lt.modules) } : rt;
+                    });
+                    return { ...remoteMod, tabs: mergedTabs };
+                }
+                return remoteMod;
+            });
+        };
+
+        const merged = { ...remoteJson, modules: mergeModules(remoteJson.modules, local.modules) };
+        entryJsonRef.current = merged;
+        setEntryJson(merged);
+    };
+
+    // Briefly highlight modules the agent just changed (ops arrive as
+    // "kind:target" strings, e.g. "update:123456", "move:789").
+    const flashAgentModules = (ops) => {
+        if (!Array.isArray(ops) || ops.length === 0) return;
+        const changedIds = ops
+            .filter(o => typeof o === 'string' && /^(update|move|remove):/.test(o))
+            .map(o => o.split(':')[1])
+            .filter(Boolean);
+        // after React re-renders the merged tree, flash each changed module
+        setTimeout(() => {
+            changedIds.forEach(id => {
+                const el = document.querySelector(`.module-id-${id}`);
+                if (el) {
+                    el.classList.add('agent-updated');
+                    setTimeout(() => el.classList.remove('agent-updated'), 1600);
+                }
+            });
+        }, 60);
     };
 
     const loadChapters = () => {

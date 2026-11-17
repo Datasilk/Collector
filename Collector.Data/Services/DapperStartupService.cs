@@ -59,6 +59,9 @@ namespace Collector.Data.Services
             
             //LLM Tables
             builder.Services.AddTransient<ILLMModelsRepository, LLMModelsRepository>();
+            
+            //Search Engines
+            builder.Services.AddTransient<ISearchEnginesRepository, SearchEnginesRepository>();
         }
     }
 }

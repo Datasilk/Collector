@@ -82,7 +82,8 @@
             "head", "meta", "link", "applet", "area", "style",
             "audio", "canvas", "dialog", "embed", "iframe",
             "input", "label", "nav", "object", "option", "s", "script",
-            "textarea", "video", "noscript", "footer", "aside"
+            "textarea", "video", "noscript", "footer", "aside",
+            "form", "select", "button", "fieldset", "datalist"
             //, "small"
         };
 
@@ -111,7 +112,15 @@
             "privacy", "captcha", "badge", "comment", "cancel",
             "apply", "dropdown", "drop-down", "truncated",
             "editors-picks", "categories", "notifi", "timer", "next", "previous",
-            "signout", "sign-out", "player", "picker", "stories"
+            "signout", "sign-out", "player", "picker", "stories",
+            "cookie", "consent", "gdpr", "onetrust", "cc-window", "cc_banner",
+            "cookiebot", "osano", "truste", "evidon", "qc-cmp", "didomi",
+            "paywall", "modal", "popup", "pop-up", "toast", "banner",
+            "interstitial", "chat-widget", "chatbot", "sticky", "sidebar",
+            "menu", "breadcrumb", "pagination", "pager", "widget",
+            "skip-link", "skip-to", "sr-only", "screen-reader", "visually-hidden",
+            "opt-in", "optin", "mailchimp", "recaptcha", "g-recaptcha",
+            "slider", "drawer", "lightbox", "announcement", "alert-bar"
         };
 
         //used to protect DOM elements that may be a part of the article
@@ -138,7 +147,15 @@
             "more stories", "click for", "update required", "update your browser", "supports html5",
             "support html5", "member", "this site", "exclusive", "podcast", "newsletter",
             "tick the box", "recent stories", "recent articles", "recent posts", "viewers", "followers", "skip",
-            "related content", "sponsored", "links"
+            "related content", "sponsored", "links",
+            "we use cookies", "accept cookies", "cookie preferences", "cookie settings",
+            "all rights reserved", "terms of service", "terms of use", "privacy notice",
+            "subscribe to our", "sign up for our", "follow us on", "share this",
+            "leave a comment", "read more", "load more", "show more", "see more",
+            "advertisement", "sponsored content", "affiliate", "do not sell",
+            "manage consent", "privacy preferences", "accept all cookies",
+            "join our newsletter", "get our newsletter", "email address",
+            "watch now", "listen now", "download the app", "open in app"
         };
 
         //used to find 2 or more words in a sentence that suggests the sentence is used after the end of an article
@@ -191,7 +208,12 @@
         };
 
         //check DOM element role attribute for bad role names
-        public static string[] badRoles = new string[] { "application" };
+        //ARIA landmark roles reliably identify UI chrome (nav, banners, dialogs, etc)
+        public static string[] badRoles = new string[] {
+            "application", "navigation", "banner", "contentinfo", "complementary",
+            "search", "dialog", "alert", "alertdialog", "menu", "menubar",
+            "toolbar", "tooltip", "status", "marquee", "feed"
+        };
 
         //used to check for malicious characters within a string
         public static string[] badChars = new string[] { "|", ":", "{", "}", "[", "]" };

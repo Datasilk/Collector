@@ -139,6 +139,8 @@ export default function TabsModule({ module, entryId, entry, journalId, journal,
                 clearTimeout(dragDelayTimerRef.current);
                 dragDelayTimerRef.current = null;
             }
+            // Release the global drag lock — the drag never started
+            window.noDrag = false;
             document.removeEventListener('mouseup', handleEarlyMouseUp);
         };
         
@@ -371,7 +373,7 @@ export default function TabsModule({ module, entryId, entry, journalId, journal,
     const activeTab = getActiveTab();
 
     return (
-        <div className={`tabs-module ${module.style === 1 ? 'side-menu' : ''}`}>
+        <div className={`tabs-module ${module.style === 1 ? 'side-menu' : ''} ${module.align === 'right' ? 'right-align' : ''}`}>
             <div className="tabs-toolbar tool-bar">
                 <div className="tabs-list">
                     {tabs.map(tab => (

@@ -216,6 +216,12 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         setDeleteListener(module, removeModule);
     }, [module.id]);
 
+    // Keep the URL input in sync with the module's stored source URL
+    // (modules added by chat/research arrive with url but nothing loaded yet)
+    useEffect(() => {
+        if (module.url) setVideoUrl(module.url);
+    }, [module.url]);
+
     // Auto-download video if autoTryAgain is set
     useEffect(() => {
         if (module.autoTryAgain && module.url && !module.videoId && !isDownloading) {

@@ -38,15 +38,21 @@ export default function CalendarModule({ module, onUpdate, isEditable = true, ta
     }, []);
 
     const handlePreviousMonth = () => {
-        const newDate = new Date(currentDate);
-        newDate.setMonth(newDate.getMonth() - 1);
-        setCurrentDate(newDate);
+        setCurrentDate(prev => {
+            const newDate = new Date(prev);
+            newDate.setDate(1);
+            newDate.setMonth(newDate.getMonth() - 1);
+            return newDate;
+        });
     };
 
     const handleNextMonth = () => {
-        const newDate = new Date(currentDate);
-        newDate.setMonth(newDate.getMonth() + 1);
-        setCurrentDate(newDate);
+        setCurrentDate(prev => {
+            const newDate = new Date(prev);
+            newDate.setDate(1);
+            newDate.setMonth(newDate.getMonth() + 1);
+            return newDate;
+        });
     };
 
     const handleToday = () => {

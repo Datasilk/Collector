@@ -58,7 +58,7 @@ body.scrolled .entry-header  .add-module-container{
 .module-text-editor{
     text-overflow: ellipsis;
     max-width:100vw;
-    overflow-y:hidden;
+    overflow:hidden;
 }
 
 .info-toolbar{
@@ -1407,6 +1407,88 @@ body.scrolled .entry-header .add-module-container{
     overflow-y:visible;
 }
 
+/* Research + Sources tabs in Entry Settings */
+.research-tab details.research-topic {
+    border: 1px solid var(--tabs-border, #444);
+    border-radius: 4px;
+    margin-bottom: 0.5em;
+    padding: 0.4em 0.6em;
+}
+
+.research-tab details.research-topic > summary {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.6em;
+    list-style: none;
+}
+
+.research-tab details.research-topic > summary::-webkit-details-marker {
+    display: none;
+}
+
+.research-tab details.research-topic > summary::before {
+    content: '▸';
+    font-size: 0.85em;
+    opacity: 0.7;
+}
+
+.research-tab details.research-topic[open] > summary::before {
+    content: '▾';
+}
+
+.research-tab .research-topic-title {
+    font-weight: 600;
+}
+
+.research-tab .research-archived-badge {
+    font-size: 0.75em;
+    padding: 0.1em 0.5em;
+    border-radius: 3px;
+    background: var(--chat-system-bg, #555);
+    opacity: 0.8;
+}
+
+.research-tab .research-fact-count {
+    margin-left: auto;
+    font-size: 0.8em;
+    opacity: 0.6;
+}
+
+.research-tab .research-facts {
+    margin: 0.4em 0 0.4em 1.4em;
+    font-size: 0.9em;
+    opacity: 0.9;
+}
+
+.research-tab .research-facts li {
+    margin-bottom: 0.25em;
+}
+
+.research-tab .research-source-ref {
+    margin-left: 0.4em;
+    font-size: 0.8em;
+    opacity: 0.55;
+}
+
+.research-tab details.research-topic .research-topic {
+    margin-left: 1em;
+}
+
+.research-tab .research-empty,
+.sources-tab .research-empty {
+    opacity: 0.6;
+    font-style: italic;
+}
+
+.sources-tab .sources-list {
+    margin-left: 1.2em;
+}
+
+.sources-tab .sources-list li {
+    margin-bottom: 0.4em;
+}
+
 @media screen and (max-width: 680px) {
     .entry-header .created-date {
         display: none;
@@ -1633,6 +1715,23 @@ body.scrolled .entry-header .add-module-container{
 .tabs-module.side-menu .tab-content {
     flex: 1;
     border-left: none;
+}
+
+/* Side-menu tabs pinned to the RIGHT (nested level-2 research subtopics) */
+.tabs-module.side-menu.right-align {
+    flex-direction: row-reverse;
+}
+
+.tabs-module.side-menu.right-align .tabs-toolbar {
+    border-right: none;
+    border-left: 1px solid var(--tabs-border);
+    width: 180px;
+    min-width: 150px;
+}
+
+.tabs-module.side-menu.right-align .tab.active::before {
+    left: auto;
+    right: 0;
 }
 
 /* spreadsheets */
@@ -2940,3 +3039,16 @@ body:not(.is-mobile) .entry-tools .back-button,
     }
 }
 
+
+/* flash highlight for modules just changed by the research agent */
+.agent-updated {
+    outline: 2px solid var(--primary, #4a9eff);
+    outline-offset: 2px;
+    border-radius: 4px;
+    transition: outline 1.4s ease-out;
+    animation: agent-flash 1.6s ease-out;
+}
+@keyframes agent-flash {
+    0% { background: color-mix(in srgb, var(--primary, #4a9eff) 18%, transparent); }
+    100% { background: transparent; }
+}

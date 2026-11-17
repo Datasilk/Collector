@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using System.Threading;
 using Collector.Chat.Models;
 using Collector.Common;
 using OllamaSharp;
@@ -61,7 +62,8 @@ public class CleanWebContentTool : IChatTool
         OnRawRequest? onRawRequest = null,
         OnRawResponse? onRawResponse = null,
         OnSaveChatHistory? onSaveChatHistory = null,
-        SendMessage? sendMessage = null)
+        SendMessage? sendMessage = null,
+        CancellationToken cancellationToken = default)
     {
         try
         {

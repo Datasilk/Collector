@@ -348,6 +348,25 @@ body.scrolled .journal-layout .sidebar-top>.tool-bar {
     top: 3.5em;
     transition: all 0.3s ease;
     display: none;
+    scrollbar-width: thin;
+    scrollbar-color: var(--link-text) transparent;
+}
+
+.is-mobile .sidebar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.is-mobile .sidebar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.is-mobile .sidebar::-webkit-scrollbar-thumb {
+    background: var(--link-text);
+    border-radius: 4px;
+}
+
+.is-mobile .sidebar::-webkit-scrollbar-thumb:hover {
+    background: var(--link-hover-text);
 }
 
 .is-mobile.scrolled .sidebar {

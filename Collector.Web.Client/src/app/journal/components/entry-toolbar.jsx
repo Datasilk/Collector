@@ -249,6 +249,15 @@ export default function EntryToolbar({
         setShowBottomModuleDropdown(false);
     };
 
+    const handleOpenEntryChat = () => {
+        window.dispatchEvent(new CustomEvent('collector:open-chat', {
+            detail: {
+                message: `What would you like me to do with your journal entry titled "${entry?.title || 'Untitled Entry'}"?`,
+                entryId: entry?.id
+            }
+        }));
+    };
+
     const handleToggleFavorite = async () => {
         if (!entry || !entry.id) return;
 
@@ -514,6 +523,13 @@ export default function EntryToolbar({
                                         <Icon name={entry?.favorite ? "star_shine" : "star"} />
                                     </button>
                                 )}
+                                <button
+                                    className="icon"
+                                    onClick={handleOpenEntryChat}
+                                    title="Chat with AI about this entry"
+                                >
+                                    <Icon name="chat" />
+                                </button>
                                 <div className="right-side history-dropdown-container">
                                     <button
                                         className="icon"

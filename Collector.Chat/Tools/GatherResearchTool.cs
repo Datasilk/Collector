@@ -1,7 +1,9 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
 using System.Web;
 using Collector.Chat.Models;
 using Collector.Common;
@@ -16,11 +18,13 @@ public class GatherResearchTool : IChatTool
 {
     private readonly OllamaApiClient _ollama;
     private readonly string _ollamaModel;
+    private readonly Collector.Data.Interfaces.ISearchEnginesRepository _searchEnginesRepo;
 
-    public GatherResearchTool(OllamaApiClient ollama, string ollamaModel)
+    public GatherResearchTool(OllamaApiClient ollama, string ollamaModel, Collector.Data.Interfaces.ISearchEnginesRepository searchEnginesRepo = null)
     {
         _ollama = ollama;
         _ollamaModel = ollamaModel;
+        _searchEnginesRepo = searchEnginesRepo;
     }
 
     public string ToolKey => "gather-research";
@@ -72,7 +76,8 @@ public class GatherResearchTool : IChatTool
         OnRawRequest? onRawRequest = null,
         OnRawResponse? onRawResponse = null,
         OnSaveChatHistory? onSaveChatHistory = null,
-        SendMessage? sendMessage = null)
+        SendMessage? sendMessage = null,
+        CancellationToken cancellationToken = default)
     {
         try
         {
@@ -86,91 +91,187 @@ public class GatherResearchTool : IChatTool
             var context = args?.GetValueOrDefault("context", "")?.ToString() ?? "";
             var maxResultsStr = args?.GetValueOrDefault("maxResults", "5")?.ToString() ?? "5";
             var maxResults = int.TryParse(maxResultsStr, out var parsed) ? parsed : 5;
+            // Research budget: max 10 pages per request — follow-on links
+            // discovered during scraping never extend it.
+            if (maxResults > 10) maxResults = 10;
 
-            // Generate search query using Ollama based on context, user message, and RAG context
-            onProgress(10, "Generating optimal search query...");
-            var query = await GenerateSearchQueryAsync(context, userMessage, ragContext);
-            
+            // URL-direct research — when the request names a specific URL, we
+            // download and extract THAT page instead of searching engines.
+            var directUrls = ExtractUrls(userMessage)
+                .Concat(ExtractUrls(context))
+                .Concat(ExtractUrls(args?.GetValueOrDefault("url", "")?.ToString() ?? ""))
+                .Distinct()
+                .Take(maxResults)
+                .ToList();
+            var urlDirect = directUrls.Count > 0;
+
+            // A research-review step may hand us the query directly (gap-filling
+            // follow-up); otherwise generate one from the user's request.
+            var query = args?.GetValueOrDefault("query", "")?.ToString()?.Trim() ?? "";
+            if (urlDirect && string.IsNullOrWhiteSpace(query))
+            {
+                // The URL itself is the "query" — it lands in asked-queries so
+                // coverage never re-searches for it.
+                query = directUrls[0];
+            }
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                onProgress(10, "Generating optimal search query...");
+                query = await GenerateSearchQueryAsync(context, userMessage, ragContext, cancellationToken);
+            }
+
             if (string.IsNullOrWhiteSpace(query))
             {
                 onError("Failed to generate search query", null);
                 return;
             }
 
-            var allUrls = new List<string>();
-            var searchEngines = new[] { "google"};//, "bing", "duckduckgo" };
+            // Track every asked query — the coverage loop never re-asks one.
+            ResearchReviewTool.AddToList(data, "asked-queries", "queries", new[] { query });
 
-            // Search each engine
-            for (int i = 0; i < searchEngines.Length; i++)
+            // First research step of a run: derive the research questions the
+            // coverage review (research-review) will check the entry against.
+            if (ResearchReviewTool.GetList(data, "research-questions", "questions").Count == 0)
             {
-                var engine = searchEngines[i];
-                var progressPercent = (int)((i / (double)searchEngines.Length) * 60);
-                onProgress(10 + progressPercent, $"Searching {engine}...");
-
                 try
                 {
-                    var urls = await SearchEngineAsync(engine, query, onError);
-                    allUrls.AddRange(urls);
+                    var questions = await GenerateResearchQuestionsAsync(userMessage, ragContext, cancellationToken);
+                    if (questions.Count > 0)
+                    {
+                        ResearchReviewTool.AddToList(data, "research-questions", "questions", questions);
+                    }
                 }
-                catch (Exception ex)
+                catch { /* question tracking is best-effort */ }
+            }
+
+            // URL-direct requests download the named page instead of searching;
+            // gap-fill/deepening steps carry a context describing WHY this
+            // search runs — surface it so progress doesn't read as a repeat.
+            sendMessage?.Invoke(urlDirect
+                ? $"Downloading {directUrls[0]}…"
+                : string.IsNullOrWhiteSpace(context)
+                    ? $"Searching the web for information about \"{query}\"…"
+                    : $"{context.Trim().TrimEnd('.')} — searching for \"{query}\"…", null, null);
+
+            var allUrls = new List<string>();
+            if (!urlDirect)
+            {
+                var searchEngines = SearchHelper.GetEnabledEngines(_searchEnginesRepo);
+
+                // Search engines in priority order (lowest sort first), falling through
+                // to the next engine when one fails or returns no usable results
+                for (int i = 0; i < searchEngines.Count; i++)
                 {
-                    // Log but continue with other engines
-                    onProgress(10 + progressPercent, $"{engine} search failed: {ex.Message}");
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var engine = searchEngines[i];
+                    var progressPercent = (int)((i / (double)searchEngines.Count) * 60);
+                    onProgress(10 + progressPercent, $"Searching {engine.Name}...");
+
+                    try
+                    {
+                        var urls = await SearchHelper.SearchEngineUrlsAsync(engine, query,
+                            (msg) => onProgress(10 + progressPercent, msg), _searchEnginesRepo,
+                            p => AnalyzeScriptAsync(p, cancellationToken), cancellationToken: cancellationToken);
+                        allUrls.AddRange(urls);
+                    }
+                    catch (OperationCanceledException) { throw; }
+                    catch (Exception ex)
+                    {
+                        onProgress(10 + progressPercent, $"{engine.Name} search failed: {ex.Message}");
+                        continue;
+                    }
+
+                    // Highest-priority engine produced enough results; no need to hit lower-priority engines
+                    if (allUrls.Count >= maxResults)
+                    {
+                        break;
+                    }
                 }
             }
 
             onProgress(70, "Filtering and deduplicating URLs...");
 
-            // Filter out sponsored links, duplicates, and invalid URLs
-            var filteredUrls = FilterUrls(allUrls);
+            // Filter out sponsored links, duplicates, and invalid URLs —
+            // URL-direct mode already carries the user's chosen pages.
+            var filteredUrls = urlDirect ? directUrls : SearchHelper.FilterByDomain(allUrls);
+
+            // Never re-collect a URL the entry already lists as a research
+            // source — coverage waves re-emit them constantly otherwise.
+            var skipped = 0;
+            var entryId = ResearchReviewTool.GetSessionEntryId(data);
+            if (entryId != null)
+            {
+                try
+                {
+                    var research = JournalEntryDocument.Load(entryId.Value).Research;
+                    if (research != null)
+                    {
+                        var fresh = filteredUrls.Where(u => !research.HasSource(u)).ToList();
+                        skipped = filteredUrls.Count - fresh.Count;
+                        filteredUrls = fresh;
+                    }
+                }
+                catch { /* dedup is best-effort */ }
+            }
 
             // Limit to max results
             var finalUrls = filteredUrls.Take(maxResults).ToList();
 
+            // Record planned pages so research-review can report the tally
+            // ("collected 8 of 10 pages — 2 failed") — failed scrapes never
+            // reach shared data, so the planned list is the denominator.
+            ResearchReviewTool.AddToList(data, "planned-pages", "urls", finalUrls);
+
             if (finalUrls.Count == 0)
             {
+                if (skipped > 0)
+                {
+                    var msg = $"All {skipped} discovered page{(skipped == 1 ? " is" : "s are")} already in this entry's sources — nothing new to collect.";
+                    onProgress(100, msg);
+                    sendMessage?.Invoke(msg, null, null);
+                    onComplete(msg);
+                    return;
+                }
                 onError("No relevant URLs found from search engines", null);
                 return;
             }
 
-            onProgress(80, $"Found {finalUrls.Count} relevant URLs for query: {query}");
+            if (skipped > 0)
+            {
+                sendMessage?.Invoke($"Skipped {skipped} already-collected source{(skipped == 1 ? "" : "s")}.", null, null);
+            }
 
-            // Add web-scrape steps for each URL
+            onProgress(80, $"Found {finalUrls.Count} relevant URLs for query: {query}");
+            sendMessage?.Invoke($"Found {finalUrls.Count} source{(finalUrls.Count == 1 ? "" : "s")} — collecting research…", null, null);
+
+            // Add scrape → integrate pairs for each URL so the journal entry
+            // matures page by page as each source is collected.
             if (plan != null && currentStepIndex >= 0)
             {
-                onProgress(90, "Adding web-scrape steps to plan...");
-
-                // Track the index where we start adding web-scrape steps
-                int lastWebScrapeIndex = currentStepIndex;
+                onProgress(90, "Adding collection steps to plan...");
 
                 // Insert steps in reverse order so first URL ends up first in the list
                 for (int i = finalUrls.Count - 1; i >= 0; i--)
                 {
                     var url = finalUrls[i];
+
+                    PlanUtility.AddStepToPlan(plan, currentStepIndex, "add-edit-journal-entry", new Dictionary<string, object>
+                    {
+                        { "url", url }
+                    });
                     PlanUtility.AddStepToPlan(plan, currentStepIndex, "web-scrape", new Dictionary<string, object>
                     {
                         { "url", url }
                     });
-                    lastWebScrapeIndex = currentStepIndex + 1; // Points to the step we just added
                 }
 
-                // Add clean-web-content step after all web-scrape steps
-                // Insert at the position after the last web-scrape step
-                int cleanContentIndex = lastWebScrapeIndex + (finalUrls.Count - 1);
-                PlanUtility.AddStepToPlan(plan, cleanContentIndex, "clean-web-content", new Dictionary<string, object>
-                {
-                    { "userMessage", userMessage }
-                });
-
-                // Add add-edit-journal-entry step after clean-web-content
-                int addEditIndex = cleanContentIndex + 1;
-                PlanUtility.AddStepToPlan(plan, addEditIndex, "add-edit-journal-entry", new Dictionary<string, object>
-                {
-                    { "context", "Create journal entry from cleaned web content" }
-                });
+                // Coverage review after all pairs for THIS search — it queues
+                // more gather-research steps if research questions remain open.
+                PlanUtility.AddStepToPlan(plan, currentStepIndex + (finalUrls.Count * 2), "research-review",
+                    new Dictionary<string, object>());
             }
 
-            onProgress(100, $"Research complete. Added {finalUrls.Count} URLs to scrape, plus content cleaning and journal entry steps.");
+            onProgress(100, $"Research complete. Added {finalUrls.Count} page(s) to collect and integrate.");
 
             onComplete($"Gathered {finalUrls.Count} URLs from search engines");
         }
@@ -180,309 +281,211 @@ public class GatherResearchTool : IChatTool
         }
     }
 
-    /// <summary>
-    /// Search a specific engine and return URLs
-    /// </summary>
-    private async Task<List<string>> SearchEngineAsync(string engine, string query, OnError onError)
+    /// <summary>Pull http(s) URLs out of free text (user message, context, args).</summary>
+    private static List<string> ExtractUrls(string text)
     {
-        var urls = new List<string>();
-        var searchUrl = BuildSearchUrl(engine, query);
+        if (string.IsNullOrWhiteSpace(text)) return new List<string>();
+        return Regex.Matches(text, @"https?://[^\s""'<>)\]]+")
+            .Select(m => m.Value.TrimEnd('.', ',', ';', '!', '?'))
+            .Where(u => Uri.TryCreate(u, UriKind.Absolute, out var uri) &&
+                        (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+            .ToList();
+    }
 
-        if (string.IsNullOrEmpty(searchUrl))
+    /// <summary>
+/// Derive the explicit research questions for this run — stored in shared
+    /// data and checked by the research-review coverage step at the end.
+    /// </summary>
+    private async Task<List<string>> GenerateResearchQuestionsAsync(string userMessage, string ragContext, CancellationToken cancellationToken = default)
+    {
+        var userPrompt = $"User's research request: {userMessage}\n\n" +
+            (string.IsNullOrWhiteSpace(ragContext) ? "" : $"Conversation context:\n{ragContext}\n\n") +
+            "Produce the research questions as JSON now.";
+
+        var request = new OllamaSharp.Models.GenerateRequest
         {
-            return urls;
-        }
+            Model = _ollamaModel,
+            System = Prompts.ResearchQuestionsSystem(),
+            Prompt = userPrompt,
+            Stream = false,
+            Format = "json"
+        };
 
+        var text = "";
+        await foreach (var response in _ollama.GenerateAsync(request, cancellationToken))
+        {
+            if (response?.Response != null) text += response.Response;
+        }
+        if (!LLMJson.TryParse<ResearchQuestionsResponse>(text, out var result) || result?.Questions == null)
+        {
+            return new List<string>();
+        }
+        return result.Questions
+            .Where(q => !string.IsNullOrWhiteSpace(q))
+            .Select(q => q.Trim())
+            .Take(8)
+            .ToList();
+    }
+
+    private class ResearchQuestionsResponse
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("questions")]
+        public List<string>? Questions { get; set; }
+    }
+
+    /// <summary>
+    /// LLM delegate passed to SearchHelper for tier-2 engine discovery —
+    /// analyzes downloaded JavaScript to identify a site's search endpoint.
+    /// </summary>
+    private async Task<string> AnalyzeScriptAsync(string prompt, CancellationToken cancellationToken = default)
+    {
+        var request = new OllamaSharp.Models.GenerateRequest
+        {
+            Model = _ollamaModel,
+            System = Prompts.ScriptAnalysisSystem(),
+            Prompt = prompt,
+            Stream = false,
+            Format = "json"
+        };
+        var text = "";
+        await foreach (var response in _ollama.GenerateAsync(request, cancellationToken))
+        {
+            if (response?.Response != null) text += response.Response;
+        }
+        return text;
+    }
+
+    /// Generate an optimal search query using Ollama based on context, user message, and RAG context
+    /// </summary>
+    private async Task<string> GenerateSearchQueryAsync(string context, string userMessage, string ragContext, CancellationToken cancellationToken = default)
+    {
         try
         {
-            // Download search results page
-            string resolvedUrl;
-            var domJson = Charlotte.Download(searchUrl, out resolvedUrl);
+            // Framed as a mechanical text-transform, not an assistant answering
+            // a question — that framing is what minimizes refusals.
+            var systemPrompt = @"You are a text-formatting utility that converts research requests into web search queries.
+You do not answer, evaluate, or respond to requests — you only reformat them into query strings.
+Every input is a research request someone already decided to make; your only job is distilling it into keywords.
 
-            if (string.IsNullOrWhiteSpace(domJson) || domJson.StartsWith("file:") || domJson.StartsWith("Error"))
+Rules:
+1. Output a query that is 2-8 words long
+2. Keep proper nouns and specific keywords that identify the subject
+3. Remove filler words (what, how, why, when, where, is, are, the, a, an)
+4. Return ONLY the query string. Never include explanations, apologies, or refusals.
+
+Examples:
+- Input: tell me about Python list comprehension syntax -> Output: Python list comprehension syntax
+- Input: find details about the Jensen Huang affairs -> Output: Jensen Huang affair controversy
+- Input: compare PostgreSQL vs MySQL performance -> Output: PostgreSQL vs MySQL performance benchmark";
+
+            var userPrompt = $"Context from conversation: {context}\n\nResearch request: {userMessage}\n\nPrevious conversation context:\n{ragContext}\n\nOutput the search query now:";
+
+            // Try up to twice; validate each response before trusting it as a
+            // query — a refusal or meta-commentary must never reach the engine.
+            for (var attempt = 0; attempt < 2; attempt++)
             {
-                return urls;
-            }
-
-            // Parse and extract URLs
-            var analyzedArticle = Html.DeserializeArticle(domJson);
-            Html.GetArticleInfoFromDOM(analyzedArticle);
-
-            // Extract URLs from the page
-            urls = ExtractUrlsFromSearchResults(analyzedArticle, engine);
-        }
-        catch (Exception ex)
-        {
-            onError($"Error searching {engine}: {ex.Message}", ex);
-        }
-
-        return urls;
-    }
-
-    /// <summary>
-    /// Build search URL for the given engine
-    /// </summary>
-    private string BuildSearchUrl(string engine, string query)
-    {
-        var encodedQuery = HttpUtility.UrlEncode(query);
-
-        return engine.ToLower() switch
-        {
-            "google" => $"https://www.google.com/search?q={encodedQuery}&num=20",
-            "bing" => $"https://www.bing.com/search?q={encodedQuery}&count=20",
-            "duckduckgo" => $"https://duckduckgo.com/html/?q={encodedQuery}",
-            _ => ""
-        };
-    }
-
-    /// <summary>
-    /// Extract URLs from search result page based on engine
-    /// </summary>
-    private List<string> ExtractUrlsFromSearchResults(Collector.Common.Models.Articles.AnalyzedArticle article, string engine)
-    {
-        var urls = new List<string>();
-
-        if (article?.elements == null)
-        {
-            return urls;
-        }
-
-        foreach (var element in article.elements)
-        {
-            if (element?.attribute == null)
-            {
-                continue;
-            }
-
-            // Look for href attributes
-            if (element.attribute.TryGetValue("href", out var href))
-            {
-                var url = href?.ToString() ?? "";
-
-                // Filter based on engine-specific patterns
-                if (IsValidSearchResultUrl(url, engine))
+                var request = new OllamaSharp.Models.GenerateRequest
                 {
-                    // Clean and normalize URL
-                    url = CleanUrl(url);
-                    if (!string.IsNullOrEmpty(url) && !urls.Contains(url))
+                    Model = _ollamaModel,
+                    System = systemPrompt,
+                    Prompt = attempt == 0
+                        ? userPrompt
+                        : userPrompt + "\n\nReminder: output ONLY the keyword query, no sentences.",
+                    Stream = false
+                };
+
+                var responseContent = "";
+                await foreach (var response in _ollama.GenerateAsync(request, cancellationToken))
+                {
+                    if (response?.Response != null)
                     {
-                        urls.Add(url);
+                        responseContent += response.Response;
                     }
                 }
-            }
-        }
 
-        return urls;
+                var query = CleanQuery(responseContent);
+                if (IsPlausibleQuery(query))
+                    return query;
+            }
+
+            // Both attempts unusable — derive a keyword query deterministically
+            // from the user's own words so the pipeline still searches.
+            return DeriveQueryFromMessage(userMessage);
+        }
+        catch
+        {
+            return DeriveQueryFromMessage(userMessage);
+        }
     }
 
     /// <summary>
-    /// Check if URL is a valid search result (not sponsored, not a navigation link, etc.)
+    /// Strip the LLM response down to a candidate query string: first line,
+    /// no quotes, no "Search query:" style prefixes.
     /// </summary>
-    private bool IsValidSearchResultUrl(string url, string engine)
+    private static string CleanQuery(string? responseContent)
     {
-        if (string.IsNullOrWhiteSpace(url))
-        {
-            return false;
-        }
+        var query = responseContent?.Trim() ?? "";
+        query = query.Trim('"', '\'', '`');
+        var firstNewline = query.IndexOf('\n');
+        if (firstNewline > 0) query = query.Substring(0, firstNewline).Trim();
 
-        // Skip common non-result URLs
-        var invalidPatterns = new[]
+        var prefixes = new[] { "Search query:", "Query:", "Search:", "Output:", "search query:", "query:", "search:", "output:" };
+        foreach (var prefix in prefixes)
         {
-            "/search?",
-            "/images?",
-            "/maps?",
-            "/news?",
-            "/videos?",
-            "/shopping?",
-            "/books?",
-            "/flights?",
-            "/finance?",
-            "/advanced_search?",
-            "/preferences?",
-            "/support?",
-            "/tools?",
-            "/about?",
-            "/help?",
-            "javascript:",
-            "#",
-            "/ads?",
-            "/aclk?",
-            "/url?sa=",
-            "sponsored",
-            "adurl=",
-            "/sh/aclk",
-            "/prbadclk",
-            "/shopping/"
+            if (query.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                query = query.Substring(prefix.Length).Trim();
+        }
+        return query;
+    }
+
+    /// <summary>
+    /// Reject responses that are refusals, meta-commentary, or full sentences
+    /// rather than keyword queries. This is the gate that prevents
+    /// "I can't assist with..." from ever becoming a search query.
+    /// </summary>
+    private static bool IsPlausibleQuery(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return false;
+
+        var refusalMarkers = new[]
+        {
+            "i can't", "i cannot", "i'm sorry", "i am sorry", "i apologize",
+            "unable to", "can't assist", "cannot assist", "can't help", "cannot help",
+            "as an ai", "as a language model", "against my", "not appropriate",
+            "i must decline", "i won't", "will not", "is there anything else"
         };
+        var lower = query.ToLowerInvariant();
+        if (refusalMarkers.Any(lower.Contains)) return false;
 
-        foreach (var pattern in invalidPatterns)
-        {
-            if (url.Contains(pattern, StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-        }
-
-        // Skip major search engine domains
-        var searchDomains = new[]
-        {
-            "google.com",
-            "google.co.",
-            "bing.com",
-            "duckduckgo.com",
-            "yahoo.com",
-            "baidu.com",
-            "yandex.com",
-            "facebook.com",
-            "twitter.com",
-            "instagram.com",
-            "tiktok.com",
-            "pinterest.com",
-            "reddit.com"
-        };
-
-        foreach (var domain in searchDomains)
-        {
-            if (url.Contains(domain, StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-        }
-
-        // Must be HTTP/HTTPS
-        if (!url.StartsWith("http://") && !url.StartsWith("https://"))
-        {
-            return false;
-        }
+        // a real keyword query is short; a refusal is a sentence
+        var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length > 15) return false;
+        if (query.EndsWith('?') || query.EndsWith('!')) return false;
+        if (lower.StartsWith("i ") || lower.StartsWith("here ") || lower.StartsWith("sure")) return false;
 
         return true;
     }
 
     /// <summary>
-    /// Clean and normalize URL
+    /// Deterministic fallback: distill the user's own message into a keyword
+    /// query by dropping stopwords and truncation phrases.
     /// </summary>
-    private string CleanUrl(string url)
+    private static string DeriveQueryFromMessage(string userMessage)
     {
-        if (string.IsNullOrWhiteSpace(url))
+        var stopwords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            return "";
-        }
-
-        // Remove tracking parameters
-        url = Regex.Replace(url, @"[?&](utm_|ref_|source|medium|campaign|gclid|fbclid|msclkid)=[^&]*", "");
-
-        // Remove empty query strings
-        if (url.EndsWith("?"))
-        {
-            url = url.TrimEnd('?');
-        }
-
-        return url;
-    }
-
-    /// <summary>
-    /// Filter and deduplicate URLs
-    /// </summary>
-    private List<string> FilterUrls(List<string> urls)
-    {
-        var seenDomains = new HashSet<string>();
-        var filtered = new List<string>();
-
-        foreach (var url in urls)
-        {
-            try
-            {
-                var uri = new Uri(url);
-                var domain = uri.Host.ToLowerInvariant();
-
-                // Skip if we've already seen this domain
-                if (seenDomains.Contains(domain))
-                {
-                    continue;
-                }
-
-                seenDomains.Add(domain);
-                filtered.Add(url);
-            }
-            catch
-            {
-                // Skip invalid URLs
-            }
-        }
-
-        return filtered;
-    }
-
-    /// <summary>
-    /// Generate an optimal search query using Ollama based on context, user message, and RAG context
-    /// </summary>
-    private async Task<string> GenerateSearchQueryAsync(string context, string userMessage, string ragContext)
-    {
-        try
-        {
-            var systemPrompt = @"You are a search query optimization expert. Your task is to generate a concise, effective search query that will find accurate and relevant information for the user.
-
-Rules for generating the search query:
-1. Create a query that is 2-8 words long
-2. Focus on the most specific, unique keywords that will yield accurate results
-3. Remove filler words (what, how, why, when, where, is, are, the, a, an)
-4. Use technical terms and proper nouns when relevant
-5. The query should directly address what the user is looking for
-6. Return ONLY the search query string, nothing else
-
-Examples:
-- User wants to know about Python list comprehension syntax -> Query: Python list comprehension syntax
-- User wants to compare PostgreSQL vs MySQL performance -> Query: PostgreSQL vs MySQL performance benchmark
-- User needs information about React hooks best practices -> Query: React hooks best practices 2024";
-
-            var userPrompt = $"Context from conversation: {context}\n\nUser's current question: {userMessage}\n\nPrevious conversation context:\n{ragContext}\n\nBased on all the above information, generate a concise, effective search query (2-8 words) that will find accurate information for the user. Return ONLY the search query:";
-
-            var request = new OllamaSharp.Models.GenerateRequest
-            {
-                Model = _ollamaModel,
-                System = systemPrompt,
-                Prompt = userPrompt,
-                Stream = false
-            };
-
-            var responseContent = "";
-            await foreach (var response in _ollama.GenerateAsync(request))
-            {
-                if (response?.Response != null)
-                {
-                    responseContent += response.Response;
-                }
-            }
-
-            // Clean up the response - take only the first line, remove quotes, trim whitespace
-            var query = responseContent?.Trim() ?? "";
-            
-            // Remove quotes if present
-            query = query.Trim('"', '\'', '`');
-            
-            // Take only the first line if multiple lines
-            var firstNewline = query.IndexOf('\n');
-            if (firstNewline > 0)
-            {
-                query = query.Substring(0, firstNewline).Trim();
-            }
-            
-            // Remove common prefixes that Ollama might add
-            var prefixes = new[] { "Search query:", "Query:", "Search:", "search query:", "query:", "search:" };
-            foreach (var prefix in prefixes)
-            {
-                if (query.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                {
-                    query = query.Substring(prefix.Length).Trim();
-                }
-            }
-
-            return query;
-        }
-        catch (Exception ex)
-        {
-            // Fallback to using user message directly
-            return userMessage;
-        }
+            "a", "an", "the", "is", "are", "was", "were", "what", "how", "why", "when",
+            "where", "who", "whom", "can", "could", "you", "please", "tell", "me", "about",
+            "find", "out", "all", "details", "information", "research", "on", "of", "for",
+            "in", "to", "and", "put", "it", "my", "journal", "save", "this", "that", "i",
+            "want", "need", "get", "give", "write", "create", "make", "entry", "into",
+            "gather", "collect", "look", "up", "everything", "know"
+        };
+        var words = (userMessage ?? "")
+            .Split(new[] { ' ', '\t', '\r', '\n', ',', '.', ';', ':', '?', '!' }, StringSplitOptions.RemoveEmptyEntries)
+            .Where(w => w.Length > 1 && w.Any(char.IsLetterOrDigit) && !stopwords.Contains(w))
+            .Take(8);
+        var query = string.Join(' ', words).Trim();
+        return string.IsNullOrWhiteSpace(query) ? (userMessage ?? "").Trim() : query;
     }
 }

@@ -33,6 +33,18 @@ export default function Chat() {
         }
     }, [session]);
 
+    useEffect(() => {
+        const handleOpenChat = (event) => {
+            const { message, entryId } = event.detail || {};
+            const windowId = nextWindowId;
+            setNextWindowId(windowId + 1);
+            setChatWindows(prev => [...prev, { windowId, chatId: null, seedMessage: message, contextEntryId: entryId }]);
+        };
+
+        window.addEventListener('collector:open-chat', handleOpenChat);
+        return () => window.removeEventListener('collector:open-chat', handleOpenChat);
+    }, [nextWindowId]);
+
     const handleNewChat = () => {
         // Add a new chat window with stable ID and null chatId
         const windowId = nextWindowId;
@@ -58,6 +70,8 @@ export default function Chat() {
                         key={`chat-window-${window.windowId}`}
                         windowId={window.windowId}
                         chatId={window.chatId}
+                        seedMessage={window.seedMessage}
+                        contextEntryId={window.contextEntryId}
                         availableLLMs={availableLLMs}
                         openChatIds={chatWindows.filter(w => w.chatId !== null).map(w => w.chatId)}
                         onClose={handleCloseChat}

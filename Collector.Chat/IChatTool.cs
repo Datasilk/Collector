@@ -1,3 +1,4 @@
+using System.Threading;
 using Collector.Chat.Models;
 
 namespace Collector.Chat;
@@ -116,6 +117,7 @@ public interface IChatTool
     /// <param name="onRawResponse">Callback for raw response debugging</param>
     /// <param name="onSaveChatHistory">Callback for saving chat history context</param>
     /// <param name="sendMessage">Callback for sending a message with optional link to the chat window</param>
+    /// <param name="cancellationToken">Cancelled when the user hits stop — tools must observe it between units of work and pass it to any cancellable calls they make</param>
     /// <returns>Task representing the async operation</returns>
     Task Run(
         string userMessage,
@@ -130,5 +132,6 @@ public interface IChatTool
         OnRawRequest? onRawRequest = null,
         OnRawResponse? onRawResponse = null,
         OnSaveChatHistory? onSaveChatHistory = null,
-        SendMessage? sendMessage = null);
+        SendMessage? sendMessage = null,
+        CancellationToken cancellationToken = default);
 }

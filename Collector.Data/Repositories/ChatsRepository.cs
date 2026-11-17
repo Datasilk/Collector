@@ -22,8 +22,8 @@ namespace Collector.Data.Repositories
             chat.Id = Guid.NewGuid();
             _dbConnection.Execute(@"
                 INSERT INTO public.""Chats"" 
-                (""Id"", ""AppUserId"", ""Title"", ""Status"") 
-                VALUES (@Id, @AppUserId, @Title, @Status)", 
+                (""Id"", ""AppUserId"", ""Title"", ""Status"", ""JournalEntryId"") 
+                VALUES (@Id, @AppUserId, @Title, @Status, @JournalEntryId)", 
                 chat);
             return chat.Id;
         }
@@ -82,6 +82,36 @@ namespace Collector.Data.Repositories
                 new { chatId });
         }
 
+        public void SetJournalEntryId(Guid chatId, Guid? journalEntryId)
+        {
+            _dbConnection.Execute(@"
+                UPDATE public.""Chats"" 
+                SET ""JournalEntryId"" = @journalEntryId, ""Modified"" = NOW() AT TIME ZONE 'UTC'
+                WHERE ""Id"" = @chatId",
+                new { chatId, journalEntryId });
+        }
+
+        public void SetContextCompaction(Guid chatId, string summary, DateTime summarizedThrough, int tokensUsed)
+        {
+            _dbConnection.Execute(@"
+                UPDATE public.""Chats""
+                SET ""ContextSummary"" = @summary,
+                    ""ContextSummarizedThrough"" = @summarizedThrough,
+                    ""ContextTokens"" = @tokensUsed,
+                    ""Modified"" = NOW() AT TIME ZONE 'UTC'
+                WHERE ""Id"" = @chatId",
+                new { chatId, summary, summarizedThrough, tokensUsed });
+        }
+
+        public void SetContextTokens(Guid chatId, int tokensUsed)
+        {
+            _dbConnection.Execute(@"
+                UPDATE public.""Chats""
+                SET ""ContextTokens"" = @tokensUsed
+                WHERE ""Id"" = @chatId",
+                new { chatId, tokensUsed });
+        }
+
         // Chat History
         public Guid AddMessage(ChatHistory message)
         {
@@ -131,6 +161,52 @@ namespace Collector.Data.Repositories
                 new { appUserId, embeddingJson, length, distance });
 
             return results.Select(r => (r.Content, r.Metadata, r.Distance)).ToList();
+        }
+
+        /// <summary>
+        /// Fetch similarity-ranked context candidates with Created timestamps
+        /// so callers can re-rank by recency x importance x similarity.
+        /// </summary>
+        public List<ContextChunk> GetContextCandidates(Guid appUserId, float[] queryEmbedding, int fetchCount, float? distance = null)
+        {
+            var embeddingJson = System.Text.Json.JsonSerializer.Serialize(queryEmbedding);
+            return _dbConnection.Query<ContextChunk>(@"
+                SELECT ""Content"", ""Metadata"", ""Created"",
+                    (""Embedding"" <=> CAST(@embeddingJson AS VECTOR(768))) AS ""Distance""
+                FROM public.""ChatContextChunks""
+                WHERE ""AppUserId"" = @appUserId
+                    AND (@distance IS NULL OR ""Embedding"" <=> CAST(@embeddingJson AS VECTOR(768)) <= @distance)
+                ORDER BY ""Distance""
+                LIMIT @fetchCount",
+                new { appUserId, embeddingJson, fetchCount, distance }).ToList();
+        }
+
+        /// <summary>
+        /// Fetch the most recent context chunks of a given metadata "kind"
+        /// (e.g. research-state) for a chat — used to restore agent state.
+        /// </summary>
+        public List<(string Content, string Metadata)> GetRecentContextByMetadataKind(Guid chatId, string kind, int length = 5)
+        {
+            return _dbConnection.Query<ContextResult>(
+                @"SELECT ""Content"", ""Metadata""
+                FROM public.""ChatContextChunks""
+                WHERE ""ChatId"" = @chatId AND ""Metadata"" LIKE @kindPattern
+                ORDER BY ""Created"" DESC
+                LIMIT @length",
+                new { chatId, kindPattern = $"%\"kind\":\"{kind}\"%", length })
+                .Select(r => (r.Content, r.Metadata)).ToList();
+        }
+
+        public bool HasSimilarContextForChat(Guid chatId, float[] embedding, float similarityThreshold = 0.1f)
+        {
+            var embeddingJson = System.Text.Json.JsonSerializer.Serialize(embedding);
+            var minDistance = _dbConnection.ExecuteScalar<float?>(@"
+                SELECT MIN(""Embedding"" <=> CAST(@embeddingJson AS VECTOR(768))) AS Distance
+                FROM public.""ChatContextChunks""
+                WHERE ""ChatId"" = @chatId",
+                new { embeddingJson, chatId });
+
+            return minDistance.HasValue && minDistance.Value <= similarityThreshold;
         }
 
         public bool HasSimilarContext(Guid appUserId, float[] embedding, float similarityThreshold = 0.1f)

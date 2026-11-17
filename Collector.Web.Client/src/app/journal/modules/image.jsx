@@ -289,9 +289,19 @@ export default function ImageModule({ module, entryId, journalId, onUpdate, isEd
         }
     };
 
+    // module.image arrives as a filename string (uploaded) or an {url, caption}
+    // object (AI-generated entries may also set module.url). Remote URLs render
+    // directly; local filenames resolve via the journal-entries store.
+    const imageFile = typeof module.image === 'string'
+        ? module.image
+        : (module.image?.url || module.image?.src || module.url || '');
+    const imageSrc = imageFile && (/^https?:\/\//i.test(imageFile) || imageFile.startsWith('data:'))
+        ? imageFile
+        : apiBasePath() + `/image/journal-entries/${module.entryId || entryId}/${imageFile}`;
+
     return (
         <div className="image-module">
-            {isEditable && !module.image && !isLoadingImage && (
+            {isEditable && !imageFile && !isLoadingImage && (
                 <div className="tool-bar">
                     <div className="left-side">
                         <div className="image-upload-button-container">
@@ -324,19 +334,19 @@ export default function ImageModule({ module, entryId, journalId, onUpdate, isEd
                 </div>
             )}
 
-            {module.image && !isLoadingImage && (
+            {imageFile && !isLoadingImage && (
                 <div className="image-preview">
                     {(!module.settings?.aspectRatio || module.settings?.aspectRatio === 'none') ? (
                         <img loading="lazy"
-                            src={apiBasePath() + `/image/journal-entries/${module.entryId || entryId}/${module.image}`}
-                            alt="Uploaded content"
+                            src={imageSrc}
+                            alt={module.image?.caption || module.caption || 'Uploaded content'}
                         />
                     ) : (
                         <div
                             style={{
                                 width: '100%',
                                 aspectRatio: module.settings.aspectRatio,
-                                backgroundImage: `url(${apiBasePath()}/image/journal-entries/${module.entryId || entryId}/${module.image})`,
+                                backgroundImage: `url(${imageSrc})`,
                                 backgroundSize: module.settings.displayMode === 'custom'
                                     ? `${module.settings.widthValue || 'auto'} ${module.settings.heightValue || 'auto'}`
                                     : (module.settings.displayMode || 'cover'),

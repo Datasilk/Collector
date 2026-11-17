@@ -1,21 +1,43 @@
+using System;
 using System.Collections.Generic;
-using System.Text.Json.Serialization;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Collector.Chat.Models;
-using Collector.Common;
-using Collector.Common.DOM;
-using Collector.Common.Models;
-using Collector.Common.Models.Articles;
+using Collector.Chat.Tools.GatherResearch;
+using Collector.Common.Extensions.Strings;
+using Collector.Data.Interfaces;
+using Collector.Domains;
 
 namespace Collector.Chat.Tools;
 
 /// <summary>
-/// Tool for downloading an HTML web page and extracting its contents
+/// Tool for extracting content from a URL. The actual extraction is delegated
+/// to a site-specific <see cref="IResearchSourceHelper"/> resolved by domain
+/// (YouTube → captions transcript, everything else → shared downloader +
+/// article analyzer), so each site gets handled in its own way while the
+/// shared-data contract stays identical.
 /// </summary>
 public class WebScrapeTool : IChatTool
 {
+    private readonly LLMClient? _llm;
+    private readonly IDomainsRepository? _domainsRepository;
+    /// <summary>(appUserId, domain, ct) → fresh cookies from the client extension.</summary>
+    private readonly Func<Guid, string, CancellationToken, Task<string>>? _requestCookies;
+
+    public WebScrapeTool(
+        LLMClient? llm = null,
+        IDomainsRepository? domainsRepository = null,
+        Func<Guid, string, CancellationToken, Task<string>>? requestCookies = null)
+    {
+        _llm = llm;
+        _domainsRepository = domainsRepository;
+        _requestCookies = requestCookies;
+    }
+
     public string ToolKey => "web-scrape";
 
-    public string Description => "Download an HTML web page and extract its contents";
+    public string Description => "Extract content from a URL via a site-specific research helper (article text, transcripts, images, videos, files)";
 
     public bool AvailableToOllama => false;
 
@@ -25,27 +47,15 @@ public class WebScrapeTool : IChatTool
         {
             Key = "url",
             DataType = "string",
-            Description = "A URL to scrape"
+            Description = "A URL to extract content from"
         }
     };
 
     public List<ToolResponseField> ResponseFields => new()
     {
-        new ToolResponseField
-        {
-            Key = "title",
-            DataType = "string"
-        },
-        new ToolResponseField
-        {
-            Key = "content",
-            DataType = "string"
-        },
-        new ToolResponseField
-        {
-            Key = "url",
-            DataType = "string"
-        }
+        new ToolResponseField { Key = "title", DataType = "string" },
+        new ToolResponseField { Key = "content", DataType = "string" },
+        new ToolResponseField { Key = "url", DataType = "string" }
     };
 
     public async Task Run(
@@ -61,11 +71,12 @@ public class WebScrapeTool : IChatTool
         OnRawRequest? onRawRequest = null,
         OnRawResponse? onRawResponse = null,
         OnSaveChatHistory? onSaveChatHistory = null,
-        SendMessage? sendMessage = null)
+        SendMessage? sendMessage = null,
+        CancellationToken cancellationToken = default)
     {
         try
         {
-            onProgress(10, "Preparing to scrape web page...");
+            onProgress(10, "Preparing to extract content...");
 
             // Get URL from plan args or check if this is a follow-up call with URL in data
             string url = string.Empty;
@@ -84,205 +95,202 @@ public class WebScrapeTool : IChatTool
                 return;
             }
 
-            onProgress(30, $"Downloading content from {url}...");
+            // Never re-download a page the entry already lists as a source —
+            // coverage loops can re-emit the same URLs across waves.
+            if (AlreadyCollected(data, url))
+            {
+                onProgress(100, "Source already collected — skipping download");
+                sendMessage?.Invoke($"Skipping {url} — already collected in this entry's sources.", null, null);
+                onComplete($"Skipped {url} — already a recorded source");
+                return;
+            }
 
-            // Download article DOM JSON via Charlotte router
-            string resolvedUrl = url;
-            var domJson = await Task.Run(() => Charlotte.Download(url, out resolvedUrl));
+            // Domain → helper dispatch: YouTube pulls the caption transcript,
+            // everything else goes through the shared article pipeline.
+            var helper = ResearchHelpers.Resolve(url);
+            onProgress(30, $"Extracting content from {url}...");
 
-            if (string.IsNullOrWhiteSpace(domJson) || domJson.StartsWith("file:") || domJson.StartsWith("Error"))
+            var page = await helper.ExtractAsync(url,
+                (percent, message) => onProgress(Math.Min(90, percent), message),
+                cancellationToken, appUserId,
+                _requestCookies == null
+                    ? null
+                    : (domain, ct) => _requestCookies(appUserId, domain, ct));
+
+            if (page == null)
             {
                 onError($"Failed to download or parse content from URL: {url}");
                 return;
             }
 
-            onProgress(60, "Analyzing HTML document...");
+            // Unknown domain → register it AND analyze it now — the research
+            // pipeline does not depend on the DomainWorker being started.
+            await TryRegisterDomainAsync(page, onProgress, cancellationToken);
 
-            string title = string.Empty;
-            List<string> headers = new();
-            List<string> contentSections = new();
-            List<string> links = new();
-            List<string> images = new();
-            List<string> layout = new();
-            List<DomElement> bodyElements = new();
-
-            try
-            {
-                var analyzedArticle = Html.DeserializeArticle(domJson);
-                Html.GetArticleInfoFromDOM(analyzedArticle);
-                
-                // Get best element indexes and populate article body elements
-                var indexes = new List<AnalyzedElement>();
-                Html.GetBestElementIndexes(analyzedArticle, indexes);
-                Html.GetArticleElements(analyzedArticle, indexes);
-                
-                title = analyzedArticle.title ?? string.Empty;
-                bodyElements = analyzedArticle.bodyElements ?? new List<DomElement>();
-
-                // Extract structured content from body elements
-                int headerIndex = 0;
-                int contentIndex = 0;
-                int imageIndex = 0;
-
-                foreach (var element in bodyElements)
-                {
-                    // Skip script and style elements
-                    if (element.tagName == "script" || element.tagName == "style" || element.tagName == "!--")
-                        continue;
-
-                    // Handle header elements (h1-h6)
-                    if (element.tagName.StartsWith("h") && element.tagName.Length == 2 &&
-                        char.IsDigit(element.tagName[1]))
-                    {
-                        var headerText = element.text?.Trim();
-                        if (!string.IsNullOrWhiteSpace(headerText))
-                        {
-                            headers.Add(headerText);
-                            layout.Add($"header:{headerIndex}");
-                            headerIndex++;
-                        }
-                        continue;
-                    }
-
-                    // Handle image elements
-                    if (element.tagName == "img")
-                    {
-                        var src = element.attribute?.GetValueOrDefault("src", "");
-                        if (!string.IsNullOrWhiteSpace(src))
-                        {
-                            // Convert relative URLs to absolute
-                            if (src.StartsWith("/"))
-                            {
-                                var baseUri = new Uri(resolvedUrl ?? url);
-                                src = new Uri(baseUri, src).ToString();
-                            }
-                            images.Add(src);
-                            layout.Add($"image:{imageIndex}");
-                            imageIndex++;
-                        }
-                        continue;
-                    }
-
-                    // Handle anchor elements (links)
-                    if (element.tagName == "a")
-                    {
-                        var href = element.attribute?.GetValueOrDefault("href", "");
-                        var linkText = element.text?.Trim();
-                        if (!string.IsNullOrWhiteSpace(href) && !href.StartsWith("#") && !href.StartsWith("javascript:"))
-                        {
-                            // Convert relative URLs to absolute
-                            if (href.StartsWith("/"))
-                            {
-                                var baseUri = new Uri(resolvedUrl ?? url);
-                                href = new Uri(baseUri, href).ToString();
-                            }
-                            var linkEntry = !string.IsNullOrWhiteSpace(linkText)
-                                ? $"{linkText}|{href}"
-                                : href;
-                            links.Add(linkEntry);
-                        }
-                        continue;
-                    }
-
-                    // Handle content elements (p, div, article, section, etc.)
-                    if (element.tagName is "p" or "div" or "article" or "section" or "span" or "li" or "td" or "blockquote")
-                    {
-                        var text = element.text?.Trim();
-                        if (!string.IsNullOrWhiteSpace(text) && text.Length > 20)
-                        {
-                            contentSections.Add(text);
-                            layout.Add($"content:{contentIndex}");
-                            contentIndex++;
-                        }
-                    }
-                }
-
-                // If no structured content found, fall back to raw text
-                if (contentSections.Count == 0)
-                {
-                    if (!string.IsNullOrEmpty(analyzedArticle.summary))
-                    {
-                        contentSections.Add(analyzedArticle.summary);
-                        layout.Add("content:0");
-                    }
-                    else if (!string.IsNullOrEmpty(analyzedArticle.rawText))
-                    {
-                        contentSections.Add(analyzedArticle.rawText);
-                        layout.Add("content:0");
-                    }
-                }
-
-                // Extract all images from the article (including those not in bodyElements)
-                if (analyzedArticle.images != null)
-                {
-                    foreach (var img in analyzedArticle.images)
-                    {
-                        if (!string.IsNullOrWhiteSpace(img.url) && !images.Contains(img.url))
-                        {
-                            // Convert relative URLs to absolute
-                            var src = img.url;
-                            if (src.StartsWith("/"))
-                            {
-                                var baseUri = new Uri(resolvedUrl ?? url);
-                                src = new Uri(baseUri, src).ToString();
-                            }
-                            images.Add(src);
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                onError($"Error analyzing content: {ex.Message}");
-                return;
-            }
+            // The pipeline is English-first — helpers that return another
+            // language get their content translated before it hits storage.
+            await TranslateToEnglishIfNeededAsync(page, onProgress, cancellationToken);
 
             onProgress(90, "Storing extracted data...");
 
-            // Build structured data dictionary
-            var scrapedData = new Dictionary<string, List<string>>
+            data.Add(page.ToDataItem());
+
+            if (page.IsFile)
             {
-                ["type"] = new List<string> { "web-scrape" },
-                ["url"] = new List<string> { resolvedUrl ?? url },
-                ["title"] = new List<string> { title }
-            };
-
-            if (headers.Count > 0)
-                scrapedData["headers"] = headers;
-
-            if (contentSections.Count > 0)
-                scrapedData["content"] = contentSections;
-
-            if (links.Count > 0)
-                scrapedData["links"] = links;
-
-            if (images.Count > 0)
-                scrapedData["images"] = images;
-
-            if (layout.Count > 0)
-                scrapedData["layout"] = layout;
-
-            // Add to data list
-            data.Add(scrapedData);
-
-            // Save scraped content to chat history for fact extraction
-            var allContent = string.Join("\n\n", contentSections);
-            if (!string.IsNullOrWhiteSpace(allContent))
-            {
-                onSaveChatHistory?.Invoke($"Web scraped from {resolvedUrl ?? url}:\n{allContent}");
+                onProgress(100, $"Detected downloadable file ({page.FileContentType})");
+                onComplete($"Downloadable file found at {page.Url} ({page.FileContentType})");
+                return;
             }
 
-            onProgress(100, "Web scraping completed successfully");
+            // Save a compact reference to chat history for fact extraction —
+            // tool-result clearing: the memory layer gets url + title + section
+            // map + a bounded excerpt, never the full page text.
+            var excerpt = string.Join("\n\n", page.ContentSections);
+            if (excerpt.Length > 1200) excerpt = excerpt.Substring(0, 1200) + "…";
+            var reference = $"Web page scraped: {page.Title} ({page.Url})" +
+                (page.Headers.Count > 0 ? $"\nSections: {string.Join(", ", page.Headers.Take(12))}" : "") +
+                (excerpt.Length > 0 ? $"\nExcerpt:\n{excerpt}" : "");
+            if (reference.Length > 60)
+            {
+                onSaveChatHistory?.Invoke(reference);
+            }
 
-            var summary = !string.IsNullOrEmpty(title)
-                ? $"Successfully scraped: {title}"
+            onProgress(100, "Content extracted successfully");
+
+            var summary = !string.IsNullOrEmpty(page.Title)
+                ? $"Successfully scraped: {page.Title}"
                 : "Successfully scraped web page content";
 
             onComplete(summary);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
             onError($"Unexpected error during web scraping: {ex.Message}", ex);
         }
+    }
+
+    /// <summary>
+    /// Has the session's journal entry already recorded this URL as a
+    /// research source? Reads the entry's research object from the
+    /// session-entry marker in shared data. Best-effort — any failure
+    /// means "not collected" so scraping proceeds.
+    /// </summary>
+    private static bool AlreadyCollected(List<Dictionary<string, List<string>>> data, string url)
+    {
+        try
+        {
+            var entryId = ResearchReviewTool.GetSessionEntryId(data);
+            if (entryId == null) return false;
+            var research = JournalEntryDocument.Load(entryId.Value).Research;
+            return research?.HasSource(url) == true;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>
+    /// Insert the page's domain into the Domains table when it isn't known,
+    /// then run the shared DomainAnalyzer on it immediately — the same
+    /// homepage-download + LLM-categorize pipeline the DomainWorker runs,
+    /// so research never depends on that worker being started. Best-effort:
+    /// registration/analysis failure never breaks extraction.
+    /// </summary>
+    private async Task TryRegisterDomainAsync(
+        ResearchPage page, OnProgress onProgress, CancellationToken cancellationToken)
+    {
+        if (_domainsRepository == null || page.IsFile || string.IsNullOrWhiteSpace(page.Url)) return;
+        try
+        {
+            var domain = page.Url.GetDomainName();
+            if (string.IsNullOrWhiteSpace(domain)) return;
+            if (_domainsRepository.GetInfo(domain) != null) return;
+
+            var domainId = _domainsRepository.Add(domain, page.Title ?? "");
+            onProgress(85, $"Registered new domain for analysis: {domain}");
+
+            if (domainId <= 0 || _llm == null) return;
+
+            var result = await DomainAnalyzer.AnalyzeAsync(
+                _domainsRepository, domainId,
+                (system, user) => _llm.RemoteAsync(system, user,
+                    cancellationToken: cancellationToken, debugType: "domain-analysis"),
+                msg => onProgress(86, msg),
+                cancellationToken);
+
+            if (result.Status == DomainAnalyzer.Status.Analyzed)
+            {
+                onProgress(88, $"Analyzed {domain}: type={result.Type}, lang={result.Language}");
+            }
+            else
+            {
+                onProgress(88, $"Domain analysis for {domain}: {result.Failure ?? result.Status.ToString()}");
+            }
+        }
+        catch (OperationCanceledException) { throw; }
+        catch { /* registration/analysis is best-effort — never breaks extraction */ }
+    }
+
+    /// <summary>
+    /// Non-English sources get translated — the helper declares the website's
+    /// language (HTML lang / subtitle track); when it can't, one detect call
+    /// on a content sample decides. Everything from a non-English source is
+    /// translated; a failed translation keeps the original text.
+    /// </summary>
+    private async Task TranslateToEnglishIfNeededAsync(
+        ResearchPage page, OnProgress onProgress, CancellationToken cancellationToken)
+    {
+        if (_llm == null || page.IsFile || page.ContentSections.Count == 0) return;
+
+        bool english;
+        if (!string.IsNullOrWhiteSpace(page.Language))
+        {
+            english = page.Language.StartsWith("en", StringComparison.OrdinalIgnoreCase);
+        }
+        else
+        {
+            var sample = string.Join(' ', page.ContentSections.Take(3));
+            if (sample.Length > 600) sample = sample.Substring(0, 600);
+            if (string.IsNullOrWhiteSpace(sample)) return;
+
+            try
+            {
+                var detect = await _llm.LocalAsync(
+                    Prompts.LanguageDetectSystem(), "TEXT:\n" + sample, json: true, cancellationToken);
+                english = LLMJson.TryParse<LanguageDetectResponse>(detect, out var d) && (d?.English ?? true);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch { return; /* can't tell — leave as-is */ }
+        }
+        if (english) return;
+
+        onProgress(80, "Translating content to English...");
+        try
+        {
+            var translated = new List<string>();
+            foreach (var section in page.ContentSections)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var t = await _llm.LocalAsync(Prompts.TranslateSystem(), section, json: false, cancellationToken);
+                translated.Add(string.IsNullOrWhiteSpace(t) ? section : t.Trim());
+            }
+            page.ContentSections = translated;
+
+            if (!string.IsNullOrWhiteSpace(page.Title))
+            {
+                var t = await _llm.LocalAsync(Prompts.TranslateSystem(), page.Title, json: false, cancellationToken);
+                if (!string.IsNullOrWhiteSpace(t)) page.Title = t.Trim();
+            }
+        }
+        catch (OperationCanceledException) { throw; }
+        catch { /* translation is best-effort — original text is fine */ }
+    }
+
+    private class LanguageDetectResponse
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("english")]
+        public bool English { get; set; }
     }
 }

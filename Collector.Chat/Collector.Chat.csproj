@@ -10,9 +10,11 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="OllamaSharp" Version="5.4.18" />
+    <ProjectReference Include="..\Collector.Domains\Collector.Domains.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Collector.AI\Collector.AI.csproj" />
     <ProjectReference Include="..\Collector.Data\Collector.Data.csproj" />
     <ProjectReference Include="..\Collector.Common\Collector.Common.csproj" />
   </ItemGroup>

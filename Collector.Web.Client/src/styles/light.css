@@ -99,6 +99,21 @@
   --chat-message-ai-text: #333;
   --chat-input-bg: #fff;
   --chat-input-border: #e0e0e0;
+  --chat-messages-bg: #f5f5f5;
+  --chat-empty-text: #999;
+  --chat-header-btn-hover: rgba(0, 0, 0, 0.08);
+  --chat-system-bg: #e3f2fd;
+  --chat-system-text: #1976d2;
+  --chat-error-bg: #ffebee;
+  --chat-error-text: #d32f2f;
+  --chat-input-container-bg: #fff;
+  --chat-dropdown-bg: #fff;
+  --chat-dropdown-hover-bg: #d7d5f4e3;
+  --chat-accent: #667eea;
+  --chat-accent-hover: #5568d3;
+  --chat-accent-text: #fff;
+  --chat-scrollbar-thumb: #ccc;
+  --chat-scrollbar-thumb-hover: #aaa;
   
   /* === MODAL === */
   --modal-overlay-bg: rgba(0, 0, 0, 0.3);

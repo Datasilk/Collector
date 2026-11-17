@@ -1,16 +1,27 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 import { Link } from 'react-router-dom';
 import Icon from '@/components/ui/icon';
 import { useSession } from '@/context/session';
 import { useWorkerHub } from '@/context/workerhub';
 import { Chats } from '@/api/user/chats';
 
-export default function ChatWindow({ windowId, chatId, availableLLMs, openChatIds, onClose, onUpdateId }) {
+marked.setOptions({ breaks: true, gfm: true });
+
+// LLM/system message content is markdown — parse then sanitize before injecting.
+const renderMarkdown = (text) => ({
+    __html: DOMPurify.sanitize(marked.parse(text ?? ''))
+});
+
+export default function ChatWindow({ windowId, chatId, seedMessage, contextEntryId, availableLLMs, openChatIds, onClose, onUpdateId }) {
     const session = useSession();
     const workerHub = useWorkerHub();
-    
+
     const [message, setMessage] = useState('');
-    const [messages, setMessages] = useState([]);
+    const [messages, setMessages] = useState(() =>
+        seedMessage ? [{ role: 1, content: seedMessage }] : []
+    );
     const [llm, setLlm] = useState(availableLLMs.length > 0 ? availableLLMs[0].value : 'gpt-4');
     const [mode, setMode] = useState('ask');
     const [title, setTitle] = useState('New Chat');
@@ -24,6 +35,7 @@ export default function ChatWindow({ windowId, chatId, availableLLMs, openChatId
     const [availableChats, setAvailableChats] = useState([]);
     const [selectedExistingChat, setSelectedExistingChat] = useState(null);
     const [isThinking, setIsThinking] = useState(false);
+    const [contextUsage, setContextUsage] = useState(null);
     
     const messagesEndRef = useRef(null);
     const llmDropdownRef = useRef(null);
@@ -89,6 +101,22 @@ export default function ChatWindow({ windowId, chatId, availableLLMs, openChatId
                     // Log Ollama raw response (server only sends in development)
                     console.log(`[Ollama Response - ${payload.type}]`, payload.rawResponse);
                     break;
+                case 'ContextUsage':
+                    setContextUsage(payload);
+                    break;
+                case 'MessageReceived':
+                    // Confirms the chat worker received the message (dev only)
+                    console.log(`[ChatWorker] Message received by worker ${payload.workerId}:`, payload.preview);
+                    break;
+                case 'ServerException':
+                    // Non-fatal server-side exception (dev only) — same channel as Ollama debug output
+                    console.error(`[Server Exception - ${payload.context}]`, {
+                        message: payload.message,
+                        type: payload.type,
+                        stackTrace: payload.stackTrace,
+                        innerException: payload.innerException
+                    });
+                    break;
                 case 'PlanStarted':
                     // Remove all existing progress messages and add new one at the end
                     setMessages(prev => {
@@ -97,11 +125,18 @@ export default function ChatWindow({ windowId, chatId, availableLLMs, openChatId
                     });
                     break;
                 case 'PlanProgress':
+                    if (payload.isDevelopment || payload.message) {
+                        console.log(`[Progress ${payload.percent ?? '?'}%]`, payload.message);
+                    }
                     // Remove all existing progress messages and add new one at the end
                     setMessages(prev => {
                         const filtered = prev.filter(msg => !msg.isProgress);
-                        return [...filtered, { role: 2, content: `${payload.message} (${payload.percent}%)`, isProgress: true }];
+                        return [...filtered, { role: 2, content: payload.message, isProgress: true, percent: payload.percent }];
                     });
+                    break;
+                case 'ToolStep':
+                    // Step-start debug event — shows which tool runs and with what args
+                    console.log(`[Tool Step ${payload.step}/${payload.total}]`, payload.tool, payload.args || {});
                     break;
                 case 'ToolError':
                     // Log full error details to browser console
@@ -117,6 +152,7 @@ export default function ChatWindow({ windowId, chatId, availableLLMs, openChatId
                     setMessages(prev => [...prev, { role: 2, content: `Error in ${payload.tool}: ${payload.error}`, isError: true }]);
                     break;
                 case 'ToolComplete':
+                    console.log(`[Tool Complete]`, payload.tool, payload.message);
                     // Remove all existing progress messages and add new one at the end
                     setMessages(prev => {
                         const filtered = prev.filter(msg => !msg.isProgress);
@@ -126,6 +162,14 @@ export default function ChatWindow({ windowId, chatId, availableLLMs, openChatId
                 case 'PlanCompleted':
                     // Remove all progress messages (isProgress = true)
                     setMessages(prev => prev.filter(msg => !msg.isProgress));
+                    break;
+                case 'ChatStopped':
+                    // User pressed stop — clear progress + thinking quietly
+                    setMessages(prev => {
+                        const filtered = prev.filter(msg => !msg.isProgress);
+                        return [...filtered, { role: 2, content: payload.message || 'Stopped.', isProgress: false }];
+                    });
+                    setIsThinking(false);
                     break;
                 case 'ChatResponse':
                     // Remove all progress messages before showing final response
@@ -265,34 +309,52 @@ export default function ChatWindow({ windowId, chatId, availableLLMs, openChatId
         try {
             const messageToSend = message;
             setMessage('');
+            if (e.target?.querySelector) {
+                const ta = e.target.querySelector('.chat-textarea');
+                if (ta) ta.style.height = 'auto';
+            }
 
             // Add user message to UI immediately
             setMessages(prev => [...prev, { role: 0, content: messageToSend }]);
             setIsThinking(true);
 
-            // If no workerId exists, create one for new chat
-            let currentWorkerId = workerId;
-            if (!currentWorkerId) {
-                currentWorkerId = await workerHub.call('chat-worker', 'SendMessage', {
-                    chatId: chatId,
-                    message: messageToSend,
-                    model: llm,
-                    mode: mode
-                });
-                setWorkerId(currentWorkerId);
-            } else {
-                // Send message via existing worker
-                await workerHub.call('chat-worker', 'SendMessage', {
-                    chatId: chatId,
-                    message: messageToSend,
-                    model: llm,
-                    mode: mode
-                }, null, currentWorkerId);
-            }
+            // Each SendMessage spawns a NEW worker — capture its id and update
+            // state so the subscription effect re-listens on it. Passing the old
+            // workerId as customId meant message events broadcast under a worker
+            // this window was never subscribed to (silent second messages).
+            const newWorkerId = await workerHub.call('chat-worker', 'SendMessage', {
+                chatId: chatId,
+                message: messageToSend,
+                model: llm,
+                mode: mode,
+                journalEntryId: contextEntryId || null
+            });
+            if (newWorkerId) setWorkerId(newWorkerId);
         } catch (error) {
             console.error('Error sending message:', error);
             setIsThinking(false);
         }
+    };
+
+    // Auto-grow the textarea to fit content, capped at 4 rows (scrolls beyond)
+    const handleMessageChange = (e) => {
+        setMessage(e.target.value);
+        const ta = e.target;
+        ta.style.height = 'auto';
+        const lineHeight = parseFloat(getComputedStyle(ta).lineHeight) || 20;
+        const pad = parseFloat(getComputedStyle(ta).paddingTop) + parseFloat(getComputedStyle(ta).paddingBottom);
+        ta.style.height = Math.min(ta.scrollHeight, lineHeight * 4 + pad) + 'px';
+    };
+
+    const handleStop = async () => {
+        try {
+            if (workerId && workerHub) {
+                await workerHub.stop(workerId);
+            }
+        } catch (error) {
+            console.error('Error stopping chat worker:', error);
+        }
+        setIsThinking(false);
     };
 
     const handleKeyDown = (e) => {
@@ -378,7 +440,15 @@ export default function ChatWindow({ windowId, chatId, availableLLMs, openChatId
                         {messages.map((msg, index) => (
                             <div key={index} className={`chat-message ${msg.role === 0 ? 'user' : msg.role === 1 ? 'assistant' : 'system'} ${msg.isError ? 'error' : ''}`}>
                                 <div className="message-content">
-                                    {msg.content}
+                                    {msg.role === 0
+                                        ? msg.content
+                                        : <span className="markdown-body" dangerouslySetInnerHTML={renderMarkdown(msg.content)} />}
+                                    {msg.percent != null && (
+                                        <div className="chat-progress-bar">
+                                            <div className="chat-progress-fill" style={{ width: `${Math.min(Math.max(msg.percent, 0), 100)}%` }} />
+                                        </div>
+                                    )}
+                                    {msg.percent != null && <span className="chat-progress-label">{msg.percent}%</span>}
                                     {msg.linkUrl && (
                                         <span className="message-link"> (
                                             <Link to={msg.linkUrl} className="chat-link">{msg.linkText || 'View'}</Link>
@@ -392,6 +462,9 @@ export default function ChatWindow({ windowId, chatId, availableLLMs, openChatId
                                 <div className="message-content">
                                     <div className="thinking-spinner">
                                         <Icon name="autorenew" />
+                                        <button className="icon chat-stop" onClick={handleStop} title="Stop">
+                                            <Icon name="stop_circle" />
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -400,12 +473,22 @@ export default function ChatWindow({ windowId, chatId, availableLLMs, openChatId
                 )}
                 <div ref={messagesEndRef} />
             </div>
+            {contextUsage && (
+                <div className={`chat-context-usage ${contextUsage.percent >= 82 ? 'warning' : ''}`}
+                     title={`~${contextUsage.usedTokens} of ${contextUsage.maxTokens} tokens used`}>
+                    <span className="chat-context-label">Context</span>
+                    <div className="chat-context-bar">
+                        <div className="chat-context-fill" style={{ width: `${Math.min(contextUsage.percent, 100)}%` }} />
+                    </div>
+                    <span className="chat-context-percent">{contextUsage.percent}%</span>
+                </div>
+            )}
             <div className="chat-input-container">
                 <form onSubmit={handleSubmit} className="chat-form">
                     <textarea
                         className="chat-textarea"
                         value={message}
-                        onChange={(e) => setMessage(e.target.value)}
+                        onChange={handleMessageChange}
                         onKeyDown={handleKeyDown}
                         placeholder="Type your message..."
                         rows="1"

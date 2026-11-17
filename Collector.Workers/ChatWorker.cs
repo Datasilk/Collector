@@ -20,11 +20,25 @@ namespace Collector.Workers
         private readonly IJournalEntriesRepository _entriesRepository;
         private readonly IJournalsRepository _journalsRepository;
         private readonly IJournalCategoriesRepository _categoriesRepository;
+        private readonly ISearchEnginesRepository _searchEnginesRepository;
         private readonly ILogger<ChatWorker> _logger;
         private readonly IHubContext<WorkerHub> _hubContext;
         private readonly OllamaApiClient _ollama;
         private readonly ChatToolRegistry _toolRegistry;
         private readonly IHostEnvironment _environment;
+
+        // One active plan per chat: new messages cancel the running plan
+        // (steering) then queue behind its semaphore so they never race.
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, SemaphoreSlim> _chatLocks = new();
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, CancellationTokenSource> _chatPlanTokens = new();
+        private Guid _activeChatId = Guid.Empty;
+        private Guid _activeWorkerId = Guid.Empty;
+
+        // Per-model context window, resolved once from /api/show (keyed by model name).
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> _modelWindowCache = new();
+
+        // Development-only per-session file log (logs/chat/{chatId}.log)
+        private ChatDebugLog? _chatLog;
 
         public ChatWorker(
             IChatsRepository chatsRepo,
@@ -32,6 +46,9 @@ namespace Collector.Workers
             IJournalEntriesRepository entriesRepository,
             IJournalsRepository journalsRepository,
             IJournalCategoriesRepository categoriesRepository,
+            ISearchEnginesRepository searchEnginesRepository,
+            IJournalSnapshotsRepository snapshotsRepository,
+            IDomainsRepository domainsRepository,
             ILogger<ChatWorker> logger,
             IHubContext<WorkerHub> hubContext,
             OllamaApiClient ollama,
@@ -42,6 +59,7 @@ namespace Collector.Workers
             _entriesRepository = entriesRepository;
             _journalsRepository = journalsRepository;
             _categoriesRepository = categoriesRepository;
+            _searchEnginesRepository = searchEnginesRepository;
             _logger = logger;
             _hubContext = hubContext;
             _ollama = ollama;
@@ -63,16 +81,38 @@ namespace Collector.Workers
                 // Use default from config
             }
 
-            // Initialize tool registry
+            // Initialize tool registry — the LLMClient routes quick decisions to
+            // local Ollama and complex module-JSON generation to the remote endpoint.
             _toolRegistry = new ChatToolRegistry();
-            _toolRegistry.RegisterTool(new WebScrapeTool());
-            _toolRegistry.RegisterTool(new AddEditJournalEntryTool(entriesRepository, journalsRepository, categoriesRepository, ollama, activeModel));
-            _toolRegistry.RegisterTool(new GatherResearchTool(ollama, activeModel));
+            var llmClient = new Collector.Chat.LLMClient(ollama, activeModel);
+            _toolRegistry.RegisterTool(new WebScrapeTool(llmClient, domainsRepository,
+                // Same cookie refresh the video worker uses — asks the client's
+                // Chrome extension for fresh cookies when a fetch is blocked.
+                (uid, domain, ct) => SignalR.Workers.RequestCookiesFromClientAsync(
+                    uid.ToString(), _activeWorkerId, domain, ct)));
+            _toolRegistry.RegisterTool(new AddEditJournalEntryTool(
+                entriesRepository, journalsRepository, categoriesRepository, ollama, activeModel,
+                llmClient,
+                onEntrySaved: (entryId, journalId, appUserId, ops) => BroadcastEntryUpdated(appUserId, entryId, journalId, ops),
+                snapshotsRepository, searchEnginesRepository));
+            _toolRegistry.RegisterTool(new GatherResearchTool(ollama, activeModel, searchEnginesRepository));
+            _toolRegistry.RegisterTool(new ResearchReviewTool(
+                entriesRepository, ollama, activeModel, llmClient));
             _toolRegistry.RegisterTool(new CleanWebContentTool(ollama, activeModel));
+            _toolRegistry.RegisterTool(new ManageOllamaModelsTool(ollama, _ollamaModelsRepo));
         }
 
         public Task Stop()
         {
+            // Cancel the in-flight plan for this chat — SendMessage linked the
+            // worker-level token to the per-chat CTS, so cancelling either
+            // side stops tool execution promptly.
+            if (_activeChatId != Guid.Empty &&
+                _chatPlanTokens.TryRemove(_activeChatId, out var running))
+            {
+                try { running.Cancel(); } catch { /* already disposed */ }
+                running.Dispose();
+            }
             return Task.CompletedTask;
         }
 
@@ -85,22 +125,68 @@ namespace Collector.Workers
         /// <summary>
         /// Sends a message to Ollama and processes the response using the planning system
         /// </summary>
-        public async Task SendMessage(string appUserId, Guid workerId, Guid? chatId, string message, string model, string mode, CancellationToken cancellationToken)
+        public async Task SendMessage(string appUserId, Guid workerId, Guid? chatId, string message, string model, string mode, Guid? journalEntryId = null, CancellationToken cancellationToken = default)
         {
+            Guid _chatId = chatId ?? Guid.Empty;
+            _activeChatId = _chatId;
+            _activeWorkerId = workerId;
+            _chatLog = new ChatDebugLog(_environment);
+            if (_chatId != Guid.Empty)
+                _chatLog.SetChatId(_chatId);
+            SemaphoreSlim? chatLock = null;
+            CancellationTokenSource? planCts = null;
             try
             {
                 _logger.LogInformation("ChatWorker SendMessage: chatId={ChatId}, model={Model}, mode={Mode}", chatId, model, mode);
-                Guid _chatId = chatId ?? Guid.Empty;
+
+                // Receipt event — confirms to the browser console that the
+                // message reached the worker before anything else can stall.
+                if (_environment.IsDevelopment())
+                {
+                    await SendWorkerMessage(appUserId, workerId, "MessageReceived", new
+                    {
+                        workerId,
+                        chatId,
+                        preview = message?.Length > 80 ? message.Substring(0, 80) + "…" : message,
+                        isDevelopment = true
+                    }, cancellationToken);
+                }
                 bool isNewChat = chatId == null || chatId == Guid.Empty;
                 // If chat exists, verify ownership
+                Collector.Data.Entities.Chat? existingChat = null;
                 if (!isNewChat)
                 {
-                    var existingChat = _chatsRepo.GetById(_chatId);
+                    existingChat = _chatsRepo.GetById(_chatId);
                     if (existingChat == null || existingChat.AppUserId.ToString() != appUserId)
                     {
                         await SendWorkerMessage(appUserId, workerId, "ChatError", new { message = "Chat not found or unauthorized" }, cancellationToken);
                         return;
                     }
+                }
+
+                // Serialization + steering: a new message cancels any plan still
+                // running for this chat, then queues behind the per-chat lock so
+                // two plans can never race on the same entry.
+                if (!isNewChat)
+                {
+                    if (_chatPlanTokens.TryRemove(_chatId, out var running))
+                    {
+                        try { running.Cancel(); } catch { }
+                        running.Dispose();
+                    }
+                    chatLock = _chatLocks.GetOrAdd(_chatId, _ => new SemaphoreSlim(1, 1));
+                    // Make the queue wait visible — if a previous request is still
+                    // finishing (fact extraction, persistence), the user sees this
+                    // instead of a silent spinner.
+                    await SendWorkerMessage(appUserId, workerId, "PlanProgress", new
+                    {
+                        percent = 1,
+                        message = "Waiting for the previous request to finish..."
+                    }, cancellationToken);
+                    await chatLock.WaitAsync(cancellationToken);
+                    planCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    _chatPlanTokens[_chatId] = planCts;
+                    cancellationToken = planCts.Token;
                 }
 
                 // Get active model from database, fallback to config
@@ -119,72 +205,208 @@ namespace Collector.Workers
                     _logger.LogWarning(ex, "ChatWorker: Failed to get active model from database, using config fallback: {Model}", activeModel);
                 }
 
-                // Gather and summarize RAG context
+                // Emit immediately so the chat never appears dead while the
+                // context phase runs before "Planning".
+                await SendWorkerMessage(appUserId, workerId, "PlanProgress", new
+                {
+                    percent = 2,
+                    message = "Gathering conversation context..."
+                }, cancellationToken);
+
+                // === Session context (per-chat, no cross-session retrieval) ===
+                // Verbatim history is the primary context. When the estimated
+                // prompt crosses ~82% of the model's context window, older turns
+                // get compacted into a persisted running summary — the same
+                // Windsurf/Claude Code pattern, with a visible usage bar.
+                var contextBudget = await ResolveModelWindowAsync(activeModel, cancellationToken);
+                var estimatedTokens = Collector.Chat.ContextBudget.PromptOverheadTokens
+                    + Collector.Chat.ContextBudget.EstimateTokens(message);
                 string ragContext = "";
-                try
+                var history = new List<Collector.Data.Entities.ChatHistory>();
+                if (!isNewChat && existingChat != null)
                 {
-                    var messageEmbedding = await GetEmbeddingAsync(new List<string> { message });
-                    // Log before getting chunks (dev only)
-                    if (_environment.IsDevelopment())
+                    try
                     {
-                        await _hubContext.Clients.All.SendAsync("WorkerProgress", appUserId, workerId, "Debug",
-                            new { message = "Getting RAG context chunks...", isDevelopment = true }, cancellationToken);
-                    }
-                    var relevantContext = _chatsRepo.GetContext(Guid.Parse(appUserId), messageEmbedding, length: 20, distance: 0.3f);
-                    // Log the chunks (dev only)
-                    if (_environment.IsDevelopment())
-                    {
-                        var chunkDetails = relevantContext.Select((c, i) => new
+                        history = _chatsRepo.GetMessagesByChatId(_chatId) ?? new List<Collector.Data.Entities.ChatHistory>();
+
+                        // Auto-compact before building context — checked at
+                        // message start only, never mid-plan.
+                        if (history.Count > 0)
                         {
-                            index = i,
-                            distance = c.Distance,
-                            content = c.Content,
-                            metadata = c.Metadata
-                        }).ToList();
-                        await _hubContext.Clients.All.SendAsync("WorkerProgress", appUserId, workerId, "Debug",
-                            new { message = $"Retrieved {relevantContext.Count} context chunks", chunks = chunkDetails, isDevelopment = true }, cancellationToken);
+                            await MaybeCompactSessionAsync(existingChat, history, activeModel,
+                                contextBudget, appUserId, workerId, cancellationToken);
+                        }
+
+                        ragContext = BuildSessionContext(existingChat, history);
+                        estimatedTokens += Collector.Chat.ContextBudget.EstimateTokens(ragContext);
                     }
-                    if (relevantContext.Count > 0)
+                    catch (Exception ex)
                     {
-                        // Summarize the context chunks using Ollama
-                        var rawContext = string.Join("\n\n", relevantContext.Select(c => c.Content));
-                        var summarizedContext = await SummarizeContextAsync(message, rawContext, activeModel, cancellationToken);
-                        ragContext = $"Relevant context from previous conversations (summarized):\n{summarizedContext}";
+                        _logger.LogWarning(ex, "ChatWorker: Failed to build session context");
+                        await SendWorkerExceptionAsync(appUserId, workerId, "session-context", ex, cancellationToken);
                     }
                 }
-                catch (Exception ex)
+
+                // Backfill the session's entry link when the chat window was
+                // opened from a journal entry's toolbar but the chat row
+                // predates (or missed) the association.
+                if (journalEntryId.HasValue && journalEntryId != Guid.Empty
+                    && existingChat != null
+                    && (existingChat.JournalEntryId == null || existingChat.JournalEntryId == Guid.Empty))
                 {
-                    _logger.LogWarning(ex, "ChatWorker: Failed to retrieve or summarize RAG context for user {AppUserId}", appUserId);
-                    ragContext = "";
+                    try
+                    {
+                        _chatsRepo.SetJournalEntryId(_chatId, journalEntryId);
+                        existingChat.JournalEntryId = journalEntryId;
+                    }
+                    catch (Exception ex)
+                    {
+                        await SendWorkerExceptionAsync(appUserId, workerId, "session-entry-backfill", ex, cancellationToken);
+                    }
                 }
+
+                // Tell the planner which journal entry this session is working on —
+                // stored association first, then the toolbar-launched entry id.
+                var sessionEntry = existingChat?.JournalEntryId ?? journalEntryId;
+                if (sessionEntry is Guid targetEntryId && targetEntryId != Guid.Empty)
+                {
+                    var entryHint = $"This session is currently working on journal entry {targetEntryId}. " +
+                        "If the user's request refers to 'the entry', 'it', or asks to rearrange/add/remove " +
+                        "content, they mean that entry — prefer updating it over creating a new one.";
+                    ragContext = string.IsNullOrEmpty(ragContext) ? entryHint : entryHint + "\n\n" + ragContext;
+                }
+
+                // Session-scoped memory notes (extracted from THIS chat only)
+                if (!isNewChat)
+                {
+                    try
+                    {
+                        var notes = _chatsRepo.GetRecentContextByMetadataKind(_chatId, "note", 6);
+                        if (notes.Count > 0)
+                        {
+                            var noteBlock = "Session notes:\n" + string.Join("\n", notes.Select(n => "- " + TruncateForContext(n.Content, 240)));
+                            ragContext = string.IsNullOrEmpty(ragContext) ? noteBlock : ragContext + "\n\n" + noteBlock;
+                            estimatedTokens += Collector.Chat.ContextBudget.EstimateTokens(noteBlock);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        await SendWorkerExceptionAsync(appUserId, workerId, "session-notes", ex, cancellationToken);
+                    }
+                }
+
+                // Broadcast context usage for the Windsurf-style bar + persist it
+                await SendWorkerMessage(appUserId, workerId, "ContextUsage", new
+                {
+                    usedTokens = estimatedTokens,
+                    maxTokens = contextBudget,
+                    percent = Math.Min(100, (int)Math.Round(100.0 * estimatedTokens / contextBudget))
+                }, cancellationToken);
+                try { if (!isNewChat) _chatsRepo.SetContextTokens(_chatId, estimatedTokens); }
+                catch { /* cosmetic persistence — non-fatal */ }
+
 
                 // Step 1: Ask Ollama what the user wants (planning phase)
                 await SendWorkerMessage(appUserId, workerId, "Planning", new { message = "Analyzing your request..." }, cancellationToken);
                 var planningPrompt = _toolRegistry.BuildPlanningPrompt(message, ragContext);
                 var planResponse = await GetOllamaResponseAsync(planningPrompt, activeModel, appUserId, workerId, cancellationToken, debugType: "planning");
+                // One retry on empty/degenerate output — small models flake, and
+                // without this a broken active model can never be asked to switch.
+                var degenerate = string.IsNullOrWhiteSpace(planResponse)
+                    || new string(planResponse.Where(c => !char.IsWhiteSpace(c)).ToArray()) is var squashed
+                        && (squashed == "{}" || squashed == "{\"message\":\"\"}");
+                if (degenerate)
+                {
+                    _logger.LogWarning("ChatWorker: Empty planning response, retrying once");
+                    await SendWorkerMessage(appUserId, workerId, "PlanProgress", new
+                    {
+                        percent = 5,
+                        message = "The model returned an empty plan — retrying..."
+                    }, cancellationToken);
+                    planResponse = await GetOllamaResponseAsync(planningPrompt, activeModel, appUserId, workerId, cancellationToken, debugType: "planning-retry");
+                    degenerate = string.IsNullOrWhiteSpace(planResponse)
+                        || new string(planResponse.Where(c => !char.IsWhiteSpace(c)).ToArray()) is var squashed2
+                            && (squashed2 == "{}" || squashed2 == "{\"message\":\"\"}");
+                }
+                if (degenerate)
+                {
+                    await SendWorkerMessage(appUserId, workerId, "ChatError", new
+                    {
+                        message = $"Model '{activeModel}' returned an empty response. It may not support Collector's planning format — try a different model (e.g. \"ollama run llama3.2\")."
+                    }, cancellationToken);
+                    return;
+                }
                 OllamaPlanResponse? plan;
-                try
+                var planJson = Collector.Chat.LLMJson.Extract(planResponse);
+                if (planJson != null)
                 {
-                    plan = JsonSerializer.Deserialize<OllamaPlanResponse>(planResponse);
-                    _logger.LogDebug("ChatWorker: Deserialized plan - IsPlan={IsPlan}, Message={Message}, StepsCount={StepsCount}", 
-                        plan?.IsPlan, plan?.Message, plan?.Steps?.Count ?? 0);
-                }
-                catch (JsonException ex)
-                {
-                    _logger.LogWarning(ex, "ChatWorker: Failed to deserialize plan response, treating as answer");
-                    // If parsing fails, treat as direct answer
-                    plan = new OllamaPlanResponse
+                    try
                     {
-                        Message = planResponse
-                    };
-                }
-                if (plan == null)
-                {
-                    _logger.LogWarning("ChatWorker: Plan deserialized to null, treating as answer");
-                    plan = new OllamaPlanResponse
+                        plan = JsonSerializer.Deserialize<OllamaPlanResponse>(planJson);
+                        _logger.LogDebug("ChatWorker: Deserialized plan - IsPlan={IsPlan}, Message={Message}, StepsCount={StepsCount}",
+                            plan?.IsPlan, plan?.Message, plan?.Steps?.Count ?? 0);
+                    }
+                    catch (JsonException ex)
                     {
-                        Message = planResponse
-                    };
+                        _logger.LogWarning(ex, "ChatWorker: Failed to deserialize plan response, treating as answer");
+                        plan = new OllamaPlanResponse { Message = planResponse };
+                    }
+                    if (plan == null)
+                    {
+                        _logger.LogWarning("ChatWorker: Plan deserialized to null, treating as answer");
+                        plan = new OllamaPlanResponse { Message = planResponse };
+                    }
+                    // Some models emit a bare single step — {"tool": "...", "args": {...}} —
+                    // instead of {message, steps}. Normalize it into a one-step plan
+                    // so a valid tool call isn't mistaken for an empty response.
+                    NormalizeSingleStepPlan(plan, planJson);
+                }
+                else if (planResponse.TrimStart().StartsWith('{') || planResponse.TrimStart().StartsWith('['))
+                {
+                    // Starts as JSON but never closes — the model stopped
+                    // generating mid-response. Before erroring, hand the broken
+                    // output back to the model and ask it to repair the JSON.
+                    _logger.LogWarning("ChatWorker: Truncated plan response from model {Model}: {Response}", activeModel, planResponse);
+                    var repaired = await RepairPlanResponseAsync(planResponse, activeModel, appUserId, workerId, cancellationToken);
+                    var repairedJson = repaired != null ? Collector.Chat.LLMJson.Extract(repaired) : null;
+                    OllamaPlanResponse? repairedPlan = null;
+                    if (repairedJson != null)
+                    {
+                        try { repairedPlan = JsonSerializer.Deserialize<OllamaPlanResponse>(repairedJson); }
+                        catch (JsonException) { repairedPlan = null; }
+                        if (repairedPlan != null)
+                            NormalizeSingleStepPlan(repairedPlan, repairedJson);
+                    }
+                    if (repairedPlan != null && (repairedPlan.IsPlan || !string.IsNullOrWhiteSpace(repairedPlan.Message)))
+                    {
+                        plan = repairedPlan;
+                    }
+                    else
+                    {
+                        await SendWorkerMessage(appUserId, workerId, "ChatError", new
+                        {
+                            message = $"Model '{activeModel}' stopped mid-response and couldn't repair it. Its context window is {contextBudget} tokens (this prompt used ~{estimatedTokens}) — it may have run out of room, or it may just be terminating generation early. Try a different model."
+                        }, cancellationToken);
+                        return;
+                    }
+                }
+                else
+                {
+                    // plain prose — a direct answer, not a plan
+                    plan = new OllamaPlanResponse { Message = planResponse };
+                }
+
+                // A structurally valid but empty response ({"steps":[]}, {}, etc.)
+                // is the model failing the planning contract — tell the user
+                // instead of saving a blank assistant message or spinning.
+                if (!plan.IsPlan && string.IsNullOrWhiteSpace(plan.Message))
+                {
+                    _logger.LogWarning("ChatWorker: Model returned an empty plan/answer: {Response}", planResponse);
+                    await SendWorkerMessage(appUserId, workerId, "ChatError", new
+                    {
+                        message = $"Model '{activeModel}' returned an empty response. It may not support Collector's planning format — try a different model (e.g. \"ollama run llama3.2\")."
+                    }, cancellationToken);
+                    return;
                 }
 
                 // Create chat if needed
@@ -195,9 +417,11 @@ namespace Collector.Workers
                     {
                         AppUserId = Guid.Parse(appUserId),
                         Title = chatTitle,
-                        Status = 1
+                        Status = 1,
+                        JournalEntryId = journalEntryId
                     };
                     _chatId = _chatsRepo.Add(newChat);
+                    _chatLog?.SetChatId(_chatId);
                     await SendWorkerMessage(appUserId, workerId, "ChatCreated", new
                     {
                         id = _chatId,
@@ -229,12 +453,22 @@ namespace Collector.Workers
                     // Direct answer - generate content with Ollama or remote LLM
                     await SendDirectAnswerAsync(appUserId, workerId, _chatId, plan.Message, activeModel, cancellationToken);
                     // For direct answers, extract facts from the user message and response
-                    await ExtractAndStoreFactsAsync(appUserId, _chatId, userMessageId, message, plan.Message ?? "", cancellationToken);
+                    await ExtractAndStoreFactsAsync(appUserId, workerId, _chatId, userMessageId, message, plan.Message ?? "", cancellationToken);
                 }
 
                 // Update chat modified time
                 _chatsRepo.UpdateModified(_chatId);
                 _logger.LogInformation("ChatWorker SendMessage completed for chatId={ChatId}, isPlan={IsPlan}", _chatId, plan.IsPlan);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // User hit stop (or a new message steered the plan) — not an
+                // error. The chat window clears its thinking state on this.
+                _logger.LogInformation("ChatWorker SendMessage cancelled for chatId={ChatId}", _chatId);
+                await SendWorkerMessage(appUserId, workerId, "ChatStopped", new
+                {
+                    message = "Stopped."
+                }, CancellationToken.None);
             }
             catch (Exception ex)
             {
@@ -253,9 +487,128 @@ namespace Collector.Workers
                 };
                 await SendWorkerMessage(appUserId, workerId, "ChatError", errorDetails, CancellationToken.None);
             }
+            finally
+            {
+                if (planCts != null)
+                {
+                    _chatPlanTokens.TryRemove(_chatId, out _);
+                    planCts.Dispose();
+                }
+                chatLock?.Release();
+            }
         }
 
-        private async Task<string> GetOllamaResponseAsync(string prompt, string model, string appUserId, Guid workerId, CancellationToken cancellationToken, string? debugType = null)
+        /// <summary>
+        /// Normalizes a bare single-step object — {"tool": "...", "args": {...}} —
+        /// into a one-step plan in place. Small models sometimes skip the
+        /// {message, steps} envelope entirely.
+        /// </summary>
+        private void NormalizeSingleStepPlan(OllamaPlanResponse plan, string planJson)
+        {
+            if (plan.IsPlan || !string.IsNullOrWhiteSpace(plan.Message))
+                return;
+            try
+            {
+                var node = System.Text.Json.Nodes.JsonNode.Parse(planJson) as System.Text.Json.Nodes.JsonObject;
+                var toolName = node?["tool"]?.GetValue<string>()
+                    ?? node?["toolName"]?.GetValue<string>()
+                    ?? node?["name"]?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(toolName))
+                    return;
+                var step = JsonSerializer.Deserialize<Collector.Chat.Models.PlanStep>(planJson);
+                if (step == null)
+                    return;
+                step.Tool = toolName;
+                plan.Steps = new List<Collector.Chat.Models.PlanStep> { step };
+                plan.Message = $"Running {toolName}.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "ChatWorker: Single-step normalization failed");
+            }
+        }
+
+        /// <summary>
+        /// Self-healing pass: when the model's plan is malformed or truncated,
+        /// feed the broken output back and ask it to emit valid JSON. One shot —
+        /// the caller still errors out if the repair itself is unparseable.
+        /// </summary>
+        private async Task<string?> RepairPlanResponseAsync(string brokenResponse, string model, string appUserId, Guid workerId, CancellationToken cancellationToken)
+        {
+            var toolKeys = string.Join(", ", _toolRegistry.GetAllTools().Select(t => t.ToolKey));
+            var broken = brokenResponse.Length > 4000 ? brokenResponse.Substring(0, 4000) : brokenResponse;
+            var prompt =
+                "You are a JSON repair assistant. The response below was meant to be a valid plan but was malformed or cut off.\n\n" +
+                "BROKEN RESPONSE:\n" + broken + "\n\n" +
+                "Fix it into EXACTLY this contract — keep the original intent; if a step was cut off mid-way, drop it rather than inventing args:\n" +
+                "{\n" +
+                "  \"message\": \"What you will do or your answer\",\n" +
+                "  \"steps\": [\n" +
+                "    {\"tool\": \"tool-key\", \"args\": {\"param\": \"value\"}}\n" +
+                "  ]\n" +
+                "}\n\n" +
+                $"Valid tool keys: {toolKeys}\n" +
+                "Return ONLY the repaired JSON — no commentary, no markdown fences.";
+
+            try
+            {
+                return await GetOllamaResponseAsync(prompt, model, appUserId, workerId, cancellationToken, debugType: "plan-repair");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "ChatWorker: Plan-repair call failed");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// The model's real context window, read "*.context_length" from
+        /// /api/show. Drives both the context-usage meter and num_ctx —
+        /// without num_ctx, Ollama silently clamps every request to 2048.
+        /// Falls back to a sane default when /api/show doesn't report one.
+        /// </summary>
+        private async Task<int> ResolveModelWindowAsync(string model, CancellationToken cancellationToken)
+        {
+            if (_modelWindowCache.TryGetValue(model, out var cached))
+                return cached;
+
+            var window = Collector.Chat.ContextBudget.DefaultBudget;
+            try
+            {
+                var info = await _ollama.ShowModelAsync(model, cancellationToken);
+                if (info?.Info?.ExtraInfo != null)
+                {
+                    long modelMax = 0;
+                    foreach (var kv in info.Info.ExtraInfo)
+                    {
+                        if (!kv.Key.EndsWith("context_length", StringComparison.OrdinalIgnoreCase))
+                            continue;
+                        var v = kv.Value;
+                        long n = v switch
+                        {
+                            long l => l,
+                            int i => i,
+                            double d => (long)d,
+                            System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.Number => je.GetInt64(),
+                            _ => long.TryParse(v?.ToString(), out var p) ? p : 0
+                        };
+                        modelMax = Math.Max(modelMax, n);
+                    }
+                    if (modelMax > 0)
+                        window = (int)Math.Min(modelMax, int.MaxValue);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "ChatWorker: /api/show failed for {Model}, falling back to default window {Window}", model, window);
+            }
+
+            _logger.LogInformation("ChatWorker: Model '{Model}' context window = {Window} tokens", model, window);
+            _modelWindowCache[model] = window;
+            return window;
+        }
+
+        private async Task<string> GetOllamaResponseAsync(string prompt, string model, string appUserId, Guid workerId, CancellationToken cancellationToken, string? debugType = null, bool json = true)
         {
             var request = new OllamaSharp.Models.GenerateRequest
             {
@@ -263,7 +616,11 @@ namespace Collector.Workers
                 System = "You are a helpful AI assistant.",
                 Prompt = prompt,
                 Stream = false,
-                Format = "json"
+                Format = json ? "json" : null,
+                Options = new OllamaSharp.Models.RequestOptions
+                {
+                    NumCtx = await ResolveModelWindowAsync(model, cancellationToken)
+                }
             };
 
             // Send raw request to client for debugging
@@ -280,7 +637,11 @@ namespace Collector.Workers
             try
             {
                 var responseContent = "";
-                await foreach (var response in _ollama.GenerateAsync(request, cancellationToken))
+                // Bound the generation — a slow or incompatible model must never
+                // leave the chat spinner running forever.
+                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeoutCts.CancelAfter(TimeSpan.FromMinutes(3));
+                await foreach (var response in _ollama.GenerateAsync(request, timeoutCts.Token))
                 {
                     if (response?.Response != null)
                     {
@@ -299,6 +660,10 @@ namespace Collector.Workers
                     }, cancellationToken);
                 }
                 return responseContent;
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new Exception($"Model '{model}' did not respond within 3 minutes. It may still be loading or may not support this request — try again, or switch to a different model.");
             }
             catch (HttpRequestException ex) when (ex.Message.Contains("404"))
             {
@@ -432,6 +797,61 @@ namespace Collector.Workers
             // Each item represents a scraped web page with structured content
             var data = new List<Dictionary<string, List<string>>>();
 
+            // Seed the session-entry marker from the chat's persisted target so
+            // add-edit steps keep updating the same journal entry across sessions.
+            try
+            {
+                var sessionChat = _chatsRepo.GetById(chatId);
+                if (sessionChat?.JournalEntryId is Guid sessionEntryId && sessionEntryId != Guid.Empty)
+                {
+                    data.Add(new Dictionary<string, List<string>>
+                    {
+                        ["type"] = new List<string> { "session-entry" },
+                        ["entryId"] = new List<string> { sessionEntryId.ToString() },
+                        ["journalId"] = new List<string>()
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "ChatWorker: Failed to seed session entry marker");
+                await SendWorkerExceptionAsync(appUserId, workerId, "session-marker", ex, cancellationToken);
+            }
+
+            // Restore research state (questions + asked queries) persisted by a
+            // previous plan — steering a new plan keeps its coverage memory.
+            try
+            {
+                var savedStates = _chatsRepo.GetRecentContextByMetadataKind(chatId, "research-state", 1);
+                var stateJson = savedStates.FirstOrDefault().Content;
+                if (!string.IsNullOrEmpty(stateJson))
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(stateJson);
+                    if (doc.RootElement.TryGetProperty("questions", out var q))
+                    {
+                        var list = q.EnumerateArray().Select(e => e.GetString() ?? "").Where(s => s.Length > 0).ToList();
+                        if (list.Count > 0)
+                            data.Add(new Dictionary<string, List<string>> { ["type"] = new List<string> { "research-questions" }, ["questions"] = list });
+                    }
+                    if (doc.RootElement.TryGetProperty("askedQueries", out var a))
+                    {
+                        var list = a.EnumerateArray().Select(e => e.GetString() ?? "").Where(s => s.Length > 0).ToList();
+                        if (list.Count > 0)
+                            data.Add(new Dictionary<string, List<string>> { ["type"] = new List<string> { "asked-queries" }, ["queries"] = list });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "ChatWorker: Failed to restore research state");
+                await SendWorkerExceptionAsync(appUserId, workerId, "research-state-restore", ex, cancellationToken);
+            }
+
+            // Collect step errors so the final summary can report honestly
+            // instead of declaring success over failed tools.
+            var toolErrors = new List<string>();
+            var toolMessages = new List<string>();
+
             // Execute each step
             await _toolRegistry.ExecutePlan(
                 executionPlan,
@@ -441,11 +861,13 @@ namespace Collector.Workers
                 (percent, message) =>
                 {
                     // Send progress with replace flag so frontend updates existing progress label
+                    _chatLog?.Log("PlanProgress", new { percent, message });
                     _hubContext.Clients.All.SendAsync("WorkerProgress", appUserId, workerId, "PlanProgress",
                         new { percent, message, replace = true }, cancellationToken);
                 },
                 (tool, error, ex) =>
                 {
+                    toolErrors.Add($"{tool}: {error}");
                     var errorDetails = new
                     {
                         tool,
@@ -457,11 +879,13 @@ namespace Collector.Workers
                             type = ex.GetType().Name
                         } : null
                     };
+                    _chatLog?.Log("ToolError", errorDetails);
                     _hubContext.Clients.All.SendAsync("WorkerProgress", appUserId, workerId, "ToolError",
                         errorDetails, cancellationToken);
                 },
                 (tool, message) =>
                 {
+                    _chatLog?.Log("ToolComplete", new { tool, message });
                     _hubContext.Clients.All.SendAsync("WorkerProgress", appUserId, workerId, "ToolComplete",
                         new { tool, message }, cancellationToken);
                 },
@@ -469,27 +893,79 @@ namespace Collector.Workers
                 // Raw request callback - sends OllamaRequest event for debugging
                 _environment.IsDevelopment() ? (type, prompt) =>
                 {
+                    _chatLog?.Log("OllamaRequest", new { type, prompt });
                     _hubContext.Clients.All.SendAsync("WorkerProgress", appUserId, workerId, "OllamaRequest",
                         new { type, prompt, isDevelopment = true }, cancellationToken);
                 } : null,
                 // Raw response callback - sends OllamaResponse event for debugging
                 _environment.IsDevelopment() ? (type, response) =>
                 {
+                    _chatLog?.Log("OllamaResponse", new { type, rawResponse = response });
                     _hubContext.Clients.All.SendAsync("WorkerProgress", appUserId, workerId, "OllamaResponse",
                         new { type, rawResponse = response, isDevelopment = true }, cancellationToken);
                 } : null,
                 // OnSaveChatHistory callback - extracts facts immediately when web-scrape provides context
                 async (context) =>
                 {
-                    await ExtractAndStoreFactsAsync(appUserId, chatId, Guid.Parse(userMessageId), userMessage, context, cancellationToken);
+                    await ExtractAndStoreFactsAsync(appUserId, workerId, chatId, Guid.Parse(userMessageId), userMessage, context, cancellationToken);
                 },
-                // SendMessage callback - sends message with optional link to chat window
+                // SendMessage callback - sends message with optional link to chat window.
+                // Texts are also collected so the final summary knows what the
+                // tools actually told the user (they don't land in `data`).
                 (message, linkUrl, linkText) =>
                 {
+                    if (!string.IsNullOrWhiteSpace(message)) toolMessages.Add(message);
+                    _chatLog?.Log("ChatMessage", new { message, linkUrl, linkText });
                     _hubContext.Clients.All.SendAsync("WorkerProgress", appUserId, workerId, "ChatMessage",
                         new { message, linkUrl, linkText }, cancellationToken);
-                }
+                },
+                // Step-start callback - ToolStep event for browser-console debugging
+                _environment.IsDevelopment() ? (stepNumber, stepTotal, step) =>
+                {
+                    _chatLog?.Log("ToolStep", new { step = stepNumber, total = stepTotal, tool = step.Tool, args = step.Args });
+                    _hubContext.Clients.All.SendAsync("WorkerProgress", appUserId, workerId, "ToolStep",
+                        new { step = stepNumber, total = stepTotal, tool = step.Tool, args = step.Args, isDevelopment = true }, cancellationToken);
+                } : null,
+                cancellationToken
             );
+
+            // Persist the journal entry the plan worked on so future messages in
+            // this session target the same entry (conversational editing).
+            try
+            {
+                var producedEntryId = executionPlan.Steps
+                    .Select(s => s.Result != null && s.Result.TryGetValue("entryId", out var v) ? v?.ToString() : null)
+                    .LastOrDefault(v => Guid.TryParse(v, out _));
+                if (Guid.TryParse(producedEntryId, out var sessionEntryId))
+                {
+                    _chatsRepo.SetJournalEntryId(chatId, sessionEntryId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "ChatWorker: Failed to persist session entry id");
+                await SendWorkerExceptionAsync(appUserId, workerId, "session-entry-persist", ex, cancellationToken);
+            }
+
+            // Persist research coverage state so a steered/follow-up plan resumes
+            // with the same question set and never re-asks answered queries.
+            try
+            {
+                var questions = Collector.Chat.Tools.ResearchReviewTool.GetList(data, "research-questions", "questions");
+                var asked = Collector.Chat.Tools.ResearchReviewTool.GetList(data, "asked-queries", "queries");
+                if (questions.Count > 0 || asked.Count > 0)
+                {
+                    var stateJson = JsonSerializer.Serialize(new { questions, askedQueries = asked });
+                    var embedding = await GetEmbeddingAsync(new List<string> { string.Join(" ", questions.Concat(asked).Take(6)) });
+                    var meta = JsonSerializer.Serialize(new { kind = "research-state", chatId, timestamp = DateTime.UtcNow });
+                    _chatsRepo.StoreContext(Guid.Parse(appUserId), chatId, stateJson, embedding, meta);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "ChatWorker: Failed to persist research state");
+                await SendWorkerExceptionAsync(appUserId, workerId, "research-state-persist", ex, cancellationToken);
+            }
 
             // Send completion message
             await SendWorkerMessage(appUserId, workerId, "PlanCompleted", new
@@ -497,14 +973,26 @@ namespace Collector.Workers
                 message = $"Completed execution of plan: {plan.Message}"
             }, cancellationToken);
 
-            // Generate final summary with Ollama
-            var dataSummary = data.Count > 0 
-                ? $"{data.Count} web page(s) scraped" 
-                : "No additional data";
-            var summaryPrompt = $"The following plan has been executed successfully:\n{plan.Message}\n\n" +
+            // Generate final summary with Ollama — include what the tools
+            // already told the user so it doesn't claim "no data" when the
+            // answer was delivered as chat messages rather than scraped data.
+            var dataSummary = data.Count > 0
+                ? $"{data.Count} web page(s) scraped"
+                : "none (this plan did not involve web scraping)";
+            var messagesSummary = toolMessages.Count > 0
+                ? $"Information already reported to the user during execution:\n- {string.Join("\n- ", toolMessages.Take(8))}\n\n"
+                : "";
+            var errorsSummary = toolErrors.Count > 0
+                ? $"However, {toolErrors.Count} step(s) reported errors:\n- {string.Join("\n- ", toolErrors)}\n\n"
+                : "";
+            var summaryPrompt = $"The following plan was just executed:\n{plan.Message}\n\n" +
                                $"Available data from execution: {dataSummary}\n\n" +
-                               $"Provide a brief, friendly summary to the user about what was accomplished.";
-            var summary = await GetOllamaResponseAsync(summaryPrompt, model, appUserId, workerId, cancellationToken);
+                               messagesSummary +
+                               errorsSummary +
+                               $"Provide a brief, honest summary to the user about what was accomplished. " +
+                               $"Only mention scraping or research if scraping actually happened" +
+                               (toolErrors.Count > 0 ? "; also report what went wrong." : ".");
+            var summary = await GetOllamaResponseAsync(summaryPrompt, model, appUserId, workerId, cancellationToken, json: false);
             await SaveAndSendAssistantMessage(appUserId, workerId, chatId, summary, model, cancellationToken);
         }
 
@@ -516,7 +1004,131 @@ namespace Collector.Workers
             await SaveAndSendAssistantMessage(appUserId, workerId, chatId, responseMessage, model, cancellationToken);
         }
 
-        private async Task<string> SummarizeContextAsync(string userMessage, string rawContext, string model, CancellationToken cancellationToken)
+        private static string TruncateForContext(string? content, int maxChars)
+        {
+            if (string.IsNullOrEmpty(content)) return "";
+            return content.Length <= maxChars ? content : content.Substring(0, maxChars) + "…";
+        }
+
+        /// <summary>
+        /// Forward a swallowed exception to the browser console — same dev-gated
+        /// channel as the raw Ollama request/response debug events. Non-fatal
+        /// catches stay silent in production but are visible while developing.
+        /// </summary>
+        private Task SendWorkerExceptionAsync(string appUserId, Guid workerId, string context, Exception ex, CancellationToken cancellationToken)
+        {
+            if (!_environment.IsDevelopment()) return Task.CompletedTask;
+            return SendWorkerMessage(appUserId, workerId, "ServerException", new
+            {
+                context,
+                message = ex.Message,
+                type = ex.GetType().Name,
+                stackTrace = ex.StackTrace,
+                innerException = ex.InnerException != null ? new
+                {
+                    message = ex.InnerException.Message,
+                    type = ex.InnerException.GetType().Name
+                } : null,
+                isDevelopment = true
+            }, cancellationToken);
+        }
+
+        /// <summary>
+        /// Broadcast a journal-entry update so open viewers refetch and merge
+        /// the new module tree while the research agent keeps working.
+        /// </summary>
+        private Task BroadcastEntryUpdated(Guid appUserId, Guid entryId, int journalId, List<string>? ops = null)
+        {
+            return _hubContext.Clients.All.SendAsync("JournalEntryUpdated", new
+            {
+                appUserId,
+                entryId,
+                journalId,
+                ops = ops ?? new List<string>()
+            });
+        }
+
+                /// <summary>
+        /// Auto-compaction: when the estimated prompt crosses the threshold of
+        /// the model's context window, fold all but the last few turns into the
+        /// persisted running summary. Checked at message start only — never
+        /// mid-plan. The summarize call can't recurse into planning, so no
+        /// explicit recursion guard is needed.
+        /// </summary>
+        private async Task MaybeCompactSessionAsync(
+            Collector.Data.Entities.Chat chat,
+            List<Collector.Data.Entities.ChatHistory> history,
+            string model, int contextBudget,
+            string appUserId, Guid workerId, CancellationToken cancellationToken)
+        {
+            const int keepTail = 8;
+
+            var uncompacted = history
+                .Where(m => !chat.ContextSummarizedThrough.HasValue || m.Created > chat.ContextSummarizedThrough.Value)
+                .ToList();
+            if (uncompacted.Count == 0) return;
+
+            var usedTokens = Collector.Chat.ContextBudget.PromptOverheadTokens
+                + uncompacted.Sum(m => Collector.Chat.ContextBudget.EstimateTokens(m.Content))
+                + Collector.Chat.ContextBudget.EstimateTokens(chat.ContextSummary);
+            if (!Collector.Chat.ContextBudget.ShouldCompact(usedTokens, contextBudget)) return;
+            if (!Collector.Chat.ContextBudget.TryGetCompactionSplit(uncompacted, keepTail, out var head, out var tail)) return;
+
+            await SendWorkerMessage(appUserId, workerId, "PlanProgress", new
+            {
+                percent = 4,
+                message = $"Context is {(int)Math.Round(100.0 * usedTokens / contextBudget)}% full — compacting older conversation..."
+            }, cancellationToken);
+
+            var olderTurns = string.Join("\n", head.Select(m =>
+                $"{(m.Role == 0 ? "User" : "Assistant")}: {TruncateForContext(m.Content, 300)}"));
+            var foldInput = (string.IsNullOrWhiteSpace(chat.ContextSummary)
+                ? ""
+                : "Prior summary (keep its key facts, merge in the new material):\n" + chat.ContextSummary + "\n\n")
+                + "Conversation turns to fold into the summary:\n" + olderTurns;
+            var newSummary = await SummarizeContextAsync(
+                "Summarize this conversation so far for continued work",
+                foldInput, model, appUserId, workerId, cancellationToken);
+            if (string.IsNullOrWhiteSpace(newSummary)) return;
+
+            var through = head.Last().Created;
+            var tailTokens = tail.Sum(m => Collector.Chat.ContextBudget.EstimateTokens(m.Content));
+            var newEstimate = Collector.Chat.ContextBudget.PromptOverheadTokens
+                + tailTokens + Collector.Chat.ContextBudget.EstimateTokens(newSummary);
+            _chatsRepo.SetContextCompaction(chat.Id, newSummary, through, newEstimate);
+            chat.ContextSummary = newSummary;
+            chat.ContextSummarizedThrough = through;
+            chat.ContextTokens = newEstimate;
+        }
+
+        /// <summary>
+        /// Build the session's prompt context purely from this chat: running
+        /// summary (compacted older turns) + verbatim tail. Long messages beyond
+        /// the last few turns collapse to a reference line — tool-result clearing.
+        /// </summary>
+        private static string BuildSessionContext(
+            Collector.Data.Entities.Chat chat,
+            List<Collector.Data.Entities.ChatHistory> history)
+        {
+            var verbatim = history
+                .Where(m => !chat.ContextSummarizedThrough.HasValue || m.Created > chat.ContextSummarizedThrough.Value)
+                .ToList();
+
+            var turns = verbatim.Select((m, i) =>
+            {
+                var label = m.Role == 0 ? "User" : "Assistant";
+                var len = m.Content?.Length ?? 0;
+                // tool-result clearing: long older messages reduce to a reference
+                var body = (i < verbatim.Count - 4 && len > 1200)
+                    ? $"[earlier message — {len} chars]"
+                    : TruncateForContext(m.Content, 600);
+                return $"{label}: {body}";
+            });
+
+            return Collector.Chat.ContextBudget.ComposeContext(chat.ContextSummary, turns);
+        }
+
+private async Task<string> SummarizeContextAsync(string userMessage, string rawContext, string model, string appUserId, Guid workerId, CancellationToken cancellationToken)
         {
             try
             {
@@ -531,7 +1143,11 @@ namespace Collector.Workers
                 };
                 var responseContent = "";
 
-                await foreach (var resp in _ollama.GenerateAsync(request, cancellationToken))
+                // Bounded: a hanging model must fall back to raw context, not
+                // stall the whole plan before "Planning" is ever emitted.
+                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeoutCts.CancelAfter(TimeSpan.FromSeconds(60));
+                await foreach (var resp in _ollama.GenerateAsync(request, timeoutCts.Token))
                 {
                     if (resp?.Response != null)
                     {
@@ -545,6 +1161,7 @@ namespace Collector.Workers
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "ChatWorker: Failed to summarize context, returning raw context");
+                await SendWorkerExceptionAsync(appUserId, workerId, "context-summarization", ex, cancellationToken);
                 // If summarization fails, return a truncated version of the raw context
                 return rawContext.Length > 2000 ? rawContext.Substring(0, 2000) + "..." : rawContext;
             }
@@ -573,31 +1190,33 @@ namespace Collector.Workers
             }, cancellationToken);
         }
 
-        private async Task ExtractAndStoreFactsAsync(string appUserId, Guid chatId, Guid userMessageId,
+        private async Task ExtractAndStoreFactsAsync(string appUserId, Guid workerId, Guid chatId, Guid userMessageId,
             string userMessage, string assistantMessage, CancellationToken cancellationToken)
         {
             try
             {
                 var userGuid = Guid.Parse(appUserId);
-                var facts = await ExtractFactsFromConversationAsync(userMessage, assistantMessage, cancellationToken);
-                
-                if (facts != null && facts.Count > 0)
+                var notes = await ExtractFactsFromConversationAsync(userMessage, assistantMessage, appUserId, workerId, cancellationToken);
+
+                if (notes != null && notes.Count > 0)
                 {
                     int storedCount = 0;
                     int duplicateCount = 0;
-                    foreach (var fact in facts)
+                    foreach (var note in notes)
                     {
-                        var factEmbedding = await GetEmbeddingAsync(new List<string> { fact });
-                        if (!_chatsRepo.HasSimilarContext(userGuid, factEmbedding, similarityThreshold: 0.1f))
+                        var noteEmbedding = await GetEmbeddingAsync(new List<string> { note.Content }, cancellationToken);
+                        if (!_chatsRepo.HasSimilarContextForChat(chatId, noteEmbedding, similarityThreshold: 0.1f))
                         {
-                            var factMetadata = JsonSerializer.Serialize(new
+                            var noteMetadata = JsonSerializer.Serialize(new
                             {
-                                type = "fact",
+                                kind = "note",
+                                type = "note",
+                                noteType = note.Type,
                                 timestamp = DateTime.UtcNow,
                                 chatId = chatId,
                                 userMessageId = userMessageId
                             });
-                            _chatsRepo.StoreContext(userGuid, chatId, fact, factEmbedding, factMetadata);
+                            _chatsRepo.StoreContext(userGuid, chatId, note.Content, noteEmbedding, noteMetadata);
                             storedCount++;
                         }
                         else
@@ -605,44 +1224,66 @@ namespace Collector.Workers
                             duplicateCount++;
                         }
                     }
-                    _logger.LogInformation("ChatWorker: Extracted {TotalFacts} facts, stored {StoredCount} new facts for user {AppUserId}",
-                        facts.Count, storedCount, appUserId);
+                    _logger.LogInformation("ChatWorker: Extracted {TotalNotes} memory notes, stored {StoredCount} new for user {AppUserId}",
+                        notes.Count, storedCount, appUserId);
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "ChatWorker: Failed to extract and store facts for user {AppUserId}", appUserId);
+                await SendWorkerExceptionAsync(appUserId, workerId, "fact-extraction", ex, cancellationToken);
             }
         }
 
         private Task SendWorkerMessage(string appUserId, Guid workerId, string eventName, object payload, CancellationToken cancellationToken)
         {
+            _chatLog?.Log(eventName, payload);
             return _hubContext.Clients.All.SendAsync("WorkerProgress", appUserId, workerId, eventName, payload, cancellationToken);
         }
 
-        private async Task<float[]> GetEmbeddingAsync(List<string> text)
+        private async Task<float[]> GetEmbeddingAsync(List<string> text, CancellationToken cancellationToken = default)
         {
+            // Bounded — an Ollama embed call that hangs must never hold the
+            // per-chat lock hostage (it runs inside the post-response path).
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(TimeSpan.FromSeconds(30));
             var response = await _ollama.EmbedAsync(new OllamaSharp.Models.EmbedRequest
             {
                 Model = "nomic-embed-text",
                 Input = text
-            });
-            
+            }, timeoutCts.Token);
+
             return response.Embeddings[0];
         }
 
-        private async Task<List<string>> ExtractFactsFromConversationAsync(string userMessage, string assistantMessage, CancellationToken cancellationToken)
+        /// <summary>
+        /// A typed memory note extracted from a conversation turn — carries a
+        /// noteType so retrieval can weigh decisions/preferences over raw facts.
+        /// </summary>
+        private class MemoryNote
+        {
+            [System.Text.Json.Serialization.JsonPropertyName("type")]
+            public string Type { get; set; } = "fact";
+            [System.Text.Json.Serialization.JsonPropertyName("content")]
+            public string Content { get; set; } = "";
+        }
+
+        private async Task<List<MemoryNote>> ExtractFactsFromConversationAsync(string userMessage, string assistantMessage, string appUserId, Guid workerId, CancellationToken cancellationToken)
         {
             try
             {
-                var systemPrompt = @"You are a fact extraction system. Extract key facts from conversations and return them as a JSON array of strings.
+                var systemPrompt = @"You are a memory extraction system. Extract durable notes from conversations as a JSON array of typed objects.
 Rules:
-- Extract only factual information, preferences, or important details
-- Each fact should be a complete, standalone statement
-- Ignore greetings and conversational filler
-- Return ONLY a JSON array of strings
+- Each note has ""type"" (one of: decision, question, preference, state, fact) and ""content"" (a complete, standalone statement)
+- decision: something the user or assistant decided to do
+- question: an unresolved question the user asked that matters later
+- preference: a user preference (style, format, tools, approach)
+- state: current working state (e.g. which entry/project is being worked on)
+- fact: any other factual information worth remembering
+- Extract 0-6 notes; ignore greetings and conversational filler
+- Return ONLY a JSON array
 Example output:
-[""The user prefers dark mode"", ""The project uses PostgreSQL database"", ""The user is working on a chat feature""]";
+[{""type"":""preference"",""content"":""The user prefers dark mode""},{""type"":""state"",""content"":""The user is researching the history of PostgreSQL in a journal entry""}]";
                 var conversationPrompt = $@"User said: {userMessage}
 Assistant replied: {assistantMessage}
 Extract facts from this conversation:";
@@ -672,8 +1313,12 @@ Extract facts from this conversation:";
                 };
                 
                 var responseContent = "";
-                
-                await foreach (var response in _ollama.GenerateAsync(request, cancellationToken))
+
+                // Bounded: fact extraction happens while holding the chat lock —
+                // a hang here silently queues every subsequent message forever.
+                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeoutCts.CancelAfter(TimeSpan.FromSeconds(60));
+                await foreach (var response in _ollama.GenerateAsync(request, timeoutCts.Token))
                 {
                     if (response?.Response != null)
                     {
@@ -681,26 +1326,84 @@ Extract facts from this conversation:";
                     }
                 }
                 
-                // Clean up response - sometimes Ollama adds extra text
-                responseContent = responseContent.Trim();
-                
-                // Find JSON array in response
-                var startIndex = responseContent.IndexOf('[');
-                var endIndex = responseContent.LastIndexOf(']');
-                if (startIndex >= 0 && endIndex > startIndex)
-                {
-                    responseContent = responseContent.Substring(startIndex, endIndex - startIndex + 1);
-                }
-                
-                // Parse JSON array of facts
-                var facts = JsonSerializer.Deserialize<List<string>>(responseContent);
-                return facts ?? new List<string>();
+                return ParseMemoryNotes(responseContent);
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "ChatWorker: Failed to extract facts from conversation");
-                return new List<string>();
+                await SendWorkerExceptionAsync(appUserId, workerId, "fact-extraction", ex, cancellationToken);
+                return new List<MemoryNote>();
             }
+        }
+
+        /// <summary>
+        /// Shape-tolerant memory-note parser. Models return every variant:
+        /// a bare array of strings, an array of note objects, or an object
+        /// wrapping either under a key like "notes"/"facts". Normalizes all of
+        /// them via JsonNode so a model can't wedge extraction with odd JSON.
+        /// </summary>
+        private static List<MemoryNote> ParseMemoryNotes(string raw)
+        {
+            try
+            {
+                // strip prose around the JSON before parsing
+                var json = Collector.Chat.LLMJson.Extract(raw) ?? raw?.Trim() ?? "";
+                var node = System.Text.Json.Nodes.JsonNode.Parse(json);
+                if (node == null) return new List<MemoryNote>();
+
+                // unwrap objects: find the first array-valued property
+                if (node is System.Text.Json.Nodes.JsonObject obj)
+                {
+                    var arrayProp = obj.FirstOrDefault(kv => kv.Value is System.Text.Json.Nodes.JsonArray).Value;
+                    node = arrayProp as System.Text.Json.Nodes.JsonNode
+                        ?? obj.FirstOrDefault(kv => kv.Value is System.Text.Json.Nodes.JsonValue).Value;
+                }
+                if (node == null) return new List<MemoryNote>();
+
+                var items = new List<MemoryNote>();
+                if (node is System.Text.Json.Nodes.JsonArray arr)
+                {
+                    foreach (var item in arr)
+                    {
+                        var note = ToMemoryNote(item);
+                        if (note != null) items.Add(note);
+                    }
+                }
+                else
+                {
+                    var note = ToMemoryNote(node);
+                    if (note != null) items.Add(note);
+                }
+                return items.Take(6).ToList();
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                // not JSON at all — treat the raw line(s) as a single fact note
+                var text = raw?.Trim() ?? "";
+                if (string.IsNullOrEmpty(text) || text.Length > 400) return new List<MemoryNote>();
+                return new List<MemoryNote> { new MemoryNote { Type = "fact", Content = text } };
+            }
+        }
+
+        private static MemoryNote? ToMemoryNote(System.Text.Json.Nodes.JsonNode? item)
+        {
+            if (item == null) return null;
+            if (item is System.Text.Json.Nodes.JsonValue v && v.TryGetValue<string>(out var s))
+            {
+                return string.IsNullOrWhiteSpace(s) ? null : new MemoryNote { Type = "fact", Content = s.Trim() };
+            }
+            if (item is System.Text.Json.Nodes.JsonObject o)
+            {
+                var type = o["type"]?.GetValue<string>() ?? "fact";
+                // models emit "content", "note", "fact", or "text" for the body
+                var content = o["content"]?.GetValue<string>()
+                    ?? o["note"]?.GetValue<string>()
+                    ?? o["fact"]?.GetValue<string>()
+                    ?? o["text"]?.GetValue<string>();
+                return string.IsNullOrWhiteSpace(content) ? null
+                    : new MemoryNote { Type = type, Content = content.Trim() };
+            }
+            return null;
         }
     }
 }

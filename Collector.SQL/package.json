@@ -1,5 +1,13 @@
 {
-  "dependencies": {
-    "gulp": "^5.0.1"
+  "name": "collector.sql",
+  "version": "1.0.0",
+  "description": "PostgreSQL schema deployment generator for Collector.",
+  "private": true,
+  "scripts": {
+    "update-deploy": "gulp update-deploy",
+    "watch": "gulp watch"
+  },
+  "devDependencies": {
+    "gulp": "^5.0.0"
   }
 }

@@ -13,6 +13,7 @@ const WorkerHubProvider = ({ children }) => {
     const [isConnecting, setIsConnecting] = useState(false);
     const connectionRef = useRef(null);
     const handlersRef = useRef(new Map()); // workerId -> [handler]
+    const entryHandlersRef = useRef(new Map()); // entryId -> [handler]
 
     const ensureConnection = useCallback(async () => {
         if (connectionRef.current && connectionRef.current.state === signalR.HubConnectionState.Connected) {
@@ -76,6 +77,23 @@ const WorkerHubProvider = ({ children }) => {
                     eventName === 'DomainAnalysisComplete' || eventName === 'DomainAnalysisError') {
                     handlersRef.current.delete(key);
                 }
+            });
+
+            // Journal entry updates (chat research agent, workers, other sessions)
+            conn.on('JournalEntryUpdated', (payload) => {
+                const currentAppUserId = session?.user?.appUserId;
+                if (!currentAppUserId || String(currentAppUserId) !== String(payload?.appUserId)) return;
+
+                const entryKey = payload?.entryId?.toString();
+                if (!entryKey) return;
+
+                const handlers = entryHandlersRef.current.get(entryKey);
+                if (!handlers || handlers.length === 0) return;
+                handlers.forEach((handler) => {
+                    try { handler(payload); } catch (err) {
+                        console.error('JournalEntryUpdated handler error:', err);
+                    }
+                });
             });
 
             // Handle cookie requests from workers
@@ -168,6 +186,23 @@ const WorkerHubProvider = ({ children }) => {
         };
     }, [ensureConnection]);
 
+    const subscribeEntry = useCallback(async (entryId, onMessage) => {
+        if (!entryId || !onMessage) return () => {};
+        await ensureConnection();
+        const key = entryId.toString();
+        const existing = entryHandlersRef.current.get(key) || [];
+        existing.push(onMessage);
+        entryHandlersRef.current.set(key, existing);
+
+        return () => {
+            const current = entryHandlersRef.current.get(key) || [];
+            entryHandlersRef.current.set(
+                key,
+                current.filter((h) => h !== onMessage)
+            );
+        };
+    }, [ensureConnection]);
+
     const requestProgress = useCallback(async (workerId) => {
         const appUserId = session?.user?.appUserId;
         if (!appUserId || !workerId) return;
@@ -196,6 +231,7 @@ const WorkerHubProvider = ({ children }) => {
         call,
         getWorkers,
         subscribe,
+        subscribeEntry,
         requestProgress,
         progressAll,
         stop

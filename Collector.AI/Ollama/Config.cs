@@ -26,11 +26,6 @@ namespace Collector.AI.Ollama
         public static int NumGpu { get; set; } = 1;
 
         /// <summary>
-        /// Context window size in tokens (2048, 4096, 8192, or 32768)
-        /// </summary>
-        public static int ContextSize { get; set; } = 2048;
-
-        /// <summary>
         /// Sampling temperature (0.0-1.0)
         /// </summary>
         public static float Temperature { get; set; } = 0.7f;

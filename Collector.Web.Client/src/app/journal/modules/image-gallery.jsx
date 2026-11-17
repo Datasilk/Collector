@@ -98,10 +98,20 @@ export default function ImageGalleryModule({
         return Math.max(1, Math.ceil(images.length / thumbnailsPerRow));
     }, [images.length, thumbnailsPerRow]);
 
-    const getFullImageSrc = useCallback((fileName) => {
+    // Gallery items arrive as filename strings (uploaded images) or as
+    // {url, caption} objects (AI-generated research entries). Remote URLs
+    // render directly; local filenames resolve via the journal-entries store.
+    const resolveImageFile = useCallback((item) => {
+        if (!item) return '';
+        return typeof item === 'string' ? item : (item.url || item.file || item.src || item.image || '');
+    }, []);
+
+    const getFullImageSrc = useCallback((item) => {
+        const fileName = resolveImageFile(item);
         if (!fileName) return '';
+        if (/^https?:\/\//i.test(fileName) || fileName.startsWith('data:')) return fileName;
         return `${apiBasePath()}/image/journal-entries/${entryId}/${fileName}`;
-    }, [entryId]);
+    }, [entryId, resolveImageFile]);
 
     const mainImageSrc = useMemo(() => {
         if (!images.length) return null;
@@ -110,11 +120,13 @@ export default function ImageGalleryModule({
         return getFullImageSrc(fileName);
     }, [getFullImageSrc, images, selectedIndex]);
 
-    const getThumbnailSrc = useCallback((fileName) => {
+    const getThumbnailSrc = useCallback((item) => {
+        const fileName = resolveImageFile(item);
         if (!fileName) return '';
-        const thumbName = `thumb_${fileName}`;
-        return `${apiBasePath()}/image/journal-entries/${entryId}/${thumbName}`;
-    }, [entryId]);
+        // Remote/data images have no server-side thumb_ derivative — use the image itself.
+        if (/^https?:\/\//i.test(fileName) || fileName.startsWith('data:')) return fileName;
+        return `${apiBasePath()}/image/journal-entries/${entryId}/thumb_${fileName}`;
+    }, [entryId, resolveImageFile]);
 
     const scrollToPage = useCallback((targetPage) => {
         const viewport = thumbnailsViewportRef.current;
@@ -540,7 +552,7 @@ export default function ImageGalleryModule({
                                         const thumbnailClass = `image-gallery-thumbnail${isSelected ? ' selected' : ''}`;
                                         return (
                                             <div
-                                                key={fileName + actualIndex}
+                                                key={resolveImageFile(fileName) + actualIndex}
                                                 className={thumbnailClass}
                                                 data-index={actualIndex}
                                             >
@@ -589,7 +601,7 @@ export default function ImageGalleryModule({
                                 const src = getThumbnailSrc(fileName);
                                 return (
                                     <div
-                                        key={fileName + visibleIndex}
+                                        key={resolveImageFile(fileName) + visibleIndex}
                                         className="image-gallery-grid-item"
                                         data-index={visibleIndex}
                                     >

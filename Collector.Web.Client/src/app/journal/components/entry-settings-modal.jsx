@@ -445,7 +445,9 @@ export default function SettingsModal({
 
     const hasJournalDetailsChanges = journalTitle !== originalJournalTitle || journalCategoryId !== originalJournalCategoryId;
     const isJournalEntry = journalData && journalData.entryId === entry.id;
-    const tabsList = isJournalEntry ? ['Details', 'Journal', 'Images', 'CSS'] : ['Details', 'Images', 'CSS'];
+    const tabsList = isJournalEntry
+        ? ['Details', 'Journal', 'Images', 'CSS', 'Research', 'Sources']
+        : ['Details', 'Images', 'CSS', 'Research', 'Sources'];
     const hasCSSChanges = cssCode !== originalCss;
     const hasThumbnailChanges = settings.thumbnail !== originalThumbnail;
 
@@ -728,6 +730,34 @@ export default function SettingsModal({
                                 </div>
                             )}
                         </div>
+
+                        {/* Research Tab — read-only topic/fact accordions */}
+                        <div className="settings-modal-content research-tab">
+                            {entryJson?.research?.topics?.length > 0 ? (
+                                entryJson.research.topics.map((topic, i) => (
+                                    <ResearchTopicAccordion key={i} topic={topic} depth={0} />
+                                ))
+                            ) : (
+                                <p className="research-empty">No research recorded yet — it appears here once the AI collects research for this entry.</p>
+                            )}
+                        </div>
+
+                        {/* Sources Tab — read-only list of scraped pages */}
+                        <div className="settings-modal-content sources-tab">
+                            {entryJson?.research?.sources?.length > 0 ? (
+                                <ol className="sources-list">
+                                    {entryJson.research.sources.map(src => (
+                                        <li key={src.id}>
+                                            <a href={src.url} target="_blank" rel="noopener noreferrer">
+                                                {src.title || src.url}
+                                            </a>
+                                        </li>
+                                    ))}
+                                </ol>
+                            ) : (
+                                <p className="research-empty">No sources recorded yet.</p>
+                            )}
+                        </div>
                     </Tabs>
 
                 </>
@@ -745,5 +775,37 @@ export default function SettingsModal({
                 </>
             )}
         </Modal>
+    );
+}
+
+// Read-only accordion for the Research tab — one <details> per topic, fact
+// bullets beneath it, subtopics nested recursively. Archived topics show a
+// badge but remain visible for context.
+function ResearchTopicAccordion({ topic, depth }) {
+    const archived = topic.status === 'archived';
+    const facts = topic.facts || [];
+    const subtopics = topic.subtopics || [];
+
+    return (
+        <details className={`research-topic depth-${depth}`} open={depth === 0}>
+            <summary>
+                <span className="research-topic-title">{topic.topic}</span>
+                {archived && <span className="research-archived-badge">archived</span>}
+                <span className="research-fact-count">{facts.length} {facts.length === 1 ? 'fact' : 'facts'}</span>
+            </summary>
+            {facts.length > 0 && (
+                <ul className="research-facts">
+                    {facts.map((f, i) => (
+                        <li key={i}>
+                            {f.text}
+                            {f.source != null && <span className="research-source-ref">[{f.source}]</span>}
+                        </li>
+                    ))}
+                </ul>
+            )}
+            {subtopics.map((st, i) => (
+                <ResearchTopicAccordion key={i} topic={st} depth={depth + 1} />
+            ))}
+        </details>
     );
 }
