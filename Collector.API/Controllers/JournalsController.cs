@@ -871,8 +871,8 @@ namespace Collector.API.Controllers
                     _userRepository.UpdateEncryption(user.Id.Value, user.EncryptionKey, user.EncryptionType);
                 }
 
-                var filePath = $"{request.Id:N}.json";
-                var content = Files.GetFile(Files.Paths.Journal, filePath);
+                var filePath = EntryFilePath(entry.JournalId, request.Id);
+                var content = ReadEntryContent(entry.JournalId, request.Id);
 
                 if (request.Value)
                 {
@@ -1003,7 +1003,7 @@ namespace Collector.API.Controllers
                     // Only add path if it doesn't already contain a path separator
                     if (!request.Thumbnail.Contains("/") && !request.Thumbnail.Contains("\\"))
                     {
-                        thumbnailPath = $"{request.SourceEntryId.Value}/{request.Thumbnail}";
+                        thumbnailPath = JournalPaths.ImagePath(entry.JournalId, request.SourceEntryId.Value, request.Thumbnail);
                     }
                 }
 
@@ -1037,8 +1037,7 @@ namespace Collector.API.Controllers
                 if (journal == null || journal.AppUserId != userId)
                     return Json(new ApiResponse { success = false, message = "Not authorized to access this entry content" });
 
-                var filePath = $"{id:N}.json";
-                var content = Files.GetFile(Files.Paths.Journal, filePath);
+                var content = ReadEntryContent(entry.JournalId, id);
 
                 if (content == null)
                     return Json(new ApiResponse { success = false, message = "Entry content not found" });
@@ -1053,6 +1052,86 @@ namespace Collector.API.Controllers
                 }
 
                 return Json(new ApiResponse { success = true, data = content });
+            }
+            catch (Exception ex)
+            {
+                return Json(new ApiResponse { success = false, message = ex.Message });
+            }
+        }
+
+        /// <summary>Relative path of an entry document in the
+        /// journal-entries/{journalId}/{entryId}/ layout.</summary>
+        private static string EntryFilePath(int journalId, Guid entryId) => $"{journalId}/{entryId:N}/entry.json";
+
+        /// <summary>Read an entry document — new folder layout first, legacy
+        /// root {entryId}.json as fallback for unmigrated files.</summary>
+        private static string? ReadEntryContent(int journalId, Guid entryId)
+        {
+            try
+            {
+                var c = Files.GetFile(Files.Paths.Journal, EntryFilePath(journalId, entryId));
+                if (!string.IsNullOrEmpty(c)) return c;
+            }
+            catch { }
+            try { return Files.GetFile(Files.Paths.Journal, $"{entryId:N}.json"); }
+            catch { return null; }
+        }
+
+        [HttpGet("entries/{id}/research")]
+        public async Task<IActionResult> GetEntryResearch(Guid id)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Json(new ApiResponse { success = false, message = "User not found" });
+
+            try
+            {
+                var entry = _entriesRepository.GetById(id);
+                if (entry == null)
+                    return Json(new ApiResponse { success = false, message = "Entry not found" });
+
+                var journal = _journalsRepository.GetById(entry.JournalId);
+                if (journal == null || journal.AppUserId != userId)
+                    return Json(new ApiResponse { success = false, message = "Not authorized to access this entry's research" });
+
+                // research.json in the entry folder; fall back to extracting
+                // research/resources from the legacy single-file layout.
+                string? content = null;
+                try
+                {
+                    content = Files.GetFile(Files.Paths.Journal, $"{entry.JournalId}/{id:N}/research.json");
+                }
+                catch { content = null; }
+
+                if (string.IsNullOrEmpty(content))
+                {
+                    var entryContent = ReadEntryContent(entry.JournalId, id);
+                    if (!string.IsNullOrEmpty(entryContent))
+                    {
+                        try
+                        {
+                            var root = System.Text.Json.Nodes.JsonNode.Parse(entryContent) as System.Text.Json.Nodes.JsonObject;
+                            var doc = new System.Text.Json.Nodes.JsonObject();
+                            if (root?["research"] is System.Text.Json.Nodes.JsonObject r)
+                                doc["research"] = r.DeepClone();
+                            if (root?["resources"] is System.Text.Json.Nodes.JsonArray res)
+                                doc["resources"] = res.DeepClone();
+                            if (doc.Count > 0) content = doc.ToJsonString();
+                        }
+                        catch { }
+                    }
+                }
+
+                if (entry.Encrypted && !string.IsNullOrEmpty(content))
+                {
+                    var user = await _userRepository.FindByGuidAsync(userId);
+                    if (user == null || string.IsNullOrEmpty(user.EncryptionKey))
+                        return Json(new ApiResponse { success = false, message = "Cannot decrypt content without an encryption key." });
+
+                    content = Sha256.Decrypt(content, user.EncryptionKey);
+                }
+
+                return Json(new ApiResponse { success = true, data = content ?? "" });
             }
             catch (Exception ex)
             {
@@ -1087,7 +1166,7 @@ namespace Collector.API.Controllers
                     contentToSave = Sha256.Encrypt(contentToSave, user.EncryptionKey);
                 }
 
-                var filePath = $"{request.Id:N}.json";
+                var filePath = EntryFilePath(entry.JournalId, request.Id);
                 var success = Files.SaveFile(Files.Paths.Journal, filePath, contentToSave);
 
                 if (!success)
@@ -1339,23 +1418,23 @@ namespace Collector.API.Controllers
                 if (journal == null || journal.AppUserId != userId)
                     return Json(new ApiResponse { success = false, message = "Not authorized" });
 
-                // Create thumbnail from the original image
-                var imagePath = $"journal-entries/{image.JournalEntryId}/{image.Filename}";
-                var imageBytes = Files.GetFileBytes(Files.Paths.Images, imagePath);
-                
+                // Create thumbnail from the original image (journal root first, legacy fallback)
+                var imagePath = JournalPaths.ImagePath(entry.JournalId, image.JournalEntryId, image.Filename);
+                var imageBytes = System.IO.File.ReadAllBytes(Files.ResolveExisting(imagePath));
+
                 // Generate thumbnail
                 var thumbnailBytes = Images.CreateThumbnail(imageBytes, 640, 80);
-                
+
                 // Create thumbnail filename with _thumb suffix before extension
                 var extension = Path.GetExtension(image.Filename);
                 var filenameWithoutExt = Path.GetFileNameWithoutExtension(image.Filename);
                 var thumbnailFilename = $"{filenameWithoutExt}_thumb{extension}";
-                var thumbnailPath = $"journal-entries/{image.JournalEntryId}/{thumbnailFilename}";
-                
+                var thumbnailPath = JournalPaths.ImagePath(entry.JournalId, image.JournalEntryId, thumbnailFilename);
+
                 // Save thumbnail only if creation succeeded
                 if (thumbnailBytes != null && thumbnailBytes.Length > 0)
                 {
-                    Files.SaveFileBytes(Files.Paths.Images, thumbnailPath, thumbnailBytes);
+                    Files.SaveFileBytes(Files.Paths.Journal, thumbnailPath, thumbnailBytes);
                 }
 
                 var id = _imagesRepository.Add(image);
@@ -1496,30 +1575,29 @@ namespace Collector.API.Controllers
                 if (existingImage.Filename != image.Filename)
                 {
                     // Create thumbnail from the original image
-                    var imagePath = $"journal-entries/{image.JournalEntryId}/{image.Filename}";
-                    var imageBytes = Files.GetFileBytes(Files.Paths.Images, imagePath);
-                    
+                    var imagePath = JournalPaths.ImagePath(entry.JournalId, image.JournalEntryId, image.Filename);
+                    var imageBytes = System.IO.File.ReadAllBytes(Files.ResolveExisting(imagePath));
+
                     // Generate thumbnail
                     var thumbnailBytes = Images.CreateThumbnail(imageBytes);
-                    
+
                     // Create thumbnail filename with _thumb suffix before extension
                     var extension = Path.GetExtension(image.Filename);
                     var filenameWithoutExt = Path.GetFileNameWithoutExtension(image.Filename);
                     var thumbnailFilename = $"{filenameWithoutExt}_thumb{extension}";
-                    var thumbnailPath = $"journal-entries/{image.JournalEntryId}/{thumbnailFilename}";
-                    
+                    var thumbnailPath = JournalPaths.ImagePath(entry.JournalId, image.JournalEntryId, thumbnailFilename);
+
                     // Save thumbnail only if creation succeeded
                     if (thumbnailBytes != null && thumbnailBytes.Length > 0)
                     {
-                        Files.SaveFileBytes(Files.Paths.Images, thumbnailPath, thumbnailBytes);
+                        Files.SaveFileBytes(Files.Paths.Journal, thumbnailPath, thumbnailBytes);
                     }
-                    
-                    // Delete old thumbnail if it exists
+
+                    // Delete old thumbnail if it exists (new + legacy locations)
                     var oldExtension = Path.GetExtension(existingImage.Filename);
                     var oldFilenameWithoutExt = Path.GetFileNameWithoutExtension(existingImage.Filename);
                     var oldThumbnailFilename = $"{oldFilenameWithoutExt}_thumb{oldExtension}";
-                    var oldThumbnailPath = $"{existingImage.JournalEntryId}/{oldThumbnailFilename}";
-                    Files.DeleteFile(Files.Paths.Images, oldThumbnailPath);
+                    Files.DeleteFile(Files.Paths.Journal, JournalPaths.ImagePath(entry.JournalId, existingImage.JournalEntryId, oldThumbnailFilename));
                 }
 
                 _imagesRepository.Update(image);
@@ -1552,16 +1630,14 @@ namespace Collector.API.Controllers
                 if (image == null)
                     return Json(new ApiResponse { success = false, message = "Image not found" });
 
-                // Delete image file
-                var imagePath = $"journal-entries/{image.JournalEntryId}/{image.Filename}";
-                Files.DeleteFile(Files.Paths.Images, imagePath);
-                
+                // Delete image file (new + legacy locations)
+                Files.DeleteFile(Files.Paths.Journal, JournalPaths.ImagePath(journal.Id, image.JournalEntryId, image.Filename));
+
                 // Delete thumbnail file
                 var extension = Path.GetExtension(image.Filename);
                 var filenameWithoutExt = Path.GetFileNameWithoutExtension(image.Filename);
                 var thumbnailFilename = $"{filenameWithoutExt}_thumb{extension}";
-                var thumbnailPath = $"journal-entries/{image.JournalEntryId}/{thumbnailFilename}";
-                Files.DeleteFile(Files.Paths.Images, thumbnailPath);
+                Files.DeleteFile(Files.Paths.Journal, JournalPaths.ImagePath(journal.Id, image.JournalEntryId, thumbnailFilename));
 
                 _imagesRepository.DeleteByModuleId(entryId, moduleId);
                 return Json(new ApiResponse { success = true });
@@ -1593,16 +1669,14 @@ namespace Collector.API.Controllers
                 var image = _imagesRepository.GetByModuleId(entryId, moduleId);
                 if (image != null)
                 {
-                    // Delete image file
-                    var imagePath = $"journal-entries/{image.JournalEntryId}/{image.Filename}";
-                    Files.DeleteFile(Files.Paths.Images, imagePath);
-                    
+                    // Delete image file (new + legacy locations)
+                    Files.DeleteFile(Files.Paths.Journal, JournalPaths.ImagePath(journal.Id, image.JournalEntryId, image.Filename));
+
                     // Delete thumbnail file
                     var extension = Path.GetExtension(image.Filename);
                     var filenameWithoutExt = Path.GetFileNameWithoutExtension(image.Filename);
                     var thumbnailFilename = $"{filenameWithoutExt}_thumb{extension}";
-                    var thumbnailPath = $"journal-entries/{image.JournalEntryId}/{thumbnailFilename}";
-                    Files.DeleteFile(Files.Paths.Images, thumbnailPath);
+                    Files.DeleteFile(Files.Paths.Journal, JournalPaths.ImagePath(journal.Id, image.JournalEntryId, thumbnailFilename));
                 }
 
                 _imagesRepository.DeleteByModuleId(entryId, moduleId);
@@ -1635,16 +1709,14 @@ namespace Collector.API.Controllers
                 var images = _imagesRepository.GetAllByEntryId(entryId);
                 foreach (var image in images)
                 {
-                    // Delete image file
-                    var imagePath = $"journal-entries/{image.JournalEntryId}/{image.Filename}";
-                    Files.DeleteFile(Files.Paths.Images, imagePath);
-                    
+                    // Delete image file (new + legacy locations)
+                    Files.DeleteFile(Files.Paths.Journal, JournalPaths.ImagePath(journal.Id, image.JournalEntryId, image.Filename));
+
                     // Delete thumbnail file
                     var extension = Path.GetExtension(image.Filename);
                     var filenameWithoutExt = Path.GetFileNameWithoutExtension(image.Filename);
                     var thumbnailFilename = $"{filenameWithoutExt}_thumb{extension}";
-                    var thumbnailPath = $"journal-entries/{image.JournalEntryId}/{thumbnailFilename}";
-                    Files.DeleteFile(Files.Paths.Images, thumbnailPath);
+                    Files.DeleteFile(Files.Paths.Journal, JournalPaths.ImagePath(journal.Id, image.JournalEntryId, thumbnailFilename));
                 }
 
                 _imagesRepository.DeleteAllByEntryId(entryId);

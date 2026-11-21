@@ -59,7 +59,7 @@ namespace Collector.Workers
                 }
                 await SendWorkerMessage(appUserId, workerId, "HlsGenerationProgress", new { progress = _currentProgress, status = _currentStatus }, CancellationToken.None);
 
-                var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoPath);
+                var videoFullPath = Files.ResolveExisting(videoPath);
 
                 if (!File.Exists(videoFullPath))
                 {
@@ -70,7 +70,10 @@ namespace Collector.Workers
 
                 var videoDirectory = Path.GetDirectoryName(videoFullPath);
                 var videoFileNameWithoutExt = Path.GetFileNameWithoutExtension(videoFullPath);
-                var hlsFolder = Path.Combine(videoDirectory, videoFileNameWithoutExt, "hls");
+                var isJournalLayout = JournalPaths.IsJournalRelative(videoPath);
+                var hlsFolder = isJournalLayout
+                    ? Path.Combine(videoDirectory, "hls")
+                    : Path.Combine(videoDirectory, videoFileNameWithoutExt, "hls");
 
                 if (!Directory.Exists(hlsFolder))
                 {
@@ -92,7 +95,9 @@ namespace Collector.Workers
 
                 if (success)
                 {
-                    var hlsRelativePath = Path.Combine(Path.GetDirectoryName(videoPath), videoFileNameWithoutExt, "hls");
+                    var hlsRelativePath = isJournalLayout
+                        ? Path.Combine(Path.GetDirectoryName(videoPath), "hls")
+                        : Path.Combine(Path.GetDirectoryName(videoPath), videoFileNameWithoutExt, "hls");
                     _logger.LogInformation("Successfully generated HLS playlist at {HlsPath}", hlsRelativePath);
                     
                     lock (_stateLock)
@@ -136,7 +141,8 @@ namespace Collector.Workers
                 {
                     videoId = existingVideo.Id;
                     fileName = existingVideo.Filename;
-                    relativePath = Path.Combine(existingVideo.JournalEntryId.ToString(), fileName);
+                    var existingStem = JournalPaths.VideoIdFromFileName(fileName);
+                    relativePath = JournalPaths.VideoPath(existingVideo.JournalId, existingVideo.JournalEntryId, existingStem, Path.GetExtension(fileName));
                     title = existingVideo.Title;
                     lock (_stateLock)
                     {
@@ -148,7 +154,7 @@ namespace Collector.Workers
                         _logger.LogInformation("Video {VideoId} already downloaded, skipping download in VideoWorker", videoId);
 
                         // Get thumbnail path
-                        var thumbRelativePath = relativePath.Replace(".mp4", "_thumb.jpg");
+                        var thumbRelativePath = JournalPaths.VideoThumbPath(existingVideo.JournalId, existingVideo.JournalEntryId, JournalPaths.VideoIdFromFileName(fileName));
 
                         // Send VideoRecordCreated first so frontend can set up the module
                         await SendWorkerMessage(appUserId, workerId, "VideoRecordCreated", new
@@ -189,7 +195,7 @@ namespace Collector.Workers
                     await SendWorkerMessage(appUserId, workerId, "DownloadTitle", new { title }, cancellationToken);
 
                     fileName = $"{Guid.NewGuid()}.mp4";
-                    relativePath = Path.Combine(entryId, fileName);
+                    relativePath = JournalPaths.VideoPath(journalId, entryId, JournalPaths.VideoIdFromFileName(fileName), ".mp4");
 
                     var video = new JournalVideo
                     {
@@ -218,7 +224,7 @@ namespace Collector.Workers
                     }, cancellationToken);
                 }
 
-                var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), relativePath);
+                var videoFullPath = Files.ResolveExisting(relativePath);
 
                 var directory = Path.GetDirectoryName(videoFullPath);
                 if (!Directory.Exists(directory))
@@ -254,8 +260,7 @@ namespace Collector.Workers
                 }
                 await SendWorkerMessage(appUserId, workerId, "DownloadProgress", new { progress = _currentProgress, status = _currentStatus }, CancellationToken.None);
 
-                var thumbnailFileName = $"{Path.GetFileNameWithoutExtension(fileName)}_thumb.jpg";
-                var thumbnailRelativePath = Path.Combine(entryId, thumbnailFileName);
+                var thumbnailRelativePath = JournalPaths.VideoThumbPath(journalId, entryId, JournalPaths.VideoIdFromFileName(fileName));
                 var thumbnailSuccess = await GenerateThumbnail(relativePath, thumbnailRelativePath, url, cancellationToken: cancellationToken);
 
                 lock (_stateLock)
@@ -350,7 +355,7 @@ namespace Collector.Workers
                 if (string.IsNullOrEmpty(thumbnailRelativePath)) return;
                 if (!Guid.TryParse(entryId, out var entryGuid)) return;
 
-                var thumbnailFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), thumbnailRelativePath);
+                var thumbnailFullPath = Files.ResolveExisting(thumbnailRelativePath);
                 if (!File.Exists(thumbnailFullPath)) return;
 
                 var entry = _entriesRepository.GetById(entryGuid);
@@ -848,8 +853,8 @@ namespace Collector.Workers
 
         private async Task<bool> GenerateThumbnail(string videoRelativePath, string thumbnailRelativePath, string videoUrl = null, int width = 0, int height = 0, bool crop = false, int seekSeconds = 1, CancellationToken cancellationToken = default)
         {
-            var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoRelativePath);
-            var thumbnailFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), thumbnailRelativePath);
+            var videoFullPath = Files.ResolveExisting(videoRelativePath);
+            var thumbnailFullPath = Files.ResolveExisting(thumbnailRelativePath);
 
             var success = await Common.Videos.GenerateThumbnail(videoFullPath, thumbnailFullPath, videoUrl, width, height, crop, seekSeconds, timeoutSeconds: 30);
 
@@ -867,7 +872,7 @@ namespace Collector.Workers
 
         private async Task<(int width, int height, int duration)> GetVideoMetadata(string videoRelativePath, CancellationToken cancellationToken)
         {
-            var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoRelativePath);
+            var videoFullPath = Files.ResolveExisting(videoRelativePath);
             return await Common.Videos.GetVideoMetadata(videoFullPath);
         }
 
@@ -875,7 +880,7 @@ namespace Collector.Workers
         {
             try
             {
-                var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoRelativePath);
+                var videoFullPath = Files.ResolveExisting(videoRelativePath);
 
                 if (!File.Exists(videoFullPath))
                 {
@@ -893,7 +898,10 @@ namespace Collector.Workers
 
                 var videoDirectory = Path.GetDirectoryName(videoFullPath);
                 var videoFileNameWithoutExt = Path.GetFileNameWithoutExtension(videoFullPath);
-                var previewFolder = Path.Combine(videoDirectory, videoFileNameWithoutExt);
+                var isJournalLayout = JournalPaths.IsJournalRelative(videoRelativePath);
+                var previewFolder = isJournalLayout
+                    ? Path.Combine(videoDirectory, "previews")
+                    : Path.Combine(videoDirectory, videoFileNameWithoutExt);
 
                 if (!Directory.Exists(previewFolder))
                 {
@@ -909,11 +917,13 @@ namespace Collector.Workers
                     cancellationToken.ThrowIfCancellationRequested();
 
                     var previewFileName = $"preview_{second}.jpg";
-                    var previewRelativePath = Path.Combine(Path.GetDirectoryName(videoRelativePath), videoFileNameWithoutExt, previewFileName);
+                    var previewRelativePath = isJournalLayout
+                        ? Path.Combine(Path.GetDirectoryName(videoRelativePath), "previews", previewFileName)
+                        : Path.Combine(Path.GetDirectoryName(videoRelativePath), videoFileNameWithoutExt, previewFileName);
 
                     try
                     {
-                        var previewDirectory = Path.GetDirectoryName(Path.Combine(Files.GetPath(Files.Paths.Videos), previewRelativePath));
+                        var previewDirectory = Path.GetDirectoryName(Files.ResolveExisting(previewRelativePath));
                         if (!string.IsNullOrEmpty(previewDirectory) && !Directory.Exists(previewDirectory))
                         {
                             Directory.CreateDirectory(previewDirectory);
@@ -948,7 +958,7 @@ namespace Collector.Workers
         {
             try
             {
-                var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoRelativePath);
+                var videoFullPath = Files.ResolveExisting(videoRelativePath);
 
                 if (!File.Exists(videoFullPath))
                 {
@@ -958,7 +968,10 @@ namespace Collector.Workers
 
                 var videoDirectory = Path.GetDirectoryName(videoFullPath);
                 var videoFileNameWithoutExt = Path.GetFileNameWithoutExtension(videoFullPath);
-                var hlsFolder = Path.Combine(videoDirectory, videoFileNameWithoutExt, "hls");
+                var isJournalLayout = JournalPaths.IsJournalRelative(videoRelativePath);
+                var hlsFolder = isJournalLayout
+                    ? Path.Combine(videoDirectory, "hls")
+                    : Path.Combine(videoDirectory, videoFileNameWithoutExt, "hls");
 
                 if (!Directory.Exists(hlsFolder))
                 {
@@ -981,7 +994,9 @@ namespace Collector.Workers
 
                 if (success)
                 {
-                    var hlsRelativePath = Path.Combine(Path.GetDirectoryName(videoRelativePath), videoFileNameWithoutExt, "hls");
+                    var hlsRelativePath = isJournalLayout
+                        ? Path.Combine(Path.GetDirectoryName(videoRelativePath), "hls")
+                        : Path.Combine(Path.GetDirectoryName(videoRelativePath), videoFileNameWithoutExt, "hls");
                     _logger.LogInformation("Successfully generated HLS playlist at {HlsPath}", hlsRelativePath);
                     return hlsRelativePath;
                 }

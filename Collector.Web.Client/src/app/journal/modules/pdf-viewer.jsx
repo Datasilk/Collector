@@ -121,7 +121,9 @@ export default function PdfViewerModule({ module, entryId, journalId, onUpdate, 
 
     useEffect(() => {
         if (!tabButtons || !module.filename) return;
-        const fileUrl = `${apiBasePath()}/file/${journalId}/${entryId}/${module.filename}`;
+        const fileUrl = module.filename?.includes('/')
+            ? `${apiBasePath()}/file/${module.filename}`
+            : `${apiBasePath()}/file/${journalId}/${entryId}/files/${module.filename}`;
         const handleDownload = () => {
             window.open(fileUrl, '_blank');
         };
@@ -433,7 +435,9 @@ export default function PdfViewerModule({ module, entryId, journalId, onUpdate, 
                                 style={{ touchAction: canPan ? 'none' : 'auto' }}
                             >
                                 <Document
-                                    file={`${apiBasePath()}/file/${journalId}/${entryId}/${module.filename}`}
+                                    file={module.filename?.includes('/')
+                                        ? `${apiBasePath()}/file/${module.filename}`
+                                        : `${apiBasePath()}/file/${journalId}/${entryId}/files/${module.filename}`}
                                     onLoadSuccess={({ numPages: totalPages }) => {
                                         setIsRendering(false);
                                         setNumPages(totalPages);

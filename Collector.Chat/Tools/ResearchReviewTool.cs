@@ -1,3 +1,4 @@
+using Collector.Chat.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -26,6 +27,10 @@ public class ResearchReviewTool : IChatTool
 
     /// <summary>Max new gather-research steps a single review may add.</summary>
     private const int MaxNewSearches = 4;
+    /// <summary>Hard budget on total planned pages per run — beyond this,
+    /// follow-ups stop regardless of remaining gaps (the loop guard alone
+    /// lets the coverage LLM rephrase gaps into endless new searches).</summary>
+    private const int MaxPlannedPages = 25;
     /// <summary>Chars of entry text sent to the coverage check.</summary>
     private const int EntryTextBudget = 7000;
 
@@ -74,6 +79,7 @@ public class ResearchReviewTool : IChatTool
         SendMessage? sendMessage = null,
         CancellationToken cancellationToken = default)
     {
+        ChatDetailLog.Fn("research-review", "Run");
         try
         {
             onProgress(10, "Reviewing research coverage...");
@@ -85,13 +91,47 @@ public class ResearchReviewTool : IChatTool
                 return;
             }
 
+            // Questions previously judged unanswerable leave the coverage set —
+            // chasing them again would just loop on sources that can't help.
+            var unanswerableSet = GetList(data, "unanswerable-questions", "questions")
+                .Select(Normalize).ToHashSet();
+            if (unanswerableSet.Count > 0)
+            {
+                questions = questions.Where(q => !unanswerableSet.Contains(Normalize(q))).ToList();
+            }
+            if (questions.Count == 0)
+            {
+                onComplete("All remaining research questions were marked unanswerable");
+                return;
+            }
+
+            // URL-direct obligations die with their pages: when every
+            // user-named URL was relevance-skipped or failed, the questions
+            // scoped to those pages can't be covered — retire them instead
+            // of queueing searches that chase an off-topic page.
+            var directUrls = GetList(data, "url-direct", "urls")
+                .Select(u => u.Trim()).ToList();
+            if (directUrls.Count > 0)
+            {
+                var deadUrls = GetList(data, "url-direct-skipped", "urls")
+                    .Concat(GetList(data, "failed-pages", "urls"))
+                    .Select(u => u.Trim())
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                if (directUrls.All(u => deadUrls.Contains(u)))
+                {
+                    AddToList(data, "unanswerable-questions", "questions", questions);
+                    onComplete($"URL-named page(s) were skipped or failed — their {questions.Count} research question(s) are unanswerable");
+                    return;
+                }
+            }
+
             // Load the entry's current text
             var entryId = GetSessionEntryId(data);
             string entryText = "";
             ResearchObject? research = null;
             if (entryId != null)
             {
-                var doc = JournalEntryDocument.Load(entryId.Value);
+                var doc = JournalEntryDocument.Load(entryId.Value, GetSessionJournalId(data));
                 entryText = doc.ExtractText();
                 if (entryText.Length > EntryTextBudget)
                     entryText = entryText.Substring(0, EntryTextBudget) + "\n…(truncated)";
@@ -152,6 +192,34 @@ public class ResearchReviewTool : IChatTool
                 .Take(MaxNewSearches)
                 .ToList();
 
+            // Page-budget guard — the dedupe above can't catch semantically
+            // rephrased gaps, so without a hard cap failed-scrape runs queue
+            // searches forever and the plan grows without bound.
+            var budgetMsg = "";
+            if (gaps.Count > 0 && planned >= MaxPlannedPages)
+            {
+                gaps = new List<string>();
+                budgetMsg = $"Page budget reached ({planned} planned) — not queueing further research.";
+            }
+
+            // Stale questions — searched before, still uncovered. Judge once
+            // whether the collected sources can even answer them; unanswerable
+            // ones leave the coverage set permanently.
+            var unanswerableMsg = budgetMsg;
+            var stale = unanswered.Where(q => asked.Contains(Normalize(q))).ToList();
+            if (stale.Count > 0 && research != null)
+            {
+                var marked = await CheckAnswerabilityAsync(research, stale, onRawRequest, onRawResponse, cancellationToken);
+                var markedNorm = marked.Select(Normalize).ToHashSet();
+                var markedOriginals = stale.Where(q => markedNorm.Contains(Normalize(q))).ToList();
+                if (markedOriginals.Count > 0)
+                {
+                    AddToList(data, "unanswerable-questions", "questions", markedOriginals);
+                    unanswered = unanswered.Where(q => !markedNorm.Contains(Normalize(q))).ToList();
+                    unanswerableMsg = $"{markedOriginals.Count} question{(markedOriginals.Count == 1 ? "" : "s")} can't be answered by the collected sources.";
+                }
+            }
+
             if (gaps.Count == 0)
             {
                 if (unanswered.Count == 0)
@@ -159,9 +227,11 @@ public class ResearchReviewTool : IChatTool
                     onProgress(100, "All research questions are covered");
                     sendMessage?.Invoke("All research questions are covered by the journal entry." +
                         (tally.Length > 0 ? " " + tally : "") +
+                        (unanswerableMsg.Length > 0 ? " " + unanswerableMsg : "") +
                         (deepenMsg.Length > 0 ? " " + deepenMsg : ""), null, null);
                     onComplete($"Coverage check complete — all {questions.Count} question(s) covered" +
                         (tally.Length > 0 ? $"; {tally.TrimEnd('.')}" : "") +
+                        (unanswerableMsg.Length > 0 ? $"; {unanswerableMsg.TrimEnd('.')}" : "") +
                         (deepenMsg.Length > 0 ? $"; {deepenMsg}" : ""));
                 }
                 else
@@ -172,9 +242,11 @@ public class ResearchReviewTool : IChatTool
                     onProgress(100, exhausted);
                     sendMessage?.Invoke(exhausted +
                         (tally.Length > 0 ? " " + tally : "") +
+                        (unanswerableMsg.Length > 0 ? " " + unanswerableMsg : "") +
                         (deepenMsg.Length > 0 ? " " + deepenMsg : ""), null, null);
                     onComplete($"Coverage check complete — {unanswered.Count} question(s) unanswered after research" +
                         (tally.Length > 0 ? $"; {tally.TrimEnd('.')}" : "") +
+                        (unanswerableMsg.Length > 0 ? $"; {unanswerableMsg.TrimEnd('.')}" : "") +
                         (deepenMsg.Length > 0 ? $"; {deepenMsg}" : ""));
                 }
                 if (plan != null && currentStepIndex >= 0 && currentStepIndex < plan.Steps.Count)
@@ -202,6 +274,7 @@ public class ResearchReviewTool : IChatTool
             sendMessage?.Invoke(
                 $"Coverage check: {gaps.Count} question{(gaps.Count == 1 ? "" : "s")} still unanswered — researching further…" +
                 (tally.Length > 0 ? " " + tally : "") +
+                (unanswerableMsg.Length > 0 ? " " + unanswerableMsg : "") +
                 (deepenMsg.Length > 0 ? " " + deepenMsg : ""),
                 null, null);
             onProgress(100, $"Queued {gaps.Count} follow-up search(es)");
@@ -238,10 +311,16 @@ public class ResearchReviewTool : IChatTool
         ResearchObject research,
         CancellationToken cancellationToken = default)
     {
+        ChatDetailLog.Fn("research-review", "RunDeepeningPassAsync");
         try
         {
             if (plan == null || currentStepIndex < 0) return "";
             if (GetList(data, "deepening-done", "flag").Count > 0) return "";
+
+            // Respect the same page budget as gap follow-ups.
+            var plannedSoFar = GetList(data, "planned-pages", "urls")
+                .Select(u => u.Trim()).Where(u => u.Length > 0).Distinct().Count();
+            if (plannedSoFar >= MaxPlannedPages) return "";
 
             var entry = _entriesRepository.GetById(entryId);
             var entryTitle = entry?.Title ?? "";
@@ -258,7 +337,7 @@ public class ResearchReviewTool : IChatTool
             var llmChecks = 0;
             foreach (var t in candidates)
             {
-                if (t.Facts.Count < 3) { shallow.Add(t); continue; }
+                if (ResearchObject.TextItemCount(t) < 3) { shallow.Add(t); continue; }
                 if (llmChecks >= 6) continue;
                 llmChecks++;
                 if (!await IsDetailedAsync(t, cancellationToken)) shallow.Add(t);
@@ -294,6 +373,7 @@ public class ResearchReviewTool : IChatTool
     /// enough, or generic filler?</summary>
     private async Task<bool> IsDetailedAsync(ResearchTopic topic, CancellationToken cancellationToken = default)
     {
+        ChatDetailLog.Fn("research-review", "IsDetailedAsync");
         try
         {
             var raw = await _llm.LocalAsync(Prompts.DepthCheckSystem(),
@@ -310,6 +390,47 @@ public class ResearchReviewTool : IChatTool
         [JsonPropertyName("detailed")] public bool Detailed { get; set; }
     }
 
+    /// <summary>
+    /// One batched answerability judgment over questions that were already
+    /// searched but remain uncovered — "can these sources even contain the
+    /// answer?" Unanswerable questions get permanently excluded from coverage
+    /// so the review loop can't chase them forever.
+    /// </summary>
+    private async Task<List<string>> CheckAnswerabilityAsync(
+        ResearchObject research,
+        List<string> staleQuestions,
+        OnRawRequest? onRawRequest,
+        OnRawResponse? onRawResponse,
+        CancellationToken cancellationToken)
+    {
+        ChatDetailLog.Fn("research-review", "CheckAnswerabilityAsync");
+        try
+        {
+            var sources = string.Join("\n", research.Sources
+                .Take(30)
+                .Select(s => $"- {s.Title} ({s.Url})"));
+            var result = await LLMJson.ParseWithRetryAsync<AnswerabilityResponse>(
+                prompt => _llm.LocalAsync(Prompts.AnswerabilitySystem(), prompt, json: true, cancellationToken,
+                    onRequest: onRawRequest != null ? (t, p) => onRawRequest("answerability-check", p) : null,
+                    onResponse: onRawResponse != null ? (t, r) => onRawResponse("answerability-check", r) : null,
+                    debugType: "answerability-check"),
+                Prompts.AnswerabilityUser(sources, staleQuestions),
+                r => r == null ? "response was empty" : (r.Unanswerable == null ? "missing \"unanswerable\"" : null),
+                maxAttempts: 2);
+            return result?.Unanswerable?
+                .Where(q => !string.IsNullOrWhiteSpace(q))
+                .Select(q => q.Trim())
+                .ToList() ?? new List<string>();
+        }
+        catch (OperationCanceledException) { throw; }
+        catch { return new List<string>(); }
+    }
+
+    private class AnswerabilityResponse
+    {
+        [JsonPropertyName("unanswerable")] public List<string>? Unanswerable { get; set; }
+    }
+
     public static Guid? GetSessionEntryId(List<Dictionary<string, List<string>>> data)
     {
         foreach (var item in data)
@@ -322,6 +443,21 @@ public class ResearchReviewTool : IChatTool
             }
         }
         return null;
+    }
+
+    /// <summary>Journal id from the session-entry marker (0 when unknown).</summary>
+    public static int GetSessionJournalId(List<Dictionary<string, List<string>>> data)
+    {
+        foreach (var item in data)
+        {
+            if (item.TryGetValue("type", out var t) && t.Contains("session-entry") &&
+                item.TryGetValue("journalId", out var ids) &&
+                int.TryParse(ids.FirstOrDefault(), out var id))
+            {
+                return id;
+            }
+        }
+        return 0;
     }
 
     /// <summary>Get a string list from a shared-data document.</summary>

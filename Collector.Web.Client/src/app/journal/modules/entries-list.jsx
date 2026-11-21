@@ -329,13 +329,17 @@ export default function EntriesListModule({ module, journalId, entryId, entry, c
     const getThumbnailPath = (newEntry) => {
         if (!newEntry.thumbnail) return '';
 
-        // Check if this is a video thumbnail (contains path separator or video extension)
+        // Journal-relative path ({journalId}/{entryId}/...) — resolve via the image endpoint
+        if (newEntry.thumbnail.split('/').length >= 3) {
+            return apiBasePath() + `/image/${newEntry.thumbnail}`;
+        }
+
+        // Legacy 2-segment video thumbnail ({entryId}/{file}_thumb.jpg)
         if (newEntry.thumbnail.includes('/') || newEntry.thumbnail.includes('\\')) {
-            // Video thumbnail path - use video thumb endpoint
             return apiBasePath() + `/video/thumb/${newEntry.thumbnail}`;
         }
 
-        // Image thumbnail - get the file extension
+        // Image thumbnail basename - get the file extension
         const lastDotIndex = newEntry.thumbnail.lastIndexOf('.');
         if (lastDotIndex === -1) return newEntry.thumbnail; // No extension found
 
@@ -344,7 +348,7 @@ export default function EntriesListModule({ module, journalId, entryId, entry, c
         const extension = newEntry.thumbnail.substring(lastDotIndex);
         const thumbnailFilename = `${filenameWithoutExt}_thumb${extension}`;
 
-        return apiBasePath() + `/image/journal-entries/${newEntry.id}/${thumbnailFilename}`;
+        return apiBasePath() + `/image/${journalId}/${newEntry.id}/images/${thumbnailFilename}`;
     };
 
     const handlePagingFilter = (newStart) => {

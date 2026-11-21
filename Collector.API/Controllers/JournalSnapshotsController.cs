@@ -87,9 +87,19 @@ namespace Collector.API.Controllers
                 if (journal == null || journal.AppUserId != userId)
                     return Json(new ApiResponse { success = false, message = "Not authorized to access this snapshot" });
 
-                // Load the snapshot content from the JSON file
-                var snapshotFilePath = $"{snapshot.EntryId:N}_{id}.json";
-                var content = Files.GetFile(Files.Paths.Journal, snapshotFilePath);
+                // Load the snapshot content — {journalId}/{entryId}/snapshots/{id}.json,
+                // with the legacy root {entryId}_{id}.json as fallback.
+                string? content = null;
+                try
+                {
+                    content = Files.GetFile(Files.Paths.Journal, $"{snapshot.JournalId}/{snapshot.EntryId:N}/snapshots/{id}.json");
+                }
+                catch { content = null; }
+                if (string.IsNullOrEmpty(content))
+                {
+                    try { content = Files.GetFile(Files.Paths.Journal, $"{snapshot.EntryId:N}_{id}.json"); }
+                    catch { content = null; }
+                }
 
                 // Decrypt content if the snapshot is encrypted
                 if (snapshot.Encrypted && !string.IsNullOrEmpty(content))
@@ -146,10 +156,17 @@ namespace Collector.API.Controllers
                 var id = _snapshotsRepository.Add(snapshot);
                 snapshot.Id = id;
 
-                // Get the current content from the file and create a copy with suffix _{snapshotId}.json
-                var filePath = $"{entry.Id:N}.json";
-                var content = Files.GetFile(Files.Paths.Journal, filePath);
-                var snapshotFilePath = $"{entry.Id:N}_{id}.json";
+                // Copy the entry document into {journalId}/{entryId}/snapshots/{id}.json —
+                // new folder layout, falling back to the legacy root file.
+                string? content = null;
+                try { content = Files.GetFile(Files.Paths.Journal, $"{entry.JournalId}/{entry.Id:N}/entry.json"); }
+                catch { content = null; }
+                if (string.IsNullOrEmpty(content))
+                {
+                    try { content = Files.GetFile(Files.Paths.Journal, $"{entry.Id:N}.json"); }
+                    catch { content = null; }
+                }
+                var snapshotFilePath = $"{entry.JournalId}/{entry.Id:N}/snapshots/{id}.json";
                 Files.SaveFile(Files.Paths.Journal, snapshotFilePath, content);
 
                 return Json(new ApiResponse { success = true, data = snapshot });
@@ -184,15 +201,15 @@ namespace Collector.API.Controllers
                 // Delete the snapshot from database
                 _snapshotsRepository.Delete(id);
 
-                // Delete the associated JSON file
-                var snapshotFilePath = $"{entry.Id:N}_{id}.json";
-                try
+                // Delete the associated JSON file (new layout + legacy fallback)
+                foreach (var p in new[]
                 {
-                    Files.DeleteFile(Files.Paths.Journal, snapshotFilePath);
-                }
-                catch
+                    $"{snapshot.JournalId}/{entry.Id:N}/snapshots/{id}.json",
+                    $"{entry.Id:N}_{id}.json"
+                })
                 {
-                    // If file doesn't exist or can't be deleted, continue anyway
+                    try { Files.DeleteFile(Files.Paths.Journal, p); }
+                    catch { /* file may not exist in one layout */ }
                 }
 
                 return Json(new ApiResponse { success = true });

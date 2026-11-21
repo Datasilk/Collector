@@ -75,7 +75,7 @@ namespace Collector.Web.Server.SignalR
                         Console.WriteLine("[VideoHub] Existing video already downloaded. Verifying thumbnail and returning to client.");
                         var thumbnailFileName2 = $"{Path.GetFileNameWithoutExtension(fileName)}_thumb.jpg";
                         var thumbnailRelativePath2 = Path.Combine(existingVideo.JournalEntryId.ToString(), thumbnailFileName2);
-                        var thumbnailFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), thumbnailRelativePath2);
+                        var thumbnailFullPath = Path.Combine(Files.GetPath(Files.Paths.Journal), thumbnailRelativePath2);
                         
                         // Check if thumbnail exists, if not create it
                         string thumbnailPath = null;
@@ -159,7 +159,7 @@ namespace Collector.Web.Server.SignalR
                     });
                 }
 
-                var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), relativePath);
+                var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Journal), relativePath);
                 Console.WriteLine($"[VideoHub] Video full path resolved to '{videoFullPath}'.");
 
                 // Create directory if it doesn't exist
@@ -403,7 +403,7 @@ namespace Collector.Web.Server.SignalR
                 if (string.IsNullOrEmpty(thumbnailRelativePath)) return;
                 if (!Guid.TryParse(entryId, out var entryGuid)) return;
 
-                var thumbnailFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), thumbnailRelativePath);
+                var thumbnailFullPath = Path.Combine(Files.GetPath(Files.Paths.Journal), thumbnailRelativePath);
                 if (!File.Exists(thumbnailFullPath)) return;
 
                 var entry = _entriesRepository.GetById(entryGuid);
@@ -451,8 +451,8 @@ namespace Collector.Web.Server.SignalR
 
         private async Task<bool> GenerateThumbnail(string videoRelativePath, string thumbnailRelativePath, string videoUrl = null, int width = 0, int height = 0, bool crop = false, int seekSeconds = -1)
         {
-            var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoRelativePath);
-            var thumbnailFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), thumbnailRelativePath);
+            var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Journal), videoRelativePath);
+            var thumbnailFullPath = Path.Combine(Files.GetPath(Files.Paths.Journal), thumbnailRelativePath);
 
             // If seekSeconds is -1, calculate 10% of video duration
             if (seekSeconds == -1)
@@ -480,7 +480,7 @@ namespace Collector.Web.Server.SignalR
 
         private async Task<(int width, int height, int duration)> GetVideoMetadata(string videoRelativePath)
         {
-            var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoRelativePath);
+            var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Journal), videoRelativePath);
             return await Common.Videos.GetVideoMetadata(videoFullPath);
         }
 
@@ -521,7 +521,7 @@ namespace Collector.Web.Server.SignalR
         {
             try
             {
-                var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoRelativePath);
+                var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Journal), videoRelativePath);
                 
                 if (!File.Exists(videoFullPath))
                 {
@@ -560,7 +560,7 @@ namespace Collector.Web.Server.SignalR
                     // Ensure the full directory path for the preview thumbnail exists
                     try
                     {
-                        var previewDirectory = Path.GetDirectoryName(Path.Combine(Files.GetPath(Files.Paths.Videos), previewRelativePath));
+                        var previewDirectory = Path.GetDirectoryName(Path.Combine(Files.GetPath(Files.Paths.Journal), previewRelativePath));
                         if (!string.IsNullOrEmpty(previewDirectory) && !Directory.Exists(previewDirectory))
                         {
                             Directory.CreateDirectory(previewDirectory);

@@ -19,4 +19,12 @@
     <ProjectReference Include="..\Collector.Common\Collector.Common.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="WebScraper.md" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Collector.Chat.Tests" />
+  </ItemGroup>
+
 </Project>

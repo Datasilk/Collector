@@ -39,6 +39,7 @@ export default function SettingsModal({
     const [settingsChanged, setSettingsChanged] = useState(false);
     const [showChapterManagement, setShowChapterManagement] = useState(false);
     const [showMoveModal, setShowMoveModal] = useState(false);
+    const [jsonDump, setJsonDump] = useState(null);
     const [saveStatus, setSaveStatus] = useState(null);
 
     const [journalTitle, setJournalTitle] = useState('');
@@ -110,9 +111,12 @@ export default function SettingsModal({
                 galleryIndex++;
                 // Add each image from the gallery as a separate option
                 module.images.forEach((imagePath, imgIndex) => {
+                    // gallery images may be bare paths or {url,...} objects
+                    const path = typeof imagePath === 'string' ? imagePath : (imagePath?.url || imagePath?.path || '');
+                    if (!path) return;
                     options.push({
                         moduleId: module.id,
-                        path: imagePath,
+                        path: path,
                         label: `Gallery ${galleryIndex} - Image ${imgIndex + 1}`,
                         type: 'image-gallery'
                     });
@@ -169,6 +173,27 @@ export default function SettingsModal({
         setCssCode(css);
         setOriginalCss(css);
     }, [entryJson]);
+
+    // Research/sources/resources live in research.json beside entry.json —
+    // load them when the settings modal opens.
+    const [researchJson, setResearchJson] = useState(null);
+    useEffect(() => {
+        if (!entry?.id) return;
+        const api = Journals(session);
+        api.getEntryResearch(entry.id).then(response => {
+            if (response.data?.success && response.data.data) {
+                try { setResearchJson(JSON.parse(response.data.data)); }
+                catch { setResearchJson(null); }
+            }
+        }).catch(err => {
+            console.error('Error loading entry research:', err);
+        });
+    }, [entry?.id, session]);
+
+    // Merged view: research.json wins, embedded entryJson values are the
+    // legacy fallback for entries that haven't been re-saved yet.
+    const research = researchJson?.research || entryJson?.research || null;
+    const resources = researchJson?.resources || entryJson?.resources || [];
 
     const handleSettingChange = (setting, value) => {
         const newSettings = { ...settings, [setting]: value };
@@ -305,6 +330,18 @@ export default function SettingsModal({
         setShowMoveModal(false);
     };
 
+    const handleOpenJsonDump = (e) => {
+        e.preventDefault();
+        setJsonDump({
+            file: e.currentTarget.dataset.file,
+            url: e.currentTarget.href
+        });
+    };
+
+    const handleCloseJsonDump = () => {
+        setJsonDump(null);
+    };
+
     const handleEntryMoved = async (targetJournal) => {
         // Navigate to the new journal/entry URL
         hideModal();
@@ -429,8 +466,9 @@ export default function SettingsModal({
             const selectedOption = thumbnailOptions.find(opt => opt.path === settings.thumbnail);
             const moduleId = selectedOption?.moduleId || null;
 
-            // settings.thumbnail is now the path directly
-            await updateEntryThumbnail(entry.id, settings.thumbnail || '', moduleId);
+            // settings.thumbnail is now the path directly; sourceEntryId lets the
+            // server expand bare image filenames into the journal-relative images path
+            await updateEntryThumbnail(entry.id, settings.thumbnail || '', moduleId, entry.id);
 
             // Update entry with new thumbnail and moduleId
             if (onSaved) {
@@ -446,8 +484,8 @@ export default function SettingsModal({
     const hasJournalDetailsChanges = journalTitle !== originalJournalTitle || journalCategoryId !== originalJournalCategoryId;
     const isJournalEntry = journalData && journalData.entryId === entry.id;
     const tabsList = isJournalEntry
-        ? ['Details', 'Journal', 'Images', 'CSS', 'Research', 'Sources']
-        : ['Details', 'Images', 'CSS', 'Research', 'Sources'];
+        ? ['Details', 'Journal', 'Images', 'CSS', 'Research', 'Sources', 'Resources']
+        : ['Details', 'Images', 'CSS', 'Research', 'Sources', 'Resources'];
     const hasCSSChanges = cssCode !== originalCss;
     const hasThumbnailChanges = settings.thumbnail !== originalThumbnail;
 
@@ -463,6 +501,7 @@ export default function SettingsModal({
     }
 
     return (
+        <>
         <Modal title="Entry Settings" onClose={onClose} width="600px" className={'entry-settings-modal selected-tab-' + selectedTab}>
             {!showChapterManagement ? (
                 <>
@@ -629,18 +668,35 @@ export default function SettingsModal({
                                                         } else if (selected.videoId) {
                                                             imageSrc = apiBasePath() + `/video/thumbnail/${selected.videoId}`;
                                                         }
+                                                    } else if (typeof selected.path !== 'string') {
+                                                        const gallerySrc = selected.path?.url || '';
+                                                        imageSrc = /^https?:\/\//i.test(gallerySrc)
+                                                            ? gallerySrc
+                                                            : (gallerySrc.includes('/')
+                                                                ? apiBasePath() + `/image/${gallerySrc}`
+                                                                : apiBasePath() + `/image/${journalId}/${entry.id}/images/${gallerySrc}`);
+                                                    } else if (/^https?:\/\//i.test(selected.path)) {
+                                                        imageSrc = selected.path;
+                                                    } else if (selected.path.includes('/')) {
+                                                        imageSrc = apiBasePath() + `/image/${selected.path}`;
                                                     } else if (selected.type === 'image-gallery') {
                                                         // Use thumbnail for gallery images
-                                                        imageSrc = apiBasePath() + `/image/journal-entries/${entry.id}/thumb_${selected.path}`;
+                                                        imageSrc = apiBasePath() + `/image/${journalId}/${entry.id}/images/thumb_${selected.path}`;
                                                     } else {
-                                                        imageSrc = apiBasePath() + `/image/journal-entries/${entry.id}/${selected.path}`;
+                                                        imageSrc = apiBasePath() + `/image/${journalId}/${entry.id}/images/${selected.path}`;
                                                     }
                                                 } else if (settings.thumbnail) {
-                                                    // Fallback for existing thumbnails not in current modules
-                                                    if (settings.thumbnail.includes('/') || settings.thumbnail.endsWith('.mp4')) {
-                                                        imageSrc = apiBasePath() + `/video/thumb/${settings.thumbnail}`;
-                                                    } else {
-                                                        imageSrc = apiBasePath() + `/image/journal-entries/${entry.id}/${settings.thumbnail}`;
+                                                    // Fallback for existing thumbnails not in current modules —
+                                                    // thumbnail may arrive as a path string or a {url|path} object
+                                                    const thumb = typeof settings.thumbnail === 'string'
+                                                        ? settings.thumbnail
+                                                        : (settings.thumbnail.path || settings.thumbnail.url || '');
+                                                    if (thumb.split('/').length >= 3) {
+                                                        imageSrc = apiBasePath() + `/image/${thumb}`;
+                                                    } else if (thumb.includes('/') || thumb.endsWith('.mp4')) {
+                                                        imageSrc = apiBasePath() + `/video/thumb/${thumb}`;
+                                                    } else if (thumb) {
+                                                        imageSrc = apiBasePath() + `/image/${journalId}/${entry.id}/images/${thumb}`;
                                                     }
                                                 }
 
@@ -733,8 +789,8 @@ export default function SettingsModal({
 
                         {/* Research Tab — read-only topic/fact accordions */}
                         <div className="settings-modal-content research-tab">
-                            {entryJson?.research?.topics?.length > 0 ? (
-                                entryJson.research.topics.map((topic, i) => (
+                            {research?.topics?.length > 0 ? (
+                                research.topics.map((topic, i) => (
                                     <ResearchTopicAccordion key={i} topic={topic} depth={0} />
                                 ))
                             ) : (
@@ -742,21 +798,50 @@ export default function SettingsModal({
                             )}
                         </div>
 
-                        {/* Sources Tab — read-only list of scraped pages */}
+                        {/* Sources Tab — spreadsheet of scraped pages + their parser dumps */}
                         <div className="settings-modal-content sources-tab">
-                            {entryJson?.research?.sources?.length > 0 ? (
-                                <ol className="sources-list">
-                                    {entryJson.research.sources.map(src => (
-                                        <li key={src.id}>
-                                            <a href={src.url} target="_blank" rel="noopener noreferrer">
-                                                {src.title || src.url}
-                                            </a>
-                                        </li>
-                                    ))}
-                                </ol>
-                            ) : (
-                                <p className="research-empty">No sources recorded yet.</p>
-                            )}
+                            {(() => {
+                                const srcItems = Array.isArray(research?.sources)
+                                    ? research.sources
+                                    : (research?.sources?.items || []);
+                                return srcItems.length > 0 ? (
+                                    <table className="sources-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Source</th>
+                                                <th className="col-file">Dump</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {srcItems.map((src, i) => (
+                                                <tr key={i}>
+                                                    <td>
+                                                        <a href={src.url} target="_blank" rel="noopener noreferrer">
+                                                            {src.title || src.url}
+                                                        </a>
+                                                    </td>
+                                                    <td className="col-file">
+                                                        {src.file
+                                                            ? <a href={`${apiBasePath()}/file/${journalId}/${String(entry.id).replaceAll('-', '')}/research/${src.file}`}
+                                                                data-file={src.file}
+                                                                onClick={handleOpenJsonDump}>
+                                                                {src.file}
+                                                            </a>
+                                                            : '—'}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                ) : (
+                                    <p className="research-empty">No sources recorded yet.</p>
+                                );
+                            })()}
+                        </div>
+
+                        {/* Resources Tab — downloaded assets: image grid + files table */}
+                        <div className="settings-modal-content resources-tab">
+                            <ResourcesTab resources={resources} />
                         </div>
                     </Tabs>
 
@@ -775,37 +860,345 @@ export default function SettingsModal({
                 </>
             )}
         </Modal>
+        {jsonDump && (
+            <JsonDumpModal
+                file={jsonDump.file}
+                url={jsonDump.url}
+                onClose={handleCloseJsonDump}
+            />
+        )}
+        </>
     );
 }
 
-// Read-only accordion for the Research tab — one <details> per topic, fact
-// bullets beneath it, subtopics nested recursively. Archived topics show a
-// badge but remain visible for context.
+// Read-only Resources tab — images downloaded into the entry shown in a
+// 3-per-row grid, every other resource in a Filename/Source/Download table.
+function ResourcesTab({ resources }) {
+    const isImage = (r) => /\.(jpe?g|png|gif|webp|svg|bmp|avif|tiff?|heic|heif)$/i.test(r?.filename || '');
+    const basename = (p) => (p || '').split('/').filter(Boolean).pop() || '';
+    const images = resources.filter(isImage);
+    const files = resources.filter(r => !isImage(r));
+
+    if (resources.length === 0) {
+        return <p className="research-empty">No resources downloaded yet — they appear here once the AI saves images or files into this entry.</p>;
+    }
+
+    return (
+        <>
+            <h4 className="resources-heading">Images</h4>
+            {images.length > 0 ? (
+                <div className="resources-image-grid">
+                    {images.map((r, i) => (
+                        <a key={i} href={apiBasePath() + `/image/${r.filename}`} target="_blank" rel="noopener noreferrer"
+                            title={basename(r.filename)}>
+                            <img src={apiBasePath() + `/image/${r.filename}`} alt={basename(r.filename)} />
+                        </a>
+                    ))}
+                </div>
+            ) : (
+                <p className="research-empty">No images downloaded.</p>
+            )}
+
+            <h4 className="resources-heading">Files</h4>
+            {files.length > 0 ? (
+                <table className="resources-table">
+                    <thead>
+                        <tr>
+                            <th>Filename</th>
+                            <th>Source</th>
+                            <th className="col-download">Download</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {files.map((r, i) => (
+                            <tr key={i}>
+                                <td>{basename(r.filename)}</td>
+                                <td>
+                                    {r.page
+                                        ? <a href={r.page} target="_blank" rel="noopener noreferrer">{r.page}</a>
+                                        : '—'}
+                                </td>
+                                <td className="col-download">
+                                    <a href={apiBasePath() + `/image/${r.filename}`} download={basename(r.filename)} title="Download">
+                                        <Icon name="download" />
+                                    </a>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            ) : (
+                <p className="research-empty">No files downloaded.</p>
+            )}
+        </>
+    );
+}
+
+// Read-only accordion for the Research tab — one <details> per topic, its
+// content blocks rendered beneath it, subtopics nested recursively.
+// Archived topics show a badge but remain visible for context.
 function ResearchTopicAccordion({ topic, depth }) {
     const archived = topic.status === 'archived';
-    const facts = topic.facts || [];
-    const subtopics = topic.subtopics || [];
+    const content = Array.isArray(topic.content) ? topic.content : null;
+    const title = topic.title || topic.topic || 'Untitled';
 
+    // Legacy fallback: fact-list research objects that predate typed blocks.
+    if (!content) {
+        const facts = topic.facts || [];
+        const subtopics = topic.subtopics || [];
+        return (
+            <details className={`research-topic depth-${depth}`} open={depth === 0}>
+                <summary>
+                    <span className="research-topic-title">{title}</span>
+                    {archived && <span className="research-archived-badge">archived</span>}
+                    <span className="research-fact-count">{facts.length} {facts.length === 1 ? 'fact' : 'facts'}</span>
+                </summary>
+                {facts.length > 0 && (
+                    <ul className="research-facts">
+                        {facts.map((f, i) => (
+                            <li key={i}>
+                                {f.text}
+                                {f.source != null && <span className="research-source-ref">[{f.source}]</span>}
+                            </li>
+                        ))}
+                    </ul>
+                )}
+                {subtopics.map((st, i) => (
+                    <ResearchTopicAccordion key={i} topic={st} depth={depth + 1} />
+                ))}
+            </details>
+        );
+    }
+
+    const blockCount = content.filter(b => b?.type !== 'sub_topics').length;
     return (
         <details className={`research-topic depth-${depth}`} open={depth === 0}>
             <summary>
-                <span className="research-topic-title">{topic.topic}</span>
+                <span className="research-topic-title">{title}</span>
                 {archived && <span className="research-archived-badge">archived</span>}
-                <span className="research-fact-count">{facts.length} {facts.length === 1 ? 'fact' : 'facts'}</span>
+                <span className="research-fact-count">{blockCount} {blockCount === 1 ? 'item' : 'items'}</span>
             </summary>
-            {facts.length > 0 && (
-                <ul className="research-facts">
-                    {facts.map((f, i) => (
-                        <li key={i}>
-                            {f.text}
-                            {f.source != null && <span className="research-source-ref">[{f.source}]</span>}
-                        </li>
-                    ))}
-                </ul>
-            )}
-            {subtopics.map((st, i) => (
-                <ResearchTopicAccordion key={i} topic={st} depth={depth + 1} />
+            {content.map((block, i) => (
+                <ResearchBlock key={i} block={block} depth={depth} />
             ))}
         </details>
     );
+}
+
+// One typed research content block — title → h4, paragraph → p, lists →
+// ul/ol (object items with a url render as anchors), table → table,
+// image → img, image-gallery → grid, sub_topics → nested accordions.
+function ResearchBlock({ block, depth }) {
+    if (!block || typeof block !== 'object') return null;
+    const src = block.source != null
+        ? <span className="research-source-ref">[{block.source}]</span>
+        : null;
+
+    const cellText = (c) => (c && typeof c === 'object' ? c.text : c) ?? '';
+    const cellUrl = (c) => (c && typeof c === 'object' ? c.url : null);
+
+    switch (block.type) {
+        case 'title':
+            return <h4 className="research-block-title">{block.text}{src}</h4>;
+        case 'paragraph':
+            return <p className="research-paragraph">{block.text}{src}</p>;
+        case 'bullet_list':
+        case 'numbered_list': {
+            const ListTag = block.type === 'bullet_list' ? 'ul' : 'ol';
+            return (
+                <ListTag className="research-list">
+                    {(block.items || []).map((item, i) => {
+                        const text = cellText(item);
+                        const url = cellUrl(item);
+                        return (
+                            <li key={i}>
+                                {url
+                                    ? <a href={url} target="_blank" rel="noopener noreferrer">{text}</a>
+                                    : text}
+                            </li>
+                        );
+                    })}
+                    {src}
+                </ListTag>
+            );
+        }
+        case 'table':
+            return (
+                <table className="research-table">
+                    {block.caption && <caption>{block.caption}{src}</caption>}
+                    {block.headers?.length > 0 && (
+                        <thead>
+                            <tr>{block.headers.map((h, i) => <th key={i}>{cellText(h)}</th>)}</tr>
+                        </thead>
+                    )}
+                    <tbody>
+                        {(block.rows || []).map((row, i) => (
+                            <tr key={i}>
+                                {(row || []).map((cell, j) => {
+                                    const text = cellText(cell);
+                                    const url = cellUrl(cell);
+                                    return (
+                                        <td key={j}>
+                                            {url
+                                                ? <a href={url} target="_blank" rel="noopener noreferrer">{text}</a>
+                                                : text}
+                                        </td>
+                                    );
+                                })}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            );
+        case 'image':
+            return (
+                <figure className="research-image">
+                    <a href={block.url} target="_blank" rel="noopener noreferrer">
+                        <img src={block.url} alt={block.alt || block.caption || ''} />
+                    </a>
+                    {block.caption && <figcaption>{block.caption}{src}</figcaption>}
+                </figure>
+            );
+        case 'image-gallery':
+            return (
+                <div className="research-image-grid">
+                    {(block.items || []).map((img, i) => {
+                        const url = typeof img === 'object' ? img.url : img;
+                        const alt = typeof img === 'object' ? (img.alt || img.caption || '') : '';
+                        if (!url) return null;
+                        return (
+                            <a key={i} href={url} target="_blank" rel="noopener noreferrer" title={alt}>
+                                <img src={url} alt={alt} />
+                            </a>
+                        );
+                    })}
+                </div>
+            );
+        case 'sub_topics':
+            return (block.items || []).map((sub, i) => (
+                <ResearchTopicAccordion key={i} topic={sub} depth={depth + 1} />
+            ));
+        default:
+            return null;
+    }
+}
+
+// Stacked modal that fetches a research dump (research/####.json) and renders
+// it as a collapsible, syntax-highlighted JSON tree.
+function JsonDumpModal({ file, url, onClose }) {
+    const [data, setData] = useState(undefined);
+    const [error, setError] = useState(null);
+    const [expandSignal, setExpandSignal] = useState({ v: 0, expand: true });
+
+    useEffect(() => {
+        let cancelled = false;
+        fetch(url)
+            .then(r => {
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                return r.json();
+            })
+            .then(j => { if (!cancelled) setData(j); })
+            .catch(e => { if (!cancelled) setError(e.message); });
+        return () => { cancelled = true; };
+    }, [url]);
+
+    const handleExpandAll = (e) => {
+        e.preventDefault();
+        setExpandSignal(prev => ({ v: prev.v + 1, expand: true }));
+    };
+
+    const handleCollapseAll = (e) => {
+        e.preventDefault();
+        setExpandSignal(prev => ({ v: prev.v + 1, expand: false }));
+    };
+
+    return (
+        <Modal title={file} onClose={onClose} wide className="json-dump-modal">
+            {error && <p className="research-empty">Failed to load {file}: {error}</p>}
+            {!error && data === undefined && <p className="research-empty">Loading…</p>}
+            {data !== undefined && !error && (
+                <>
+                    <div className="json-toolbar">
+                        <a href="#" onClick={handleExpandAll}>expand all</a>
+                        <span className="json-toolbar-sep">·</span>
+                        <a href="#" onClick={handleCollapseAll}>collapse all</a>
+                    </div>
+                    <div className="json-tree">
+                        <JsonNode name={null} value={data} depth={0} signal={expandSignal} />
+                    </div>
+                </>
+            )}
+        </Modal>
+    );
+}
+
+// One node of the JSON tree — objects/arrays collapse, primitives render
+// inline with type-based coloring. The `signal` prop broadcasts expand-all /
+// collapse-all from the modal toolbar to every node.
+function JsonNode({ name, value, depth, signal }) {
+    const [expanded, setExpanded] = useState(depth < 1);
+
+    useEffect(() => {
+        if (signal && signal.v > 0) setExpanded(signal.expand);
+    }, [signal]);
+
+    const handleToggle = () => {
+        setExpanded(prev => !prev);
+    };
+
+    const isObject = value !== null && typeof value === 'object';
+    const label = name === null ? null
+        : <span className="json-key">{typeof name === 'number' ? name : `"${name}"`}</span>;
+    if (!isObject) {
+        return (
+            <div className="json-leaf">
+                {label}
+                {label && <span className="json-punct">: </span>}
+                <JsonPrimitive value={value} />
+            </div>
+        );
+    }
+
+    const isArray = Array.isArray(value);
+    const entries = isArray ? value.map((v, i) => [i, v]) : Object.entries(value);
+    const open = isArray ? '[' : '{';
+    const close = isArray ? ']' : '}';
+
+    if (entries.length === 0) {
+        return (
+            <div className="json-leaf">
+                {label}
+                {label && <span className="json-punct">: </span>}
+                <span className="json-punct">{open}{close}</span>
+            </div>
+        );
+    }
+
+    return (
+        <div className="json-node">
+            <div className="json-row" onClick={handleToggle}>
+                <span className="json-toggle"><Icon name={expanded ? 'expand_more' : 'chevron_right'} /></span>
+                {label}
+                {label && <span className="json-punct">: </span>}
+                <span className="json-punct">{open}</span>
+                {!expanded && <span className="json-preview"> {entries.length} {isArray ? 'items' : 'keys'} </span>}
+                {!expanded && <span className="json-punct">{close}</span>}
+            </div>
+            {expanded && (
+                <div className="json-children">
+                    {entries.map(([k, v]) => (
+                        <JsonNode key={k} name={k} value={v} depth={depth + 1} signal={signal} />
+                    ))}
+                    <span className="json-punct">{close}</span>
+                </div>
+            )}
+        </div>
+    );
+}
+
+function JsonPrimitive({ value }) {
+    if (value === null) return <span className="json-null">null</span>;
+    if (typeof value === 'boolean') return <span className="json-bool">{String(value)}</span>;
+    if (typeof value === 'number') return <span className="json-number">{String(value)}</span>;
+    return <span className="json-string">"{String(value)}"</span>;
 }

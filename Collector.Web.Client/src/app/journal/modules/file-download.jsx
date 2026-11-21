@@ -65,7 +65,7 @@ export default function FileDownloadModule({ module, entryId, journalId, onUpdat
         try {
             const timestamp = new Date().getTime();
             const fileName = `${timestamp}-${file.name}`;
-            const path = `${journalId}/${entryId}/${fileName}`;
+            const path = `${journalId}/${entryId}/files/${fileName}`;
 
             const response = await upload(path, file);
 
@@ -162,7 +162,9 @@ export default function FileDownloadModule({ module, entryId, journalId, onUpdat
     const handleDownloadClick = (e) => {
         e.preventDefault();
         
-        const downloadUrl = `${apiBasePath()}/file/${journalId}/${entryId}/${module.filename}`;
+        const downloadUrl = module.filename?.includes('/')
+            ? `${apiBasePath()}/file/${module.filename}`
+            : `${apiBasePath()}/file/${journalId}/${entryId}/files/${module.filename}`;
         
         showModal(
             <Modal title="Download Warning" onClose={() => hideModal()}>
@@ -240,7 +242,9 @@ export default function FileDownloadModule({ module, entryId, journalId, onUpdat
                 <div className="file-download-preview">
                     <a 
                         className={`${module.style || 'button outline'} download-button`}
-                        href={`${apiBasePath()}/file/${journalId}/${entryId}/${module.filename}`}
+                        href={module.filename?.includes('/')
+                            ? `${apiBasePath()}/file/${module.filename}`
+                            : `${apiBasePath()}/file/${journalId}/${entryId}/files/${module.filename}`}
                         onClick={handleDownloadClick}
                     >
                         <Icon name="download" />

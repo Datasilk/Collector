@@ -1,3 +1,4 @@
+using Collector.Chat.Helpers;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -39,6 +40,10 @@ public class AddEditJournalEntryTool : IChatTool
 
     /// <summary>Max characters of page content sent to the LLM per edit pass.</summary>
     private const int PageContentBudget = 9000;
+    /// <summary>A page with this many usable images becomes a gallery module, not stacked images.</summary>
+    private const int GalleryThreshold = 3;
+    /// <summary>Most images one scraped page may place in the entry.</summary>
+    private const int MaxPlacedImages = 9;
 
     public AddEditJournalEntryTool(
         IJournalEntriesRepository entriesRepository,
@@ -60,12 +65,12 @@ public class AddEditJournalEntryTool : IChatTool
         _onEntrySaved = onEntrySaved;
         _snapshotsRepository = snapshotsRepository;
         _searchEnginesRepo = searchEnginesRepo;
-        _writer = new ResearchModuleWriter(_llm);
+        _writer = new ResearchModuleWriter();
     }
 
     public string ToolKey => "add-edit-journal-entry";
 
-    public string Description => "Create or update a journal entry. With scraped pages: integrates research into the entry's module tree. With 'instruction' only: applies a conversational edit (rearrange/add/remove content) to the session's current entry.";
+    public string Description => "Create or update a journal entry. This tool does NOT fetch or download web pages — it only integrates pages already scraped by a previous web-scrape or gather-research step. With scraped pages: merges research into the entry's module tree. With 'instruction' only: applies a conversational edit (rearrange/add/remove content) to the session's current entry.";
 
     public bool AvailableToOllama => true;
 
@@ -74,7 +79,7 @@ public class AddEditJournalEntryTool : IChatTool
         new ToolParameter { Key = "title", DataType = "string", Description = "The title for the journal entry (used for similarity matching)" },
         new ToolParameter { Key = "journalId", DataType = "int", Description = "The ID of the journal to create the entry in (optional)" },
         new ToolParameter { Key = "description", DataType = "string", Description = "Brief description/summary of the entry content" },
-        new ToolParameter { Key = "url", DataType = "string", Description = "When set, only integrate the scraped page for this URL" },
+        new ToolParameter { Key = "url", DataType = "string", Description = "Optional filter: only integrate the already-scraped page matching this URL. Does NOT scrape the URL itself — a web-scrape step must run first." },
         new ToolParameter { Key = "instruction", DataType = "string", Description = "A conversational edit request to apply to the current entry (e.g. 'move the images into a gallery tab')" },
         new ToolParameter { Key = "updateTitle", DataType = "boolean", Description = "Whether to update the title when editing an existing entry" }
     };
@@ -101,6 +106,7 @@ public class AddEditJournalEntryTool : IChatTool
         SendMessage? sendMessage = null,
         CancellationToken cancellationToken = default)
     {
+        ChatDetailLog.Fn("add-edit-journal-entry", "Run");
         try
         {
             onProgress(10, "Preparing to update journal entry...");
@@ -118,8 +124,31 @@ public class AddEditJournalEntryTool : IChatTool
             {
                 if (string.IsNullOrWhiteSpace(instruction))
                 {
-                    onProgress(100, "No new page content to integrate");
-                    onComplete("No new content to add to the journal entry");
+                    // Bare-URL call: nothing scraped yet — rather than no-op,
+                    // queue the scrape + a re-run of this step so a planner
+                    // step like "scrape <url> and add it" still works.
+                    if (!string.IsNullOrWhiteSpace(filterUrl) && plan != null && currentStepIndex >= 0
+                        && !ScrapeAlreadyPlanned(plan, filterUrl, currentStepIndex))
+                    {
+                        PlanUtility.AddStepToPlan(plan, currentStepIndex, "add-edit-journal-entry",
+                            new Dictionary<string, object> { { "url", filterUrl }, { "instruction", instruction ?? "" } });
+                        PlanUtility.AddStepToPlan(plan, currentStepIndex, "web-scrape",
+                            new Dictionary<string, object> { { "url", filterUrl } });
+                        var queued = $"Queued web-scrape for {filterUrl} — it had not been scraped in this session.";
+                        ChatDetailLog.Line($"add-edit-journal-entry: {queued}");
+                        onProgress(100, queued);
+                        onComplete(queued);
+                        return;
+                    }
+
+                    var why = string.IsNullOrWhiteSpace(filterUrl)
+                        ? "No unprocessed scraped pages found — run web-scrape or gather-research first."
+                        : PageAlreadyIntegrated(data, filterUrl)
+                            ? $"The page '{filterUrl}' was already scraped and integrated into the entry."
+                            : $"No scraped page matches '{filterUrl}' — its earlier scrape produced no usable content.";
+                    ChatDetailLog.Line($"add-edit-journal-entry: {why}");
+                    onProgress(100, why);
+                    onComplete(why);
                     return;
                 }
                 // Conversational edit — the user's instruction flows through the
@@ -177,15 +206,32 @@ public class AddEditJournalEntryTool : IChatTool
 
                 if (similarEntry.HasValue && similarEntry.Value.EntryId.HasValue)
                 {
-                    entry = _entriesRepository.GetById(similarEntry.Value.EntryId.Value);
-                    journalId = entry?.JournalId ?? journalId;
-                    if (updateTitle && entry != null && !string.IsNullOrWhiteSpace(title) && title != entry.Title)
+                    var candidate = _entriesRepository.GetById(similarEntry.Value.EntryId.Value);
+
+                    // Embedding similarity is coarse — "Scientific Revolution"
+                    // sits close to "French Revolution". Verify the subjects
+                    // actually match before merging research into the entry.
+                    if (candidate != null && (string.IsNullOrWhiteSpace(title) ||
+                        await IsSameSubjectAsync(title, candidate.Title, cancellationToken)))
+                    {
+                        entry = candidate;
+                        journalId = entry.JournalId;
+                    }
+                    else if (candidate != null)
+                    {
+                        onProgress(30, $"Similar entry '{candidate.Title}' is a different subject — creating a new entry...");
+                    }
+                }
+
+                if (entry != null)
+                {
+                    if (updateTitle && !string.IsNullOrWhiteSpace(title) && title != entry.Title)
                     {
                         entry.Title = title;
                         _entriesRepository.UpdateEmbedding(entry.Id, titleEmbedding);
                     }
-                    sendMessage?.Invoke($"Updating existing journal entry '{entry?.Title}' with new research…",
-                        entry != null ? $"/journal/{journalId}/entry/{entry.Id}" : null, "View Entry");
+                    sendMessage?.Invoke($"Updating existing journal entry '{entry.Title}' with new research…",
+                        $"/journal/{journalId}/entry/{entry.Id}", "View Entry");
                 }
                 else
                 {
@@ -223,7 +269,7 @@ public class AddEditJournalEntryTool : IChatTool
             }
 
             // Integrate each page into the entry's module tree
-            var doc = JournalEntryDocument.Load(entry.Id);
+            var doc = JournalEntryDocument.Load(entry.Id, entry.JournalId);
 
             // Research layer — first pass over an entry without one builds the
             // topic tree from its existing modules (facts extracted via LLM).
@@ -275,6 +321,8 @@ public class AddEditJournalEntryTool : IChatTool
                         if (assets.Count > 0)
                         {
                             page.DownloadedFiles.AddRange(assets.Select(a => a.File));
+                            foreach (var a in assets)
+                                doc.RegisterResource(JournalPaths.ImagePath(entry.JournalId, entry.Id, a.File), a.Url, a.SourcePage);
                             page.ContentSections.Add(
                                 "DOWNLOADED MEDIA — these files are already stored inside this entry. " +
                                 "To place one, emit an \"image\" module with \"url\" set to the EXACT filename " +
@@ -294,7 +342,10 @@ public class AddEditJournalEntryTool : IChatTool
                     // "add a video from <url>" style requests take the media-
                     // placement path — Ollama picks the position over the
                     // semantic skeleton; the ops path handles everything else.
-                    var pageInstruction = string.Join("\n", page.ContentSections);
+                    // Only the user's own instruction is scanned — the appended
+                    // DOWNLOADED MEDIA note carries source URLs/keywords that
+                    // would misfire the URL+media detection.
+                    var pageInstruction = page.ContentSections.FirstOrDefault() ?? "";
                     if (await TryMediaPlacementAsync(doc, pageInstruction, entry.Id, onRawRequest, onRawResponse, cancellationToken))
                     {
                         page.Applied = true;
@@ -316,18 +367,46 @@ public class AddEditJournalEntryTool : IChatTool
                     onProgress(progressBase, $"Collecting research from {pageHost} (page {ordinal}/{Math.Max(totalPages, 1)})...");
                     sendMessage?.Invoke($"Collecting research from {pageHost} (page {ordinal}/{Math.Max(totalPages, 1)})…", null, null);
 
+                    // Relevance gate — a successfully scraped page can still be
+                    // off-topic (SERP noise like dictionary or e-commerce hits),
+                    // and merging it would pollute the research object and the
+                    // module tree with unrelated sections.
+                    // File downloads (PDFs, images) have no text to judge —
+                    // the gate only applies to text pages.
+                    var gateText = BuildPageText(page, 4000);
+                    if (!page.IsFile &&
+                        !await IsPageRelevantAsync(entry, doc, data, page, gateText, onProgress, onRawRequest, onRawResponse, cancellationToken))
+                    {
+                        sendMessage?.Invoke($"Skipped {pageHost} — its content isn't related to \"{entry.Title}\".", null, null);
+                        // A user-named page that fails the gate leaves its
+                        // page-scoped research questions permanently open —
+                        // record the skip so research-review can retire them.
+                        ResearchReviewTool.AddToList(data, "url-direct-skipped", "urls", new[] { page.Url });
+                        page.Applied = true;
+                        continue;
+                    }
+
                     await IntegrateResearchPageAsync(doc, page, entry, data, onProgress, onRawRequest, onRawResponse, cancellationToken);
                     page.Applied = true;
                     saved = true;
                 }
             }
 
+            // Load-time healing changed the tree (e.g. stacked galleries
+            // merged into one) — re-render every topic so stale modules
+            // collapse too, even when all pages skipped the relevance gate.
+            if (doc.Research?.HealedOnLoad == true)
+            {
+                await _writer.WriteDirtyTopicsAsync(doc, doc.Research,
+                    doc.Research.AllTopics().ToList(), m => onProgress(60, m), cancellationToken);
+                saved = true;
+            }
+
             if (saved)
             {
-                // Provenance: Sources tab inside the first tabs module when one
-                // exists; legacy root-level module otherwise.
-                if (!_writer.EnsureSourcesTab(doc, doc.Research!))
-                    UpsertSourcesModule(doc, data);
+                // Provenance: a "Sources" text-editor pinned to the very end
+                // of the main module array, rebuilt in place each save.
+                _writer.EnsureSourcesModule(doc, doc.Research, CollectScrapeSources(data));
 
                 onProgress(95, "Saving journal entry...");
                 doc.Save(entry.Id);
@@ -372,31 +451,113 @@ public class AddEditJournalEntryTool : IChatTool
         OnRawResponse? onRawResponse,
         CancellationToken cancellationToken = default)
     {
+        ChatDetailLog.Fn("add-edit-journal-entry", "IntegrateResearchPageAsync");
         var research = doc.Research!;
-        int? sourceId = null;
+        int? sourceIndex = null;
+
+        // Mirror this run's engine calls into research.searches so sources can
+        // point back at the query that produced them.
+        research.SyncSearches(ResearchReviewTool.GetList(data, "search-queries", "queries"));
 
         if (!string.IsNullOrWhiteSpace(page.Url))
         {
-            var (id, _) = research.RegisterSource(page.Url, page.Title);
-            sourceId = id;
-            // Re-scrape = replace: drop the facts this source produced before
-            // merging the fresh extraction.
-            research.RemoveFactsBySource(id);
+            var (idx, _) = research.RegisterSource(page.Url, page.Title, SourceSearchIndex(data, page.Url));
+            sourceIndex = idx;
+            // Re-scrape = replace: drop the content this source produced
+            // (and its rendered modules) before merging the fresh copy.
+            foreach (var mid in research.RemoveContentBySource(idx))
+                doc.RemoveModuleById(mid);
+
+            // Persist the HTML parser model's structured JSON for this page
+            // under journals/{journalId}/{entryId}/research/{####}.json —
+            // with the staged raw HTML as {####}.html next to it — and link
+            // the source to the json via the "file" property.
+            if (!string.IsNullOrWhiteSpace(page.ParsedJson))
+            {
+                var dump = SaveResearchDump(entry.JournalId, entry.Id, page.ParsedJson, page.RawHtmlFile);
+                var src = research.Sources.ElementAtOrDefault(idx);
+                if (dump != null && src != null) src.File = dump;
+            }
         }
 
-        var pageText = BuildPageText(page, PageContentBudget);
-        List<ExtractedTopic> items = new();
-        if (!string.IsNullOrWhiteSpace(pageText))
+        var fullText = BuildPageText(page, int.MaxValue);
+        if (!string.IsNullOrWhiteSpace(fullText))
+            ChatDetailLog.DumpPageContent(page.Url ?? "(unknown)", fullText);
+
+        // Structured sections: the parser model's JSON when present, else the
+        // raw content sections fall back to paragraph blocks.
+        var parsed = ParseSections(page, sourceIndex);
+
+        // The LLM assigns each section to the best existing topic/subtopic —
+        // or names a new one — then the section's blocks are copied verbatim
+        // (no fact extraction, no prose regeneration).
+        var assignments = await AssignTopicsAsync(research, entry, page, parsed,
+            onRawRequest, onRawResponse, cancellationToken);
+
+        // Diff the topic tree before/after the merge so the detail log lists
+        // only topics and subtopics actually ADDED by this page.
+        var knownPaths = new HashSet<string>(TopicPaths(research).Select(p => p.Path));
+        var dirty = new List<ResearchTopic>();
+        var pageImages = new HashSet<string>(page.Images, StringComparer.OrdinalIgnoreCase);
+        var gallerySeen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        for (var i = 0; i < parsed.Sections.Count; i++)
         {
-            var extracted = await ExtractTopicsAsync(entry, research, pageText, onRawRequest, onRawResponse, cancellationToken);
-            if (extracted != null) items = extracted;
+            var sec = parsed.Sections[i];
+            var a = i < assignments.Count ? assignments[i] : null;
+
+            // The assign LLM can reject boilerplate/nav/related-content
+            // sections outright — they never become topics.
+            if (string.Equals(a?.Topic, "skip", StringComparison.OrdinalIgnoreCase)) continue;
+            if (IsBoilerplateSection(sec.Heading)) continue;
+
+            var topic = research.GetOrCreateTopic(
+                !string.IsNullOrWhiteSpace(a?.Topic) ? a!.Topic!
+                    : !string.IsNullOrWhiteSpace(sec.Heading) ? sec.Heading!
+                    : !string.IsNullOrWhiteSpace(page.Title) ? page.Title : entry.Title,
+                sourceIndex);
+            if (!string.IsNullOrWhiteSpace(a?.Subtopic) &&
+                ResearchObject.Normalize(a!.Subtopic) != ResearchObject.Normalize(topic.Topic))
+                topic = research.GetOrCreateSubTopic(topic, a!.Subtopic!, a.Tab);
+
+            // Spec order: title → image-gallery (size-verified images) → content.
+            var secImages = sec.Images
+                .Where(im => pageImages.Count == 0 || pageImages.Contains(im.Url))
+                .Where(im => gallerySeen.Add(im.Url))
+                .Select(im => (im.Url, im.Alt, im.Caption))
+                .ToList();
+            if (secImages.Count > 0)
+                research.AppendGallery(topic, secImages, sourceIndex);
+
+            foreach (var block in sec.Blocks)
+                AppendBlock(research, topic, block, sourceIndex);
+
+            if (!dirty.Any(d => ReferenceEquals(d.Node, topic.Node))) dirty.Add(topic);
         }
 
-        var dirty = await research.MergeExtractionAsync(
-            items, sourceId ?? 0, texts => _llm.EmbedBatchAsync(texts));
+        // Load-time healing changed the tree (e.g. stacked galleries merged
+        // into one) — every topic re-renders so stale modules collapse too.
+        if (research.HealedOnLoad)
+            foreach (var t in research.AllTopics())
+                if (!dirty.Any(d => ReferenceEquals(d.Node, t.Node))) dirty.Add(t);
 
-        // Durability ordering — facts persist BEFORE prose generation so a
-        // failed module call loses at most that module's HTML.
+        // Size-verified page images the parser never attached to a section →
+        // gallery on the primary topic this page fed.
+        var unattached = page.Images.Where(u => !gallerySeen.Contains(u)).ToList();
+        if (unattached.Count > 0 && dirty.Count > 0)
+            research.AppendGallery(dirty[0],
+                unattached.Select(u => (u, (string?)null, (string?)null)), sourceIndex);
+
+        // Comments keep their reply hierarchy — tracked in research only for
+        // now (no module exists for them yet).
+        foreach (var c in parsed.Comments)
+            research.Comments.Add(c);
+
+        foreach (var (path, depth) in TopicPaths(research))
+            if (!knownPaths.Contains(path))
+                ChatDetailLog.TopicAdded(path.Split('/').Last(), depth);
+
+        // Durability ordering — research persists BEFORE module composition.
         doc.Save(entry.Id);
 
         if (dirty.Count > 0)
@@ -405,39 +566,608 @@ public class AddEditJournalEntryTool : IChatTool
                 m => onProgress(60, m), cancellationToken);
         }
 
-        // Deterministic media — scraped images/videos/files become modules
-        // beside the topic the page's facts merged into (code-owned, deduped
-        // by URL). The writer never touches them.
+        // Deterministic non-image media — videos/files become modules beside
+        // the topic the page's content merged into (code-owned, URL-deduped).
         AppendPageMedia(doc, page, dirty);
     }
 
-    /// <summary>Flat fact extraction for one scraped page (local Ollama).</summary>
-    private async Task<List<ExtractedTopic>?> ExtractTopicsAsync(
-        JournalEntry entry,
+    /// <summary>Section headings that are citation/link boilerplate, not
+    /// article content — skipped before they can spawn topics.</summary>
+    private static readonly HashSet<string> BoilerplateHeadings = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "references", "external links", "see also", "further reading", "notes",
+        "bibliography", "citations", "sources", "footnotes", "navigation",
+        "categories", "related pages", "related articles", "portals", "gallery",
+        "acknowledgements", "acknowledgments", "credits", "about the author",
+        "comments", "leave a reply", "recent posts", "popular posts",
+        "related posts", "post navigation", "recent articles", "share this",
+        "subscribe", "follow us", "sign up", "log in", "about us",
+        "you may also like", "recommended", "more from", "newsletter", "footer",
+        // Parser-schema echoes — the model sometimes copies the output
+        // schema's field names into a content heading.
+        "search engine submit form", "search_engine_submit_form"
+    };
+
+    /// <summary>Parser-schema text echoed verbatim into content blocks —
+    /// descriptions from the output schema are never page content.</summary>
+    private static readonly HashSet<string> SchemaEchoText = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "If the page offers a site-search facility (a search box that submits a query to this website), report it here; otherwise omit this field."
+    };
+
+    private static string NormalizeComment(string text)
+        => string.Concat(text.Trim().ToLowerInvariant().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+    private static bool IsBoilerplateSection(string? heading)
+    {
+        if (string.IsNullOrWhiteSpace(heading)) return false;
+        // "References:" / "See also —" — headings often arrive decorated.
+        var h = heading.Trim().TrimEnd(':', '.', '-', '—', '–').Trim();
+        return BoilerplateHeadings.Contains(h);
+    }
+
+    /// <summary>One section of a scraped page as the parser model organized
+    /// it — a heading plus ordered content blocks and images.</summary>
+    private class ParsedSection
+    {
+        public string? Heading;
+        public List<JsonObject> Blocks { get; } = new();
+        public List<(string Url, string? Alt, string? Caption)> Images { get; } = new();
+    }
+
+    private class ParsedPage
+    {
+        public List<ParsedSection> Sections { get; } = new();
+        public List<ResearchComment> Comments { get; } = new();
+    }
+
+    /// <summary>Parse a model dump tolerating duplicate object keys. The
+    /// model sometimes emits the same property twice ("images" twice in one
+    /// section) — JsonNode.Parse keeps both and JsonObject then throws
+    /// "duplicate key" the first time the property is read, killing the
+    /// whole page's integration. JsonDocument tolerates duplicates; the
+    /// rebuild keeps the last value, matching JSON last-wins convention.</summary>
+    internal static JsonObject? ParseModelJson(string json)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            return ElementToNode(doc.RootElement) as JsonObject;
+        }
+        catch { return null; }
+    }
+
+    private static JsonNode? ElementToNode(System.Text.Json.JsonElement el)
+    {
+        switch (el.ValueKind)
+        {
+            case System.Text.Json.JsonValueKind.Object:
+                var o = new JsonObject();
+                foreach (var p in el.EnumerateObject())
+                    o[p.Name] = ElementToNode(p.Value); // indexer overwrites: last wins
+                return o;
+            case System.Text.Json.JsonValueKind.Array:
+                var a = new JsonArray();
+                foreach (var item in el.EnumerateArray())
+                    a.Add(ElementToNode(item));
+                return a;
+            case System.Text.Json.JsonValueKind.Undefined:
+                return null;
+            default:
+                return JsonNode.Parse(el.GetRawText());
+        }
+    }
+
+    /// <summary>Turn a scraped page into structured sections by copying the
+    /// parser dump (research/{####}.json) verbatim — sections[].blocks,
+    /// section/root tables & images, hero_image, summary and comments all
+    /// come through unfiltered. When a dump exists it is the source of truth:
+    /// a malformed or empty dump yields no content rather than synthesized
+    /// paragraphs. ContentSections chunked text is only used when the page
+    /// has no parser dump at all.</summary>
+    private static ParsedPage ParseSections(ScrapedPage page, int? sourceIndex)
+    {
+        var result = new ParsedPage();
+        JsonObject? root = null;
+        if (!string.IsNullOrWhiteSpace(page.ParsedJson))
+        {
+            root = ParseModelJson(page.ParsedJson);
+            // Parser output is capped at num_predict — big pages come back
+            // truncated mid-token. Salvage everything up to the last fully
+            // closed block rather than discarding the whole page.
+            if (root == null)
+            {
+                var repaired = RepairTruncatedJson(page.ParsedJson);
+                if (repaired != null)
+                {
+                    root = ParseModelJson(repaired);
+                    if (root != null)
+                        ChatDetailLog.Line($"parser dump for {page.Url} was truncated — salvaged {repaired.Length}/{page.ParsedJson.Length} chars");
+                }
+            }
+        }
+
+        // The parser sometimes echoes its output schema instead of data —
+        // {"type":"object","properties":{...}}. That is not content — treat
+        // it like a missing dump so the ContentSections fallback applies.
+        var dumpLogged = false;
+        if (root != null && root["sections"] == null && root["properties"] != null)
+        {
+            ChatDetailLog.Line($"parser dump for {page.Url} is schema-shaped — falling back to raw sections");
+            dumpLogged = true;
+            root = null;
+        }
+
+        if (root != null)
+        {
+            // Page summary + hero image lead the page's content.
+            var lead = new ParsedSection();
+            if (!string.IsNullOrWhiteSpace(root["summary"]?.ToString()))
+                lead.Blocks.Add(new JsonObject { ["type"] = "paragraph", ["text"] = root["summary"]!.ToString() });
+            var hero = root["hero_image"] as JsonObject;
+            if (!string.IsNullOrWhiteSpace(hero?["url"]?.ToString()))
+                lead.Images.Add((hero!["url"]!.ToString(),
+                    hero["alt_text"]?.ToString(), hero["caption"]?.ToString()));
+            if (lead.Blocks.Count > 0 || lead.Images.Count > 0)
+                result.Sections.Add(lead);
+
+            if (root["sections"] is JsonArray sections)
+            {
+                foreach (var sn in sections)
+                {
+                    if (sn is not JsonObject so) continue;
+                    var sec = new ParsedSection { Heading = so["heading"]?.ToString() };
+                    if (so["blocks"] is JsonArray blocks)
+                        foreach (var b in blocks)
+                            if (b is JsonObject bo &&
+                                !SchemaEchoText.Contains(bo["text"]?.ToString()?.Trim() ?? ""))
+                                sec.Blocks.Add((JsonObject)bo.DeepClone());
+                    if (so["tables"] is JsonArray tables)
+                        foreach (var t in tables)
+                            if (t is JsonObject to)
+                            {
+                                var block = (JsonObject)to.DeepClone();
+                                block["type"] = "table";
+                                sec.Blocks.Add(block);
+                            }
+                    if (so["images"] is JsonArray imgs)
+                        foreach (var im in imgs)
+                            if (im is JsonObject io && !string.IsNullOrWhiteSpace(io["url"]?.ToString()))
+                                sec.Images.Add((io["url"]!.ToString(),
+                                    io["alt_text"]?.ToString(), io["caption"]?.ToString()));
+                    if (sec.Blocks.Count > 0 || sec.Images.Count > 0)
+                        result.Sections.Add(sec);
+                }
+            }
+
+            // Root-level tables/images land in a trailing unheaded section.
+            var tail = new ParsedSection();
+            if (root["tables"] is JsonArray rootTables)
+                foreach (var t in rootTables)
+                    if (t is JsonObject to)
+                    {
+                        var block = (JsonObject)to.DeepClone();
+                        block["type"] = "table";
+                        tail.Blocks.Add(block);
+                    }
+            if (root["images"] is JsonArray rootImages)
+                foreach (var im in rootImages)
+                    if (im is JsonObject io && !string.IsNullOrWhiteSpace(io["url"]?.ToString()))
+                        tail.Images.Add((io["url"]!.ToString(),
+                            io["alt_text"]?.ToString(), io["caption"]?.ToString()));
+            if (tail.Blocks.Count > 0 || tail.Images.Count > 0)
+                result.Sections.Add(tail);
+
+            if (root["comments"] is JsonArray comments)
+            {
+                // Fabrication guard: when a page has no real comment section
+                // the model still fills the schema — dozens of users
+                // repeating one or two bodies verbatim. Real comment threads
+                // don't contain identical bodies, so dedupe on normalized
+                // text collapses the hallucination to the unique set.
+                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var c in comments)
+                {
+                    var rc = ResearchComment.FromJson(c as JsonObject);
+                    if (rc == null) continue;
+                    if (!string.IsNullOrWhiteSpace(rc.Text)
+                        && !seen.Add(NormalizeComment(rc.Text))) continue;
+                    rc.Source = sourceIndex;
+                    result.Comments.Add(rc);
+                }
+            }
+        }
+        else if (root == null && !dumpLogged && !string.IsNullOrWhiteSpace(page.ParsedJson))
+        {
+            ChatDetailLog.Line($"parser dump for {page.Url} is not valid JSON — falling back to raw sections");
+        }
+
+        // The dump is absent, invalid, schema-shaped or produced no sections:
+        // raw content sections are the last-resort content source, page
+        // images attach to the one fallback section.
+        if (result.Sections.Count == 0)
+        {
+            var sec = new ParsedSection();
+            foreach (var text in page.ContentSections)
+                if (!string.IsNullOrWhiteSpace(text))
+                    sec.Blocks.Add(new JsonObject { ["type"] = "paragraph", ["text"] = text });
+            foreach (var img in page.Images)
+                sec.Images.Add((img, null, null));
+            if (sec.Blocks.Count > 0 || sec.Images.Count > 0)
+                result.Sections.Add(sec);
+        }
+        return result;
+    }
+
+    /// <summary>Repair a truncated JSON document: find the last position where
+    /// a container element closed cleanly, cut there, and append the closing
+    /// brackets for whatever remains open. Returns null when no safe cut
+    /// exists (e.g. the document died inside its first object).</summary>
+    private static string? RepairTruncatedJson(string json)
+    {
+        var stack = new List<char>();
+        var inString = false;
+        var escaped = false;
+        var lastCut = -1;
+        var lastCutDepth = 0;
+
+        for (var i = 0; i < json.Length; i++)
+        {
+            var c = json[i];
+            if (inString)
+            {
+                if (escaped) escaped = false;
+                else if (c == '\\') escaped = true;
+                else if (c == '"') inString = false;
+                continue;
+            }
+            switch (c)
+            {
+                case '"': inString = true; break;
+                case '{': case '[': stack.Add(c); break;
+                case '}': case ']':
+                    var want = c == '}' ? '{' : '[';
+                    if (stack.Count == 0 || stack[stack.Count - 1] != want) return null;
+                    stack.RemoveAt(stack.Count - 1);
+                    // A container just closed — cutting right after it leaves a
+                    // structurally valid prefix we can close off.
+                    lastCut = i;
+                    lastCutDepth = stack.Count;
+                    break;
+            }
+        }
+
+        // Need the cut inside at least the root object so the result is a
+        // JsonObject, and at least one element must have completed.
+        if (lastCut < 0 || lastCutDepth < 1) return null;
+
+        var prefix = json.Substring(0, lastCut + 1);
+        var stack2 = new List<char>();
+        inString = false; escaped = false;
+        for (var i = 0; i < prefix.Length; i++)
+        {
+            var c = prefix[i];
+            if (inString)
+            {
+                if (escaped) escaped = false;
+                else if (c == '\\') escaped = true;
+                else if (c == '"') inString = false;
+                continue;
+            }
+            if (c == '"') inString = true;
+            else if (c == '{' || c == '[') stack2.Add(c);
+            else if (c == '}' || c == ']') stack2.RemoveAt(stack2.Count - 1);
+        }
+        var sb = new StringBuilder(prefix);
+        for (var i = stack2.Count - 1; i >= 0; i--)
+            sb.Append(stack2[i] == '{' ? '}' : ']');
+        return sb.ToString();
+    }
+
+    /// <summary>Copy one dump block into the topic verbatim — every field the
+    /// parser emitted rides along; we only stamp type/moduleId/source and let
+    /// AppendContent dedupe. Unknown block types are dropped (the module
+    /// writer can't render them).</summary>
+    private void AppendBlock(ResearchObject research, ResearchTopic topic,
+        JsonObject block, int? sourceIndex)
+    {
+        var type = block["type"]?.ToString() ?? "";
+        if (type is not ("paragraph" or "bullet_list" or "numbered_list" or "table" or "image"))
+            return;
+
+        var item = (JsonObject)block.DeepClone();
+        item["moduleId"] = ResearchObject.NewModuleId();
+        if (type is "bullet_list" or "numbered_list")
+            item["items"] = ResearchObject.FlattenItems(block["items"]);
+        if (type == "table")
+        {
+            item["headers"] = ResearchObject.FlattenItems(block["headers"]);
+            var flatRows = new JsonArray();
+            if (block["rows"] is JsonArray rows)
+                foreach (var r in rows) flatRows.Add(ResearchObject.FlattenItems(r));
+            item["rows"] = flatRows;
+            // The parser fills the schema's tables array with empty
+            // placeholders ({headers:[],rows:[]}) — that's noise, not content.
+            if (item["headers"] is JsonArray h && h.Count == 0 && flatRows.Count == 0)
+                return;
+        }
+        research.AppendContent(topic, item, sourceIndex);
+    }
+
+    /// <summary>One LLM call per page: each section maps to the best existing
+    /// topic (or a new one) plus an optional subtopic + tab label.</summary>
+    private async Task<List<TopicAssignment>> AssignTopicsAsync(
         ResearchObject research,
-        string pageText,
+        JournalEntry entry,
+        ScrapedPage page,
+        ParsedPage parsed,
         OnRawRequest? onRawRequest,
         OnRawResponse? onRawResponse,
         CancellationToken cancellationToken = default)
     {
-        var system = Prompts.FactExtractionSystem();
-        var user = Prompts.FactExtractionUser(entry.Title, research.FormatMarkdown(includeFacts: false), pageText);
+        ChatDetailLog.Fn("add-edit-journal-entry", "AssignTopicsAsync");
+        var assignments = parsed.Sections.Select((s, i) => new TopicAssignment
+        {
+            // Fallback: the page's own heading becomes a subtopic of the
+            // entry-title topic; unheaded pages land on the page title.
+            Topic = entry.Title,
+            Subtopic = !string.IsNullOrWhiteSpace(s.Heading) &&
+                       ResearchObject.Normalize(s.Heading) != ResearchObject.Normalize(entry.Title)
+                ? s.Heading : null,
+            Tab = null
+        }).ToList();
 
-        var result = await LLMJson.ParseWithRetryAsync<ExtractionResponse>(
+        if (parsed.Sections.Count == 0) return assignments;
+
+        var existing = research.AllTopics().Select(t => t.Topic).Distinct().ToList();
+        var sectionLines = parsed.Sections.Select((s, i) =>
+        {
+            var preview = s.Blocks.FirstOrDefault()?["text"]?.ToString()
+                ?? (s.Blocks.FirstOrDefault()?["items"] as JsonArray)?.FirstOrDefault()?.ToString()
+                ?? "";
+            if (preview.Length > 150) preview = preview.Substring(0, 150) + "…";
+            return $"[{i}] {(string.IsNullOrWhiteSpace(s.Heading) ? "(no heading)" : s.Heading)} — {preview}";
+        });
+
+        var system = @"You map a scraped web page's sections onto a journal entry's topic tree so the page's content can be filed in the right place.
+Pick the best existing topic for each section. Only name a NEW topic when no existing topic fits. When a section is clearly subordinate to a topic (an event inside a history, a thinker inside a school of thought), set ""subtopic"" instead and give a ≤3-word ""tab"" label. Most pages belong under ONE topic — only split when sections genuinely differ in subject.
+If a section is NOT real article content — site navigation, category/portal lists, related-article links, ads, footers, comment forms — set ""topic"" to ""skip"" and that section will be discarded.
+Respond with ONLY valid JSON in this exact format:
+{""sections"":[{""section"":0,""topic"":""..."",""subtopic"":null,""tab"":null}]}";
+        var user = $"ENTRY TITLE: {entry.Title}\n\n" +
+            "EXISTING TOPICS:\n" +
+            (existing.Count > 0 ? string.Join("\n", existing.Select(t => "- " + t)) : "(none)") +
+            $"\n\nPAGE TITLE: {page.Title}\n{page.Url}\n\nSECTIONS:\n" +
+            string.Join("\n", sectionLines) +
+            "\n\nOutput the JSON now.";
+
+        var result = await LLMJson.ParseWithRetryAsync<TopicAssignResponse>(
             prompt => _llm.LocalAsync(system, prompt, json: true, cancellationToken,
-                onRequest: onRawRequest != null ? (t, p) => onRawRequest("fact-extract", p) : null,
-                onResponse: onRawResponse != null ? (t, r) => onRawResponse("fact-extract", r) : null,
-                debugType: "fact-extract"),
+                onRequest: onRawRequest != null ? (t, p) => onRawRequest("topic-assign", p) : null,
+                onResponse: onRawResponse != null ? (t, r) => onRawResponse("topic-assign", r) : null,
+                debugType: "topic-assign"),
             user,
-            r => r == null ? "response was empty" : (r.Items == null ? "missing \"items\" array" : null),
+            r => r?.Sections == null ? "missing \"sections\" array" : null,
             maxAttempts: 2);
-        return result?.Items;
+
+        if (result?.Sections != null)
+            foreach (var s in result.Sections)
+            {
+                if (s == null || s.Section < 0 || s.Section >= assignments.Count) continue;
+                if (!string.IsNullOrWhiteSpace(s.Topic))
+                {
+                    assignments[s.Section].Topic = s.Topic;
+                    assignments[s.Section].Subtopic = s.Subtopic;
+                    assignments[s.Section].Tab = s.Tab;
+                }
+            }
+        return assignments;
     }
+
+    private class TopicAssignment
+    {
+        public string? Topic;
+        public string? Subtopic;
+        public string? Tab;
+    }
+
+    private class TopicAssignResponse
+    {
+        [JsonPropertyName("sections")] public List<TopicAssignItem>? Sections { get; set; }
+    }
+
+    private class TopicAssignItem
+    {
+        [JsonPropertyName("section")] public int Section { get; set; }
+        [JsonPropertyName("topic")] public string? Topic { get; set; }
+        [JsonPropertyName("subtopic")] public string? Subtopic { get; set; }
+        [JsonPropertyName("tab")] public string? Tab { get; set; }
+    }
+
+    /// <summary>The index into research.search of the engine query whose
+    /// results produced this URL — null for user-supplied/direct URLs.</summary>
+    private static int? SourceSearchIndex(List<Dictionary<string, List<string>>> data, string url)
+    {
+        ChatDetailLog.Fn("add-edit-journal-entry", "SourceSearchIndex");
+        foreach (var pair in ResearchReviewTool.GetList(data, "source-search", "pairs"))
+        {
+            var sep = pair.IndexOf('|');
+            if (sep > 0 &&
+                pair.Substring(sep + 1).Equals(url, StringComparison.OrdinalIgnoreCase) &&
+                int.TryParse(pair.Substring(0, sep), out var idx))
+                return idx;
+        }
+        return null;
+    }
+
+    /// <summary>Flatten the topic tree to (path, depth) pairs for merge-diff logging.</summary>
+    private static List<(string Path, int Depth)> TopicPaths(ResearchObject research)
+    {
+        var paths = new List<(string, int)>();
+        void Walk(IEnumerable<ResearchTopic> topics, string prefix, int depth)
+        {
+            foreach (var t in topics)
+            {
+                var path = string.IsNullOrEmpty(prefix) ? t.Topic : prefix + "/" + t.Topic;
+                paths.Add((path, depth));
+                Walk(t.SubTopics(), path, depth + 1);
+            }
+        }
+        Walk(research.Topics, "", 0);
+        return paths;
+    }
+
+    /// <summary>
+    /// Relevance gate — decides whether a scraped page is on-topic for this
+    /// entry BEFORE it is registered as a source or merged into the research
+    /// object. Subject vocabulary comes from the entry title, the tracked
+    /// research questions, and existing topic names; the page must share at
+    /// least one distinctive term. ≥2 hits accept outright, a single hit asks
+    /// the local LLM for a second opinion, zero hits reject.
+    /// </summary>
+    private async Task<bool> IsPageRelevantAsync(
+        JournalEntry entry,
+        JournalEntryDocument doc,
+
+        List<Dictionary<string, List<string>>> data,
+        ScrapedPage page,
+        string pageText,
+        OnProgress onProgress,
+        OnRawRequest? onRawRequest,
+        OnRawResponse? onRawResponse,
+        CancellationToken cancellationToken)
+    {
+        ChatDetailLog.Fn("add-edit-journal-entry", "IsPageRelevantAsync");
+        // Bot-walls and challenge pages can never produce research — skip
+        // before term analysis so their boilerplate can't fake relevance.
+        if (IsChallengePage(page.Title, pageText))
+        {
+            onProgress(60, $"Skipped off-topic page: {page.Title}");
+            return false;
+        }
+
+        var terms = CollectSubjectTerms(entry?.Title ?? "", data, doc.Research);
+        if (terms.Count == 0) return true; // no vocabulary to compare — accept
+
+        var haystack = $"{page.Title}\n{pageText ?? ""}";
+        if (haystack.Length > 5000) haystack = haystack.Substring(0, 5000);
+        var hits = terms.Count(t => Regex.IsMatch(haystack, @"\b" + Regex.Escape(t), RegexOptions.IgnoreCase));
+
+        // Proper-noun anchor — the subject's name(s) ("Peloponnesian",
+        // "Athens", "Sparta") are far more distinctive than generic terms like
+        // "war" or "military". A page about the subject almost always names it.
+        var properNouns = CollectProperNouns(entry?.Title ?? "", data);
+        var nounHits = properNouns.Count(t => Regex.IsMatch(haystack, @"\b" + Regex.Escape(t), RegexOptions.IgnoreCase));
+
+        if (properNouns.Count > 0)
+        {
+            if (nounHits >= 1) return true;
+            // Named subject absent — generic vocabulary alone can't fast-pass;
+            // only an LLM verdict can save the page.
+        }
+        else if (hits >= 2) return true;
+
+        // Ambiguous — let the local model judge topical fit.
+        try
+        {
+            var system = @"You are a relevance filter for a research pipeline. Decide whether a web page is ON-TOPIC for a journal entry.
+Return ONLY valid JSON: {""relevant"":true} or {""relevant"":false}.
+A page is relevant only if its content can answer questions about the entry's subject.
+Dictionary definitions, storefronts, forums, and pages about a different subject that happens to share a word are NOT relevant.";
+            var user = $"JOURNAL ENTRY SUBJECT: {entry?.Title}\n\n" +
+                       $"RESEARCH QUESTIONS:\n{string.Join("\n", ResearchReviewTool.GetList(data, "research-questions", "questions").Take(6))}\n\n" +
+                       $"PAGE TITLE: {page.Title}\nPAGE URL: {page.Url}\nPAGE EXCERPT:\n{(pageText?.Length > 1500 ? pageText.Substring(0, 1500) : pageText)}";
+            var raw = await _llm.LocalAsync(system, user, json: true, cancellationToken,
+                onRequest: onRawRequest != null ? (t, p) => onRawRequest("relevance-check", p) : null,
+                onResponse: onRawResponse != null ? (t, r) => onRawResponse("relevance-check", r) : null);
+            if (LLMJson.TryParse<RelevanceResponse>(raw, out var r) && r != null)
+            {
+                if (!r.Relevant)
+                    onProgress(60, $"Skipped off-topic page: {page.Title}");
+                return r.Relevant;
+            }
+        }
+        catch (OperationCanceledException) { throw; }
+        catch { }
+
+        // No verdict — when proper nouns exist but the page names none, the
+        // page is off-topic; otherwise a single generic hit still passes.
+        return properNouns.Count == 0 && hits > 0;
+    }
+
+    /// <summary>
+    /// Capitalized words (≥4 chars, excluding each text's first word which is
+    /// capitalized anyway) — proper nouns that name the subject rather than
+    /// describe it. "Peloponnesian", "Athens", "Sparta", "Thucydides".
+    /// </summary>
+    private List<string> CollectProperNouns(string entryTitle, List<Dictionary<string, List<string>>> data)
+    {
+        // Title + questions only — topic names are title-cased, so every word
+        // would look like a proper noun.
+        var corpus = new List<string> { entryTitle };
+        corpus.AddRange(ResearchReviewTool.GetList(data, "research-questions", "questions"));
+
+        var terms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var text in corpus)
+        {
+            if (string.IsNullOrWhiteSpace(text)) continue;
+            var words = Regex.Matches(text, @"[\p{L}\p{N}]+");
+            for (int i = 1; i < words.Count; i++)
+            {
+                var w = words[i].Value;
+                if (w.Length < 4 || !char.IsUpper(w[0]) || RelevanceStopwords.Contains(w)) continue;
+                terms.Add(w.Length > 6 ? w.Substring(0, 6) : w);
+            }
+        }
+        return terms.ToList();
+    }
+
+    private class RelevanceResponse
+    {
+        [JsonPropertyName("relevant")] public bool Relevant { get; set; }
+    }
+
+    /// <summary>
+    /// Distinctive subject vocabulary: significant words (≥4 chars, non-stopword,
+    /// trimmed to a 6-char stem so "stoicism" also matches "stoic") drawn from
+    /// the entry title, tracked research questions, and existing topic names.
+    /// </summary>
+    private List<string> CollectSubjectTerms(string entryTitle, List<Dictionary<string, List<string>>> data, ResearchObject? research)
+    {
+        var corpus = new List<string> { entryTitle };
+        corpus.AddRange(ResearchReviewTool.GetList(data, "research-questions", "questions"));
+        if (research != null)
+            corpus.AddRange(research.AllTopics().Select(t => t.Topic));
+
+        var terms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var text in corpus)
+        {
+            if (string.IsNullOrWhiteSpace(text)) continue;
+            foreach (var w in Regex.Split(text, @"[^\p{L}\p{N}]+"))
+            {
+                if (w.Length < 4 || RelevanceStopwords.Contains(w)) continue;
+                terms.Add(w.Length > 6 ? w.Substring(0, 6) : w);
+            }
+        }
+        return terms.ToList();
+    }
+
+    private static readonly HashSet<string> RelevanceStopwords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "about", "research", "information", "history", "exploring", "philosophy",
+        "question", "questions", "major", "primary", "modern", "world", "people",
+        "their", "there", "where", "which", "would", "could", "should", "between",
+        "through", "during", "before", "after", "while", "other", "these", "those",
+        "today", "daily", "life", "works", "texts", "associated", "related",
+        "impact", "influence", "legacy", "overview", "complete", "guide", "into",
+        "from", "with", "this", "that", "have", "what", "when", "were", "been"
+    };
 
     /// <summary>Fact-list extraction for backfill — plain facts from a module's
     /// existing text, no categorization needed.</summary>
     private async Task<List<string>> ExtractFactListAsync(string text)
     {
+        ChatDetailLog.Fn("add-edit-journal-entry", "ExtractFactListAsync");
         try
         {
             var system = @"You extract atomic facts from text. Return ONLY valid JSON in this exact format:
@@ -452,12 +1182,49 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
         return new List<string>();
     }
 
+    /// <summary>Readable text flattened out of a parser dump — summary,
+    /// section headings, block text and list items. Used for the relevance
+    /// gate and detail logs; the dump is the page's only content source.</summary>
+    private static string ParsedJsonToText(string? parsedJson)
+    {
+        if (string.IsNullOrWhiteSpace(parsedJson)) return "";
+        try
+        {
+            if (ParseModelJson(parsedJson) is not { } root) return "";
+            var sb = new StringBuilder();
+            var summary = root["summary"]?.ToString();
+            if (!string.IsNullOrWhiteSpace(summary)) sb.AppendLine(summary);
+            if (root["sections"] is JsonArray sections)
+                foreach (var s in sections)
+                {
+                    if (s is not JsonObject so) continue;
+                    var heading = so["heading"]?.ToString();
+                    if (!string.IsNullOrWhiteSpace(heading)) sb.AppendLine("## " + heading);
+                    if (so["blocks"] is JsonArray blocks)
+                        foreach (var b in blocks)
+                        {
+                            if (b is not JsonObject bo) continue;
+                            var text = bo["text"]?.ToString();
+                            if (!string.IsNullOrWhiteSpace(text)) sb.AppendLine(text);
+                            if (bo["items"] is JsonArray items)
+                                foreach (var i in items)
+                                {
+                                    var it = i is JsonObject io ? io["text"]?.ToString() : i?.ToString();
+                                    if (!string.IsNullOrWhiteSpace(it)) sb.AppendLine("- " + it);
+                                }
+                        }
+                }
+            return sb.ToString();
+        }
+        catch { return ""; }
+    }
+
     private static string BuildPageText(ScrapedPage page, int budget)
     {
+        ChatDetailLog.Fn("add-edit-journal-entry", "BuildPageText");
+        var parsed = ParsedJsonToText(page.ParsedJson);
         var content = $"Title: {page.Title}\n\n" +
-                      string.Join("\n", page.Headers.Select(h => $"## {h}")) +
-                      (page.Headers.Count > 0 ? "\n" : "") +
-                      string.Join("\n\n", page.ContentSections);
+            (string.IsNullOrWhiteSpace(parsed) ? string.Join("\n\n", page.ContentSections) : parsed);
         if (content.Length > budget) content = content.Substring(0, budget) + "\n…(truncated)";
         return content;
     }
@@ -471,8 +1238,11 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
     /// </summary>
     private void AppendPageMedia(JournalEntryDocument doc, ScrapedPage page, List<ResearchTopic>? dirty = null)
     {
+        ChatDetailLog.Fn("add-edit-journal-entry", "AppendPageMedia");
         var existingUrls = doc.EnumerateModules()
-            .SelectMany(m => new[] { m["url"]?.ToString(), m["image"]?.ToString() })
+            .SelectMany(m => new[] { m["url"]?.ToString(), m["image"]?.ToString() }
+                .Concat((m["images"] as JsonArray ?? new JsonArray())
+                    .Select(i => i is JsonObject io ? io["url"]?.ToString() : i?.ToString())))
             .Where(u => !string.IsNullOrWhiteSpace(u))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -520,15 +1290,8 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
             placed++;
         }
 
-        foreach (var img in page.Images.Take(3))
-        {
-            if (existingUrls.Contains(img)) continue;
-            Place(new JsonObject
-            {
-                ["type"] = "image", ["id"] = JournalEntryDocument.NewModuleId(),
-                ["manuallyAdded"] = false, ["url"] = img, ["caption"] = ""
-            });
-        }
+        // Images are placed by the research content pipeline (galleries per
+        // topic) — this pass handles only videos and downloadable files.
         var videoUrls = (sourceVideo != null ? new[] { sourceVideo } : Enumerable.Empty<string>())
             .Concat(page.Videos)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -642,6 +1405,7 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
             }
         };
         var errors = doc.ApplyOps(ops);
+        _writer.PinSourcesLast(doc);
         _appliedOps.Add($"add:{module["type"]}");
         return errors.Count == 0;
     }
@@ -695,6 +1459,37 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
                 var module = doc.FindModule(id);
                 if (module != null)
                 {
+                    // (2a) "delete the Legacy section" — when the op targets a
+                    //      whole tabs module but the instruction names only
+                    //      some of its tabs, retarget to per-tab removes so
+                    //      the siblings survive. A tab counts as named when
+                    //      every title word appears in the instruction.
+                    if ((module["type"]?.ToString() ?? "") == "tabs" &&
+                        module["tabs"] is JsonArray modTabs)
+                    {
+                        var namedTabs = modTabs.OfType<JsonObject>()
+                            .Where(t =>
+                            {
+                                var words = Regex.Matches(
+                                    (t["title"]?.ToString() ?? "").ToLowerInvariant(), @"[a-z0-9]{4,}")
+                                    .Select(m => m.Value).ToList();
+                                return words.Count > 0 && words.All(w => instructionWords.Contains(w));
+                            })
+                            .ToList();
+                        if (namedTabs.Count > 0 && namedTabs.Count < modTabs.Count)
+                        {
+                            drop.Add(node);
+                            foreach (var t in namedTabs)
+                            {
+                                var tid = t["id"]?.ToString();
+                                if (string.IsNullOrEmpty(tid)) continue;
+                                arr.Add(new JsonObject { ["op"] = "remove", ["id"] = tid });
+                                _appliedOps.Add($"retargeted:tab-remove:{tid}");
+                            }
+                            continue;
+                        }
+                    }
+
                     var bound = doc.Research?.FindTopicByModuleId(id)?.Topic ?? "";
                     var haystack = bound + " " +
                         (module["text"]?.ToString() ?? "") + " " +
@@ -751,6 +1546,37 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
         var instruction = string.Join("\n\n", page.ContentSections);
         if (string.IsNullOrWhiteSpace(instruction)) return false;
 
+        // "remove all research that came from example.com" — deterministic:
+        // strip every content item tagged to the named source, drop the
+        // rendered modules, and skip the ops round-trip entirely.
+        if (TryRemoveResearchBySource(doc, instruction))
+        {
+            doc.Save(entryId);
+            return true;
+        }
+
+        // "move all the images into an image gallery at the top" —
+        // deterministic: merge every image across topics into the first
+        // topic's gallery, drop the scattered modules, re-render, and pin
+        // the gallery to root[0]. The ops model can't reliably orchestrate
+        // this global restructure.
+        if (TryConsolidateImagesToTop(doc, instruction, out var dirty, out var galleryModuleId))
+        {
+            await _writer.WriteDirtyTopicsAsync(doc, doc.Research!, dirty,
+                m => onProgress?.Invoke(80, m), cancellationToken);
+            if (galleryModuleId != null && doc.FindModule(galleryModuleId) != null)
+                doc.ApplyOps(new JsonObject
+                {
+                    ["ops"] = new JsonArray(new JsonObject
+                    {
+                        ["op"] = "move", ["id"] = galleryModuleId,
+                        ["parent"] = "root", ["index"] = 0
+                    })
+                });
+            doc.Save(entryId);
+            return true;
+        }
+
         // "bring back the timeline section" — naming an archived topic (in a
         // non-removal context) reactivates it. The writer recreates its
         // module/tab BEFORE the ops call so the semantic map already shows
@@ -779,9 +1605,10 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
 
         // Strip hallucinated media before applying — the model invents
         // image URLs (example.com/…) when it has no real file to reference.
-        SanitizeOps(ops, page, entryId);
+        SanitizeOps(ops, page, entryId, doc.JournalId);
         GuardConversationalOps(ops, doc, instruction);
         var errors = doc.ApplyOps(ops);
+        _writer.PinSourcesLast(doc);
         var arr = ops["ops"] as JsonArray;
         if (arr != null)
         {
@@ -802,6 +1629,137 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
 
     private static readonly HashSet<string> RemovalWords = new(StringComparer.OrdinalIgnoreCase)
         { "remove", "delete", "archive", "drop", "hide", "rid", "cut", "erase", "eliminate" };
+
+    /// <summary>
+    /// "remove all research that came from example.com" — matches registered
+    /// sources by URL or domain in a removal instruction and strips every
+    /// content item tagged to them via RemoveContentBySource (the same path
+    /// re-scrapes use for replace semantics). Rendered modules are removed
+    /// through the normal remove op so archive semantics stay consistent.
+    /// The source registration itself is kept — the URL remains in the
+    /// Sources list as provenance of what was consulted.
+    /// </summary>
+    private bool TryRemoveResearchBySource(JournalEntryDocument doc, string instruction)
+    {
+        var research = doc.Research;
+        if (research == null || research.Sources.Count == 0) return false;
+        var norm = instruction.ToLowerInvariant();
+        var words = norm.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (!words.Any(RemovalWords.Contains)) return false;
+
+        var indices = new List<int>();
+        for (int i = 0; i < research.Sources.Count; i++)
+        {
+            var url = research.Sources[i].Url ?? "";
+            if (url.Length > 0 && norm.Contains(url.ToLowerInvariant()))
+            {
+                indices.Add(i);
+                continue;
+            }
+            try
+            {
+                var host = new Uri(url).Host.ToLowerInvariant();
+                if (host.StartsWith("www.")) host = host[4..];
+                if (host.Length >= 4 && norm.Contains(host)) indices.Add(i);
+            }
+            catch { }
+        }
+        if (indices.Count == 0) return false;
+
+        var totalRemoved = 0;
+        foreach (var idx in indices.Distinct())
+        {
+            var moduleIds = research.RemoveContentBySource(idx);
+            totalRemoved += moduleIds.Count;
+            if (moduleIds.Count == 0) continue;
+            var ops = new JsonObject
+            {
+                ["ops"] = new JsonArray(moduleIds
+                    .Select(m => (JsonNode)new JsonObject { ["op"] = "remove", ["id"] = m })
+                    .ToArray())
+            };
+            doc.ApplyOps(ops);
+        }
+        _appliedOps.Add($"removed {totalRemoved} research item(s) by source");
+        ChatDetailLog.Line($"remove-by-source: {indices.Count} source(s), {totalRemoved} content item(s)");
+        return true;
+    }
+
+    /// <summary>
+    /// "move all the images into an image gallery at the top" — collects
+    /// every image/image-gallery content item across all topics, merges
+    /// them into the first live topic's gallery (AppendGallery dedupes and
+    /// reuses the topic's existing gallery item), and returns the moduleIds
+    /// of the stripped items plus the merged gallery's moduleId so the
+    /// caller can drop the scattered modules and pin the gallery to the top.
+    /// </summary>
+    private bool TryConsolidateImagesToTop(
+        JournalEntryDocument doc, string instruction,
+        out List<ResearchTopic> dirty, out string? galleryModuleId)
+    {
+        dirty = new List<ResearchTopic>();
+        galleryModuleId = null;
+        var research = doc.Research;
+        if (research == null) return false;
+        var norm = instruction.ToLowerInvariant();
+        var words = Regex.Matches(norm, @"[a-z0-9]{3,}").Select(m => m.Value).ToHashSet();
+        var mentionsImages = words.Overlaps(new[] { "image", "images", "picture", "pictures", "photo", "photos" });
+        var wantsTop = norm.Contains("top");
+        var all = words.Contains("all");
+        if (!(mentionsImages && wantsTop && all)) return false;
+
+        var images = new List<(string Url, string? Alt, string? Caption)>();
+        var removedModuleIds = new List<string>();
+        foreach (var t in research.AllTopics())
+        {
+            var content = t.Content;
+            for (int i = content.Count - 1; i >= 0; i--)
+            {
+                if (content[i] is not JsonObject item) continue;
+                var type = item["type"]?.ToString() ?? "";
+                if (type == "image" && !string.IsNullOrWhiteSpace(item["url"]?.ToString()))
+                {
+                    images.Add((item["url"]!.ToString(),
+                        item["alt_text"]?.ToString() ?? item["alt"]?.ToString(),
+                        item["caption"]?.ToString()));
+                }
+                else if (type == "image-gallery" && item["items"] is JsonArray imgs)
+                {
+                    foreach (var im in imgs)
+                        if (im is JsonObject io && !string.IsNullOrWhiteSpace(io["url"]?.ToString()))
+                            images.Add((io["url"]!.ToString(),
+                                io["alt_text"]?.ToString(), io["caption"]?.ToString()));
+                }
+                else continue;
+                if (item["moduleId"]?.ToString() is { Length: > 0 } mid)
+                    removedModuleIds.Add(mid);
+                content.RemoveAt(i);
+                if (!dirty.Any(d => ReferenceEquals(d.Node, t.Node))) dirty.Add(t);
+            }
+        }
+        if (images.Count == 0) return false;
+
+        var target = research.Topics.FirstOrDefault(t => !t.Archived)
+            ?? research.Topics.FirstOrDefault();
+        if (target == null) return false;
+        research.AppendGallery(target, images, null);
+        if (!dirty.Any(d => ReferenceEquals(d.Node, target.Node))) dirty.Add(target);
+
+        if (removedModuleIds.Count > 0)
+            doc.ApplyOps(new JsonObject
+            {
+                ["ops"] = new JsonArray(removedModuleIds
+                    .Select(m => (JsonNode)new JsonObject { ["op"] = "remove", ["id"] = m })
+                    .ToArray())
+            });
+
+        galleryModuleId = target.Content.OfType<JsonObject>()
+            .FirstOrDefault(c => c["type"]?.ToString() == "image-gallery")
+            ?["moduleId"]?.ToString();
+        _appliedOps.Add($"consolidated {images.Count} image(s) into top gallery");
+        ChatDetailLog.Line($"image-consolidate: {images.Count} image(s), {removedModuleIds.Count} module(s) removed");
+        return true;
+    }
 
     /// <summary>
     /// Conversational un-archive — when the instruction names an archived
@@ -854,13 +1812,6 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
         return before.Skip(Math.Max(0, before.Length - 4)).Any(RemovalWords.Contains);
     }
 
-    /// <summary>LLM response models for the research pipeline.</summary>
-    private class ExtractionResponse
-    {
-        [JsonPropertyName("items")]
-        public List<ExtractedTopic>? Items { get; set; }
-    }
-
     private class PlacementResponse
     {
         [JsonPropertyName("parent")] public string? Parent { get; set; }
@@ -876,6 +1827,37 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
     /// Pages this step should integrate: a single page when args carries a url,
     /// otherwise every unprocessed scraped page in the shared data list.
     /// </summary>
+    /// <summary>True when the plan already contains a web-scrape step for
+    /// this URL — either already executed (the scrape failed and re-queueing
+    /// would loop) or still pending (duplicate would double-scrape).</summary>
+    private static bool ScrapeAlreadyPlanned(Models.ExecutionPlan plan, string url, int currentStepIndex)
+    {
+        for (int i = 0; i < plan.Steps.Count; i++)
+        {
+            if (i == currentStepIndex) continue;
+            var step = plan.Steps[i];
+            if (step?.Tool != "web-scrape" || step.Args == null) continue;
+            if (step.Args.TryGetValue("url", out var u)
+                && u?.ToString()?.Equals(url, StringComparison.OrdinalIgnoreCase) == true)
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>True when a scraped-page item for this URL already exists in
+    /// shared data marked applied — the page integrated earlier this run.</summary>
+    private static bool PageAlreadyIntegrated(List<Dictionary<string, List<string>>> data, string url)
+    {
+        var scrapeTypes = new HashSet<string> { "web-scrape", "content", "file-download" };
+        foreach (var item in data)
+        {
+            if (!item.TryGetValue("type", out var tl) || !tl.Any(t => scrapeTypes.Contains(t))) continue;
+            if (!(item.TryGetValue("url", out var u) && u.FirstOrDefault()?.Equals(url, StringComparison.OrdinalIgnoreCase) == true)) continue;
+            if (item.TryGetValue("applied", out var a) && a.Contains("true")) return true;
+        }
+        return false;
+    }
+
     private List<ScrapedPage> GetPagesToProcess(List<Dictionary<string, List<string>>> data, string filterUrl)
     {
         var pages = new List<ScrapedPage>();
@@ -890,6 +1872,7 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
             if (!string.IsNullOrEmpty(filterUrl) && !url.Equals(filterUrl, StringComparison.OrdinalIgnoreCase)) continue;
 
             var page = ScrapedPage.FromDataItem(item, url);
+            page.IsFile = type == "file-download";
             pages.Add(page);
             item["applied"] = new List<string> { "true" };
         }
@@ -957,10 +1940,18 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
             var id = _snapshotsRepository.Add(snapshot);
             if (id > 0)
             {
-                var content = Files.GetFile(Files.Paths.Journal, $"{entry.Id:N}.json");
+                // New layout first, fall back to the legacy root file.
+                string? content = null;
+                try { content = Files.GetFile(Files.Paths.Journal, JournalEntryDocument.EntryPath(entry.JournalId, entry.Id)); }
+                catch { content = null; }
+                if (string.IsNullOrEmpty(content))
+                {
+                    try { content = Files.GetFile(Files.Paths.Journal, $"{entry.Id:N}.json"); }
+                    catch { content = null; }
+                }
                 if (!string.IsNullOrEmpty(content))
                 {
-                    Files.SaveFile(Files.Paths.Journal, $"{entry.Id:N}_{id}.json", content);
+                    Files.SaveFile(Files.Paths.Journal, JournalEntryDocument.SnapshotPath(entry.JournalId, entry.Id, id), content);
                 }
             }
         }
@@ -968,11 +1959,30 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
     }
 
     /// <summary>
-    /// Maintain a "Sources" text-editor module at the end of the entry listing
-    /// every scraped page (provenance). Identified by a data attribute so the
-    /// LLM's edit ops won't duplicate it.
+    /// Bot-wall / challenge detection — Cloudflare "Just a moment", JSTOR
+    /// "Client Challenge" etc. produce scrapes whose boilerplate can fool
+    /// term-overlap relevance. Near-empty bodies are walls too.
     /// </summary>
-    private void UpsertSourcesModule(JournalEntryDocument doc, List<Dictionary<string, List<string>>> data)
+    private static bool IsChallengePage(string? title, string? pageText)
+    {
+        var t = (title ?? "").Trim().ToLowerInvariant();
+        string[] challengeTitles =
+        {
+            "just a moment", "client challenge", "attention required",
+            "access denied", "verify you are", "checking your browser",
+            "verify your identity", "are you a robot", "ddos-guard",
+            "one more step", "security check", "temporarily blocked"
+        };
+        if (challengeTitles.Any(t.Contains)) return true;
+        return string.IsNullOrWhiteSpace(pageText) || pageText.Trim().Length < 200;
+    }
+
+    /// <summary>
+    /// Collect (title, url) pairs for every scraped/file page in shared data —
+    /// fed to EnsureSourcesModule so pages that never reached research
+    /// registration still appear in the Sources list.
+    /// </summary>
+    private static List<(string Title, string Url)> CollectScrapeSources(List<Dictionary<string, List<string>>> data)
     {
         var sources = new List<(string Title, string Url)>();
         foreach (var item in data)
@@ -982,44 +1992,16 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
             if (type != "web-scrape" && type != "content" && type != "file-download") continue;
             var url = item.TryGetValue("url", out var u) ? u.FirstOrDefault() ?? "" : "";
             if (string.IsNullOrWhiteSpace(url)) continue;
+            // Direct image/media asset URLs aren't research sources — a jpg
+            // in the bullet list is provenance noise.
+            var clean = url.Split('?', '#')[0];
+            if (Regex.IsMatch(clean, @"\.(jpe?g|png|gif|webp|svg|bmp|ico|mp[34]|webm|mov|css|js|woff2?)$",
+                RegexOptions.IgnoreCase)) continue;
             var title = item.TryGetValue("title", out var t) ? t.FirstOrDefault() ?? url : url;
             if (sources.All(s => !s.Url.Equals(url, StringComparison.OrdinalIgnoreCase)))
                 sources.Add((title, url));
         }
-        if (sources.Count == 0) return;
-
-        var html = "<div data-research-sources=\"true\"><h2>Sources</h2><ul>" +
-            string.Join("", sources.Select(s =>
-                $"<li><a href=\"{System.Net.WebUtility.HtmlEncode(s.Url)}\">{System.Net.WebUtility.HtmlEncode(s.Title)}</a></li>")) +
-            "</ul></div>";
-
-        // find existing sources module on root
-        JsonObject? existing = null;
-        foreach (var node in doc.Modules)
-        {
-            if (node is JsonObject mod &&
-                mod["type"]?.ToString() == "text-editor" &&
-                (mod["html"]?.ToString() ?? "").Contains("data-research-sources"))
-            {
-                existing = mod;
-                break;
-            }
-        }
-
-        if (existing != null)
-        {
-            existing["html"] = html;
-        }
-        else
-        {
-            doc.Modules.Add(new JsonObject
-            {
-                ["type"] = "text-editor",
-                ["id"] = JournalEntryDocument.NewModuleId(),
-                ["manuallyAdded"] = false,
-                ["html"] = html
-            });
-        }
+        return sources;
     }
 
     /// <summary>Matches "photo/image/picture/portrait of {subject}" in an edit instruction.</summary>
@@ -1037,11 +2019,11 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
     /// shared Charlotte pipeline, pick the best image, download it into the
     /// entry's image folder (with a thumb_), and return it for the edit prompt.
     /// </summary>
-    private async Task<List<(string File, string Caption)>> AcquireRequestedImagesAsync(
+    private async Task<List<(string File, string Caption, string Url, string SourcePage)>> AcquireRequestedImagesAsync(
         ScrapedPage page, JournalEntry entry, OnProgress onProgress, SendMessage? sendMessage,
         CancellationToken cancellationToken = default)
     {
-        var assets = new List<(string File, string Caption)>();
+        var assets = new List<(string File, string Caption, string Url, string SourcePage)>();
         var instruction = string.Join(" ", page.ContentSections.Take(1));
         if (!ImageRequestRegex.IsMatch(instruction))
             return assets;
@@ -1068,11 +2050,12 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
         }
 
         onProgress(70, "Downloading image…");
-        var file = await DownloadAndStoreImageAsync(found.Value.ImageUrl, entry.Id, subject,
+        var file = await DownloadAndStoreImageAsync(found.Value.ImageUrl, entry, subject,
             msg => onProgress(65, msg));
         if (file != null)
         {
-            assets.Add((file, $"Photo of {subject} (source: {found.Value.SourcePage})"));
+            assets.Add((file, $"Photo of {subject} (source: {found.Value.SourcePage})",
+                found.Value.ImageUrl, found.Value.SourcePage ?? ""));
             sendMessage?.Invoke($"Downloaded an image of \"{subject}\" into the journal entry.", null, null);
         }
         else
@@ -1107,10 +2090,11 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
     }
 
     /// <summary>
-    /// Download image bytes and store them under journal-entries/{entryId}/,
-    /// generating the thumb_ derivative the gallery expects.
+    /// Download image bytes and store them under
+    /// journals/{journalId}/{entryId}/images/, generating the thumb_
+    /// derivative the gallery expects.
     /// </summary>
-    private async Task<string?> DownloadAndStoreImageAsync(string imageUrl, Guid entryId, string subject,
+    private async Task<string?> DownloadAndStoreImageAsync(string imageUrl, JournalEntry entry, string subject,
         Action<string>? onDebug = null)
     {
         try
@@ -1135,7 +2119,7 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
             if (string.IsNullOrEmpty(slug)) slug = "image";
             var fileName = slug + ext;
 
-            Files.SaveFileBytes(Files.Paths.Images, $"journal-entries/{entryId}/{fileName}", bytes);
+            Files.SaveFileBytes(Files.Paths.Journal, JournalPaths.ImagePath(entry.JournalId, entry.Id, fileName), bytes);
 
             // The gallery renders local files via thumb_{file} — generate it
             // so downloaded images work in image-gallery modules too.
@@ -1143,7 +2127,7 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
             {
                 var thumb = Images.CreateThumbnail(bytes, 640, 80);
                 if (thumb != null && thumb.Length > 0)
-                    Files.SaveFileBytes(Files.Paths.Images, $"journal-entries/{entryId}/thumb_{fileName}", thumb);
+                    Files.SaveFileBytes(Files.Paths.Journal, JournalPaths.ImagePath(entry.JournalId, entry.Id, $"thumb_{fileName}"), thumb);
             }
             catch { /* thumbnail is best-effort */ }
 
@@ -1161,10 +2145,10 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
     /// allowed unless they point at known placeholder domains; bare filenames
     /// must be files actually stored inside this entry.
     /// </summary>
-    private void SanitizeOps(JsonObject ops, ScrapedPage page, Guid entryId)
+    private void SanitizeOps(JsonObject ops, ScrapedPage page, Guid entryId, int journalId)
     {
         if (ops["ops"] is not JsonArray arr) return;
-        var entryDir = Path.Combine(Files.GetPath(Files.Paths.Images), "journal-entries", entryId.ToString());
+        var entryDir = Path.Combine(Files.GetPath(Files.Paths.Journal), journalId.ToString(), entryId.ToString("N"), "images");
         var toRemove = new List<JsonNode>();
 
         foreach (var node in arr.ToList())
@@ -1236,6 +2220,43 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
         return bad.Any(lower.Contains);
     }
 
+    /// <summary>
+    /// Persist a page's parser-model JSON under
+    /// journal-entries/{journalId}/{entryId}/research/{####}.json — the
+    /// four-digit filename increments from the highest existing dump.
+    /// Returns the filename (e.g. "0001.json"), or null on failure.
+    /// </summary>
+    private static string? SaveResearchDump(int journalId, Guid entryId, string json, string? rawHtmlStaging = null)
+    {
+        try
+        {
+            if (journalId <= 0) return null;
+            var folder = JournalEntryDocument.ResearchFolderPath(journalId, entryId);
+            var root = Files.GetPath(Files.Paths.Journal);
+            var dir = Path.Combine(root, folder);
+            Directory.CreateDirectory(dir);
+            var next = Directory.EnumerateFiles(dir, "*.json")
+                .Select(f => int.TryParse(Path.GetFileNameWithoutExtension(f), out var n) ? n : 0)
+                .DefaultIfEmpty(0).Max() + 1;
+            var name = $"{next:D4}.json";
+
+            // Pair the staged raw HTML as {####}.html so the parser output
+            // can be verified against its exact input.
+            if (!string.IsNullOrWhiteSpace(rawHtmlStaging))
+            {
+                var staged = Path.Combine(root, rawHtmlStaging.Replace('/', Path.DirectorySeparatorChar));
+                if (File.Exists(staged))
+                {
+                    try { File.Move(staged, Path.Combine(dir, $"{next:D4}.html")); }
+                    catch { /* keep the staging file; html is diagnostic */ }
+                }
+            }
+
+            return Files.SaveFile(Files.Paths.Journal, $"{folder}/{name}", json) ? name : null;
+        }
+        catch { return null; }
+    }
+
     private class SessionTarget
     {
         public Guid? EntryId { get; set; }
@@ -1267,7 +2288,14 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
         public List<string> Files = new();
         public bool Applied;
         public bool IsInstruction;
+        /// <summary>Downloadable file (PDF/image/zip), not a text page — skips the relevance gate.</summary>
+        public bool IsFile;
         public string PayloadText = "";
+        /// <summary>Structured JSON from the HTML parser model (LLM_HtmlParsers).</summary>
+        public string? ParsedJson;
+        /// <summary>Staging path (under journals/_staging/) for the raw HTML
+        /// the parser consumed — moved to research/{####}.html on dump save.</summary>
+        public string? RawHtmlFile;
         /// <summary>Filenames downloaded into this entry during instruction edits.</summary>
         public List<string> DownloadedFiles = new();
 
@@ -1280,6 +2308,8 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
             if (item.TryGetValue("images", out var i)) page.Images = i;
             if (item.TryGetValue("videos", out var v)) page.Videos = v;
             if (item.TryGetValue("files", out var f)) page.Files = f;
+            if (item.TryGetValue("parsed", out var pj)) page.ParsedJson = pj.FirstOrDefault();
+            if (item.TryGetValue("rawhtml", out var rh)) page.RawHtmlFile = rh.FirstOrDefault();
             return page;
         }
 
@@ -1306,10 +2336,9 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
             }
             sb.AppendLine($"Page url: {Url}");
 
+            var parsed = ParsedJsonToText(ParsedJson);
             var content = $"Title: {Title}\n\n" +
-                          string.Join("\n", Headers.Select(h => $"## {h}")) +
-                          (Headers.Count > 0 ? "\n" : "") +
-                          string.Join("\n\n", ContentSections);
+                (string.IsNullOrWhiteSpace(parsed) ? string.Join("\n\n", ContentSections) : parsed);
             if (content.Length > budget) content = content.Substring(0, budget) + "\n…(truncated)";
             if (!string.IsNullOrWhiteSpace(content)) sb.AppendLine("Page text:\n" + Prompts.WrapUntrusted(content));
 
@@ -1329,7 +2358,11 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
 
     private string GetPagesText(List<ScrapedPage> pages)
     {
-        return string.Join("\n\n", pages.SelectMany(p => p.Headers.Concat(p.ContentSections)));
+        return string.Join("\n\n", pages.Select(p =>
+        {
+            var text = ParsedJsonToText(p.ParsedJson);
+            return string.IsNullOrWhiteSpace(text) ? string.Join("\n\n", p.ContentSections) : text;
+        }));
     }
 
     /// <summary>
@@ -1367,6 +2400,33 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
         {
             onError($"Error searching for similar entries: {ex.Message}", ex);
             return null;
+        }
+    }
+
+    /// <summary>Embedding similarity finds candidate entries but can't
+    /// distinguish different events in the same domain. Confirm the two
+    /// titles are actually the same subject before merging research.</summary>
+    private async Task<bool> IsSameSubjectAsync(string newTitle, string existingTitle, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var system = @"You compare two journal entry titles and decide whether they are about the SAME subject.
+Answer ""yes"" ONLY if both entries are about the very same thing — the same event, the same person, the same empire/nation, the same concept. One being a clear subset of the other (""Suleiman the Magnificent"" inside ""The Ottoman Empire"") also counts.
+Closely related or historically overlapping subjects are NOT the same — the Byzantine Empire and the Ottoman Empire are different empires (""no""); WWI and WWII are different wars (""no""); the Scientific Revolution and the French Revolution are different events (""no"").
+When uncertain, answer ""no"" — keeping two entries is better than merging the wrong one.
+Respond with ONLY ""yes"" or ""no"".";
+            var user = $"Entry A: \"{newTitle}\"\nEntry B: \"{existingTitle}\"\nSame subject?";
+            var raw = await _llm.LocalAsync(system, user, json: false, cancellationToken);
+            var same = raw?.Trim().TrimStart().StartsWith("yes", StringComparison.OrdinalIgnoreCase) == true;
+            ChatDetailLog.Line($"same-subject check: \"{newTitle}\" vs \"{existingTitle}\" → {(same ? "yes" : $"no ({raw?.Trim()})")}");
+            return same;
+        }
+        catch
+        {
+            // A failed check merges blindly when it returns true — polluted
+            // entries are worse than duplicate ones, so fail closed.
+            ChatDetailLog.Line($"same-subject check failed — treating \"{existingTitle}\" as a different subject");
+            return false;
         }
     }
 

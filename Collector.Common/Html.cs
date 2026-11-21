@@ -47,7 +47,8 @@ namespace Collector.Common
             catch (Exception ex)
             {
                 article.rawHtml = dom;
-                throw new Exception();
+                throw new Exception(
+                    $"Failed to deserialize Charlotte DOM ({dom?.Length ?? 0} chars): {ex.Message}", ex);
             }
 
 
@@ -228,6 +229,158 @@ namespace Collector.Common
                 htms.Append(tabs + htmelem + "\n");
             }
             return htms;
+        }
+
+        /// <summary>
+        /// Clone-and-simplify a deserialized DOM element list for the parser
+        /// model — the input list is not modified, so the raw DOM remains
+        /// available for other analyzers (search-form discovery etc.):
+        ///   1) delete leaf elements with no children and no text unless they
+        ///      are &lt;img&gt; — then delete each emptied parent, walking up
+        ///      until an ancestor still holds a child or text;
+        ///   2) collapse single-child chains of the same tag (div &gt; div &gt;
+        ///      div collapses upward into the one div);
+        ///   3) strip every attribute except href, src and alt.
+        /// Returns the new list — FormatHtml(CleanDOM(elements)) yields the
+        /// cleaned markup.
+        /// </summary>
+        public static List<DomElement> CleanDOM(List<DomElement> elements)
+        {
+            // Build a tree of open elements — closing-tag elements are dropped
+            // and regenerated when the tree flattens back out.
+            var nodeFor = new Dictionary<int, CleanNode>();
+            foreach (var el in elements)
+                if (!el.isClosing) nodeFor[el.index] = new CleanNode { Elem = el };
+
+            var roots = new List<CleanNode>();
+            foreach (var el in elements)
+            {
+                if (el.isClosing || !nodeFor.TryGetValue(el.index, out var node)) continue;
+                if (el.parent >= 0 && nodeFor.TryGetValue(el.parent, out var parent))
+                    parent.Children.Add(node);
+                else
+                    roots.Add(node);
+            }
+
+            // 1) prune empty leaves upward — an element survives when it is an
+            //    <img>, carries text itself, or still has children.
+            PruneNodes(roots);
+
+            // 2) collapse same-tag single-child chains (div > div > div → div).
+            foreach (var root in roots) CollapseNode(root);
+
+            // 3) re-flatten: clone each surviving element, strip attributes,
+            //    regenerate closing tags + index/parent/hierarchy bookkeeping.
+            var parser = new Parser("");
+            var cleaned = new List<DomElement>();
+            var index = 0;
+            foreach (var root in roots)
+                FlattenNode(root, -1, new List<int>(), cleaned, ref index, parser);
+            parser.Elements = cleaned;
+            return cleaned;
+        }
+
+        private sealed class CleanNode
+        {
+            public DomElement Elem = null!;
+            public List<CleanNode> Children = new();
+        }
+
+        private static bool PruneNodes(List<CleanNode> nodes)
+        {
+            for (var i = nodes.Count - 1; i >= 0; i--)
+            {
+                if (!PruneNode(nodes[i])) nodes.RemoveAt(i);
+            }
+            return nodes.Count > 0;
+        }
+
+        /// <summary>Form controls are page chrome, never article content —
+        /// dropped outright so their labels ("Search", "Subscribe") can't
+        /// reach the parser model's cleaned HTML.</summary>
+        private static readonly HashSet<string> CleanDropTags =
+            new(StringComparer.OrdinalIgnoreCase) { "input", "select", "textarea", "button" };
+
+        private static bool PruneNode(CleanNode node)
+        {
+            var el = node.Elem;
+            if (el.tagName == "img") return true; // images are content — never pruned
+            if (CleanDropTags.Contains(el.tagName)) return false;
+            PruneNodes(node.Children);
+            if (node.Children.Count > 0) return true;
+            if (!string.IsNullOrWhiteSpace(el.text)) return true; // #text / comments
+            return false;
+        }
+
+        private static void CollapseNode(CleanNode node)
+        {
+            foreach (var child in node.Children) CollapseNode(child);
+            while (node.Children.Count == 1 &&
+                   string.Equals(node.Children[0].Elem.tagName, node.Elem.tagName, StringComparison.OrdinalIgnoreCase) &&
+                   string.IsNullOrWhiteSpace(node.Elem.text))
+            {
+                var child = node.Children[0];
+                node.Elem = child.Elem;
+                node.Children = child.Children;
+            }
+        }
+
+        private static readonly HashSet<string> CleanKeepAttributes =
+            new(StringComparer.OrdinalIgnoreCase) { "href", "src", "alt" };
+
+        private static DomElement CloneForClean(DomElement src, Parser parser)
+        {
+            var clone = new DomElement(parser)
+            {
+                tagName = src.tagName,
+                text = src.text,
+                isSelfClosing = src.isSelfClosing,
+                isClosing = src.isClosing,
+                className = new List<string>(),
+                style = new Dictionary<string, string>(),
+                childIndexes = new List<int>(),
+                attribute = new Dictionary<string, string>()
+            };
+            if (src.attribute != null)
+                foreach (var attr in src.attribute)
+                    if (CleanKeepAttributes.Contains(attr.Key)) clone.attribute[attr.Key] = attr.Value;
+            return clone;
+        }
+
+        private static void FlattenNode(CleanNode node, int parentIndex, List<int> hierarchy,
+            List<DomElement> cleaned, ref int index, Parser parser)
+        {
+            var open = CloneForClean(node.Elem, parser);
+            open.index = index;
+            open.parent = parentIndex;
+            open.hierarchyIndexes = hierarchy.ToArray();
+            cleaned.Add(open);
+
+            var childHierarchy = new List<int>(hierarchy) { index };
+            foreach (var child in node.Children)
+            {
+                index++;
+                var before = index;
+                FlattenNode(child, open.index, childHierarchy, cleaned, ref index, parser);
+                open.childIndexes.Add(cleaned[before].index);
+            }
+
+            if (!open.isSelfClosing)
+            {
+                index++;
+                var close = new DomElement(parser)
+                {
+                    index = index,
+                    tagName = "/" + node.Elem.tagName,
+                    isClosing = true,
+                    hierarchyIndexes = hierarchy.ToArray(),
+                    childIndexes = new List<int>(),
+                    style = new Dictionary<string, string>(),
+                    attribute = new Dictionary<string, string>(),
+                    className = new List<string>()
+                };
+                cleaned.Add(close);
+            }
         }
 
         private static Char[] attrKeywords = new Char[] { '=', '*', '~', '^', '$' };

@@ -165,8 +165,9 @@ namespace Collector.Workers
                 {
                     try
                     {
-                        Files.SaveFileBytes(Files.Paths.Images, $"journal-entries/{channelEntryId}/{bannerFileName}", banner.Value.Bytes);
-                        _entriesRepository.UpdateThumbnail(channelEntryId, $"{channelEntryId}/{bannerFileName}", bannerModuleId);
+                        var bannerRelativePath = JournalPaths.ImagePath(journalId, channelEntryId, bannerFileName);
+                        Files.SaveFileBytes(Files.Paths.Journal, bannerRelativePath, banner.Value.Bytes);
+                        _entriesRepository.UpdateThumbnail(channelEntryId, bannerRelativePath, bannerModuleId);
                     }
                     catch (Exception ex)
                     {
@@ -384,8 +385,16 @@ namespace Collector.Workers
                 var video = await _videoRepo.GetByModuleId(moduleId);
                 if (video == null || !video.Downloaded) return;
 
-                var filePath = $"{entryId:N}.json";
-                var json = await Files.GetFileAsync(Files.Paths.Journal, filePath);
+                // New {journalId}/{entryId}/entry.json layout, legacy root fallback.
+                var filePath = $"{_journalId}/{entryId:N}/entry.json";
+                string? json;
+                try { json = await Files.GetFileAsync(Files.Paths.Journal, filePath); }
+                catch { json = null; }
+                if (string.IsNullOrWhiteSpace(json))
+                {
+                    filePath = $"{entryId:N}.json";
+                    json = await Files.GetFileAsync(Files.Paths.Journal, filePath);
+                }
                 if (string.IsNullOrWhiteSpace(json)) return;
 
                 var root = JsonNode.Parse(json);
@@ -397,14 +406,15 @@ namespace Collector.Workers
                     if (module?["id"]?.GetValue<string>() != moduleId) continue;
 
                     module["videoId"] = video.Id;
-                    module["videoPath"] = $"{entryId}/{video.Filename}";
+                    var videoStem = JournalPaths.VideoIdFromFileName(video.Filename);
+                    module["videoPath"] = JournalPaths.VideoPath(video.JournalId, entryId, videoStem, Path.GetExtension(video.Filename));
                     module["downloaded"] = true;
 
-                    var thumbName = Path.GetFileNameWithoutExtension(video.Filename) + "_thumb.jpg";
-                    var thumbFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), entryId.ToString(), thumbName);
+                    var thumbRelativePath = JournalPaths.VideoThumbPath(video.JournalId, entryId, videoStem);
+                    var thumbFullPath = Files.ResolveExisting(thumbRelativePath);
                     if (File.Exists(thumbFullPath))
                     {
-                        module["thumbnailPath"] = $"{entryId}/{thumbName}";
+                        module["thumbnailPath"] = thumbRelativePath;
                     }
 
                     if (video.Width > 0) module["width"] = video.Width;

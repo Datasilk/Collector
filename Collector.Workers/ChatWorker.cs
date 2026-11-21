@@ -1,3 +1,4 @@
+using Collector.Chat.Helpers;
 using System.Text.Json;
 using Collector.Chat;
 using Collector.Chat.Models;
@@ -39,6 +40,8 @@ namespace Collector.Workers
 
         // Development-only per-session file log (logs/chat/{chatId}.log)
         private ChatDebugLog? _chatLog;
+        // Debugging detail log (logs/chat/details/{chatId}.log + dumps)
+        private ChatDetailLog? _detailLog;
 
         public ChatWorker(
             IChatsRepository chatsRepo,
@@ -49,6 +52,7 @@ namespace Collector.Workers
             ISearchEnginesRepository searchEnginesRepository,
             IJournalSnapshotsRepository snapshotsRepository,
             IDomainsRepository domainsRepository,
+            ILLMHtmlParsersRepository htmlParsersRepository,
             ILogger<ChatWorker> logger,
             IHubContext<WorkerHub> hubContext,
             OllamaApiClient ollama,
@@ -84,12 +88,13 @@ namespace Collector.Workers
             // Initialize tool registry — the LLMClient routes quick decisions to
             // local Ollama and complex module-JSON generation to the remote endpoint.
             _toolRegistry = new ChatToolRegistry();
-            var llmClient = new Collector.Chat.LLMClient(ollama, activeModel);
+            var llmClient = new Collector.Chat.Helpers.LLMClient(ollama, activeModel);
             _toolRegistry.RegisterTool(new WebScrapeTool(llmClient, domainsRepository,
                 // Same cookie refresh the video worker uses — asks the client's
                 // Chrome extension for fresh cookies when a fetch is blocked.
                 (uid, domain, ct) => SignalR.Workers.RequestCookiesFromClientAsync(
-                    uid.ToString(), _activeWorkerId, domain, ct)));
+                    uid.ToString(), _activeWorkerId, domain, ct),
+                htmlParsersRepository, searchEnginesRepository));
             _toolRegistry.RegisterTool(new AddEditJournalEntryTool(
                 entriesRepository, journalsRepository, categoriesRepository, ollama, activeModel,
                 llmClient,
@@ -99,7 +104,7 @@ namespace Collector.Workers
             _toolRegistry.RegisterTool(new ResearchReviewTool(
                 entriesRepository, ollama, activeModel, llmClient));
             _toolRegistry.RegisterTool(new CleanWebContentTool(ollama, activeModel));
-            _toolRegistry.RegisterTool(new ManageOllamaModelsTool(ollama, _ollamaModelsRepo));
+            _toolRegistry.RegisterTool(new ManageOllamaModelsTool(ollama, _ollamaModelsRepo, htmlParsersRepository));
         }
 
         public Task Stop()
@@ -131,8 +136,14 @@ namespace Collector.Workers
             _activeChatId = _chatId;
             _activeWorkerId = workerId;
             _chatLog = new ChatDebugLog(_environment);
+            _detailLog = new ChatDetailLog(_environment.ContentRootPath, _environment.IsDevelopment());
+            ChatDetailLog.Current = _detailLog;
             if (_chatId != Guid.Empty)
+            {
                 _chatLog.SetChatId(_chatId);
+                _detailLog.SetChatId(_chatId);
+            }
+            ChatDetailLog.Line($"user: {message}");
             SemaphoreSlim? chatLock = null;
             CancellationTokenSource? planCts = null;
             try
@@ -219,8 +230,8 @@ namespace Collector.Workers
                 // get compacted into a persisted running summary — the same
                 // Windsurf/Claude Code pattern, with a visible usage bar.
                 var contextBudget = await ResolveModelWindowAsync(activeModel, cancellationToken);
-                var estimatedTokens = Collector.Chat.ContextBudget.PromptOverheadTokens
-                    + Collector.Chat.ContextBudget.EstimateTokens(message);
+                var estimatedTokens = Collector.Chat.Helpers.ContextBudget.PromptOverheadTokens
+                    + Collector.Chat.Helpers.ContextBudget.EstimateTokens(message);
                 string ragContext = "";
                 var history = new List<Collector.Data.Entities.ChatHistory>();
                 if (!isNewChat && existingChat != null)
@@ -238,7 +249,7 @@ namespace Collector.Workers
                         }
 
                         ragContext = BuildSessionContext(existingChat, history);
-                        estimatedTokens += Collector.Chat.ContextBudget.EstimateTokens(ragContext);
+                        estimatedTokens += Collector.Chat.Helpers.ContextBudget.EstimateTokens(ragContext);
                     }
                     catch (Exception ex)
                     {
@@ -286,7 +297,7 @@ namespace Collector.Workers
                         {
                             var noteBlock = "Session notes:\n" + string.Join("\n", notes.Select(n => "- " + TruncateForContext(n.Content, 240)));
                             ragContext = string.IsNullOrEmpty(ragContext) ? noteBlock : ragContext + "\n\n" + noteBlock;
-                            estimatedTokens += Collector.Chat.ContextBudget.EstimateTokens(noteBlock);
+                            estimatedTokens += Collector.Chat.Helpers.ContextBudget.EstimateTokens(noteBlock);
                         }
                     }
                     catch (Exception ex)
@@ -336,8 +347,8 @@ namespace Collector.Workers
                     }, cancellationToken);
                     return;
                 }
-                OllamaPlanResponse? plan;
-                var planJson = Collector.Chat.LLMJson.Extract(planResponse);
+                OllamaPlanResponse? plan = null;
+                var planJson = Collector.Chat.Helpers.LLMJson.Extract(planResponse);
                 if (planJson != null)
                 {
                     try
@@ -364,24 +375,50 @@ namespace Collector.Workers
                 else if (planResponse.TrimStart().StartsWith('{') || planResponse.TrimStart().StartsWith('['))
                 {
                     // Starts as JSON but never closes — the model stopped
-                    // generating mid-response. Before erroring, hand the broken
-                    // output back to the model and ask it to repair the JSON.
+                    // generating mid-response. A stub truncation like
+                    // {"message": " carries nothing worth repairing — retry
+                    // the plan call once with a completion nudge first;
+                    // substantial partial JSON still goes through repair.
                     _logger.LogWarning("ChatWorker: Truncated plan response from model {Model}: {Response}", activeModel, planResponse);
-                    var repaired = await RepairPlanResponseAsync(planResponse, activeModel, appUserId, workerId, cancellationToken);
-                    var repairedJson = repaired != null ? Collector.Chat.LLMJson.Extract(repaired) : null;
-                    OllamaPlanResponse? repairedPlan = null;
-                    if (repairedJson != null)
+                    if (planResponse.Trim().Length < 120)
                     {
-                        try { repairedPlan = JsonSerializer.Deserialize<OllamaPlanResponse>(repairedJson); }
-                        catch (JsonException) { repairedPlan = null; }
-                        if (repairedPlan != null)
-                            NormalizeSingleStepPlan(repairedPlan, repairedJson);
+                        await SendWorkerMessage(appUserId, workerId, "PlanProgress", new
+                        {
+                            percent = 8,
+                            message = "The model's plan was cut off — retrying..."
+                        }, cancellationToken);
+                        var retryResponse = await GetOllamaResponseAsync(
+                            planningPrompt + "\n\nReturn ONLY the complete JSON — your previous response was cut off mid-generation.",
+                            activeModel, appUserId, workerId, cancellationToken, debugType: "planning-nudge");
+                        var retryJson = Collector.Chat.Helpers.LLMJson.Extract(retryResponse);
+                        if (retryJson != null)
+                        {
+                            try
+                            {
+                                plan = JsonSerializer.Deserialize<OllamaPlanResponse>(retryJson);
+                                if (plan != null) NormalizeSingleStepPlan(plan, retryJson);
+                            }
+                            catch (JsonException) { plan = null; }
+                        }
+                        else if (!retryResponse.TrimStart().StartsWith('{') && !retryResponse.TrimStart().StartsWith('['))
+                        {
+                            // Retry answered in plain prose — a direct answer.
+                            plan = new OllamaPlanResponse { Message = retryResponse };
+                        }
+                        else
+                        {
+                            // Still truncated — hand the freshest output to repair.
+                            planResponse = retryResponse;
+                        }
                     }
+                    var repairedPlan = plan == null
+                        ? await TryRepairPlanAsync(planResponse, activeModel, appUserId, workerId, cancellationToken)
+                        : null;
                     if (repairedPlan != null && (repairedPlan.IsPlan || !string.IsNullOrWhiteSpace(repairedPlan.Message)))
                     {
                         plan = repairedPlan;
                     }
-                    else
+                    else if (plan == null)
                     {
                         await SendWorkerMessage(appUserId, workerId, "ChatError", new
                         {
@@ -389,6 +426,17 @@ namespace Collector.Workers
                         }, cancellationToken);
                         return;
                     }
+                }
+                else if (LooksLikePromptEcho(planResponse))
+                {
+                    // The model parroted our prompt back instead of answering —
+                    // saving it would surface internal instructions to the user.
+                    _logger.LogWarning("ChatWorker: Model echoed the prompt: {Response}", planResponse);
+                    await SendWorkerMessage(appUserId, workerId, "ChatError", new
+                    {
+                        message = $"Model '{activeModel}' echoed the prompt instead of responding. It may not support Collector's planning format — try a different model (e.g. \"ollama run llama3.2\")."
+                    }, cancellationToken);
+                    return;
                 }
                 else
                 {
@@ -422,6 +470,7 @@ namespace Collector.Workers
                     };
                     _chatId = _chatsRepo.Add(newChat);
                     _chatLog?.SetChatId(_chatId);
+                    _detailLog?.SetChatId(_chatId);
                     await SendWorkerMessage(appUserId, workerId, "ChatCreated", new
                     {
                         id = _chatId,
@@ -445,6 +494,8 @@ namespace Collector.Workers
                 // Handle based on response type (plan has steps, answer does not)
                 if (plan.IsPlan)
                 {
+                    ChatDetailLog.Line($"plan started: {plan.Steps!.Count} step(s) — " +
+                        string.Join(", ", plan.Steps!.Select(s => s.Tool)));
                     // Execute the plan (fact extraction happens inside ExecutePlanAsync after plan completion)
                     await ExecutePlanAsync(plan, appUserId, workerId, _chatId, message, userMessageId.ToString(), ragContext, activeModel, cancellationToken);
                 }
@@ -533,6 +584,36 @@ namespace Collector.Workers
         /// feed the broken output back and ask it to emit valid JSON. One shot —
         /// the caller still errors out if the repair itself is unparseable.
         /// </summary>
+        /// <summary>Repair call + JSON extraction + prompt-echo guard. Returns
+        /// the repaired plan, or null when repair produced nothing usable.</summary>
+        private async Task<OllamaPlanResponse?> TryRepairPlanAsync(string brokenResponse, string model, string appUserId, Guid workerId, CancellationToken cancellationToken)
+        {
+            var repaired = await RepairPlanResponseAsync(brokenResponse, model, appUserId, workerId, cancellationToken);
+            var repairedJson = repaired != null ? Collector.Chat.Helpers.LLMJson.Extract(repaired) : null;
+            OllamaPlanResponse? repairedPlan = null;
+            if (repairedJson != null)
+            {
+                try { repairedPlan = JsonSerializer.Deserialize<OllamaPlanResponse>(repairedJson); }
+                catch (JsonException) { repairedPlan = null; }
+                if (repairedPlan != null)
+                    NormalizeSingleStepPlan(repairedPlan, repairedJson);
+            }
+            if (repairedPlan == null) return null;
+
+            // The model sometimes regurgitates the repair prompt (template
+            // JSON + instructions) instead of fixing the plan — strip steps
+            // that name tools we don't have and reject message text that
+            // echoes our own prompt.
+            var validTools = new HashSet<string>(
+                _toolRegistry.GetAllTools().Select(t => t.ToolKey),
+                StringComparer.OrdinalIgnoreCase);
+            repairedPlan.Steps?.RemoveAll(s =>
+                s == null || string.IsNullOrWhiteSpace(s.Tool) || !validTools.Contains(s.Tool));
+            if (repairedPlan.Message == "What you will do or your answer")
+                repairedPlan.Message = "";
+            return LooksLikePromptEcho(repairedPlan.Message) ? null : repairedPlan;
+        }
+
         private async Task<string?> RepairPlanResponseAsync(string brokenResponse, string model, string appUserId, Guid workerId, CancellationToken cancellationToken)
         {
             var toolKeys = string.Join(", ", _toolRegistry.GetAllTools().Select(t => t.ToolKey));
@@ -562,6 +643,23 @@ namespace Collector.Workers
         }
 
         /// <summary>
+        /// Detects when a small model regurgitates our own prompt text instead
+        /// of answering — sentinels from the planning and plan-repair prompts
+        /// that can never legitimately appear in a user-facing response.
+        /// </summary>
+        private static bool LooksLikePromptEcho(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return false;
+            return text.Contains("BROKEN RESPONSE")
+                || text.Contains("EXACTLY this contract")
+                || text.Contains("JSON repair assistant")
+                || text.Contains("Return ONLY the repaired JSON")
+                || text.Contains("planning assistant")
+                || text.Contains("AVAILABLE TOOLS")
+                || text.Contains("Conversation Context:");
+        }
+
+        /// <summary>
         /// The model's real context window, read "*.context_length" from
         /// /api/show. Drives both the context-usage meter and num_ctx —
         /// without num_ctx, Ollama silently clamps every request to 2048.
@@ -572,7 +670,7 @@ namespace Collector.Workers
             if (_modelWindowCache.TryGetValue(model, out var cached))
                 return cached;
 
-            var window = Collector.Chat.ContextBudget.DefaultBudget;
+            var window = Collector.Chat.Helpers.ContextBudget.DefaultBudget;
             try
             {
                 var info = await _ollama.ShowModelAsync(model, cancellationToken);
@@ -851,6 +949,7 @@ namespace Collector.Workers
             // instead of declaring success over failed tools.
             var toolErrors = new List<string>();
             var toolMessages = new List<string>();
+            var lastStepTotal = executionPlan.Steps.Count;
 
             // Execute each step
             await _toolRegistry.ExecutePlan(
@@ -922,6 +1021,12 @@ namespace Collector.Workers
                 // Step-start callback - ToolStep event for browser-console debugging
                 _environment.IsDevelopment() ? (stepNumber, stepTotal, step) =>
                 {
+                    if (stepTotal != lastStepTotal)
+                    {
+                        lastStepTotal = stepTotal;
+                        ChatDetailLog.Line($"plan changed: now {stepTotal} step(s)");
+                    }
+                    ChatDetailLog.Line($"tool {stepNumber}/{stepTotal}: {step.Tool}");
                     _chatLog?.Log("ToolStep", new { step = stepNumber, total = stepTotal, tool = step.Tool, args = step.Args });
                     _hubContext.Clients.All.SendAsync("WorkerProgress", appUserId, workerId, "ToolStep",
                         new { step = stepNumber, total = stepTotal, tool = step.Tool, args = step.Args, isDevelopment = true }, cancellationToken);
@@ -1068,11 +1173,11 @@ namespace Collector.Workers
                 .ToList();
             if (uncompacted.Count == 0) return;
 
-            var usedTokens = Collector.Chat.ContextBudget.PromptOverheadTokens
-                + uncompacted.Sum(m => Collector.Chat.ContextBudget.EstimateTokens(m.Content))
-                + Collector.Chat.ContextBudget.EstimateTokens(chat.ContextSummary);
-            if (!Collector.Chat.ContextBudget.ShouldCompact(usedTokens, contextBudget)) return;
-            if (!Collector.Chat.ContextBudget.TryGetCompactionSplit(uncompacted, keepTail, out var head, out var tail)) return;
+            var usedTokens = Collector.Chat.Helpers.ContextBudget.PromptOverheadTokens
+                + uncompacted.Sum(m => Collector.Chat.Helpers.ContextBudget.EstimateTokens(m.Content))
+                + Collector.Chat.Helpers.ContextBudget.EstimateTokens(chat.ContextSummary);
+            if (!Collector.Chat.Helpers.ContextBudget.ShouldCompact(usedTokens, contextBudget)) return;
+            if (!Collector.Chat.Helpers.ContextBudget.TryGetCompactionSplit(uncompacted, keepTail, out var head, out var tail)) return;
 
             await SendWorkerMessage(appUserId, workerId, "PlanProgress", new
             {
@@ -1092,9 +1197,9 @@ namespace Collector.Workers
             if (string.IsNullOrWhiteSpace(newSummary)) return;
 
             var through = head.Last().Created;
-            var tailTokens = tail.Sum(m => Collector.Chat.ContextBudget.EstimateTokens(m.Content));
-            var newEstimate = Collector.Chat.ContextBudget.PromptOverheadTokens
-                + tailTokens + Collector.Chat.ContextBudget.EstimateTokens(newSummary);
+            var tailTokens = tail.Sum(m => Collector.Chat.Helpers.ContextBudget.EstimateTokens(m.Content));
+            var newEstimate = Collector.Chat.Helpers.ContextBudget.PromptOverheadTokens
+                + tailTokens + Collector.Chat.Helpers.ContextBudget.EstimateTokens(newSummary);
             _chatsRepo.SetContextCompaction(chat.Id, newSummary, through, newEstimate);
             chat.ContextSummary = newSummary;
             chat.ContextSummarizedThrough = through;
@@ -1125,7 +1230,7 @@ namespace Collector.Workers
                 return $"{label}: {body}";
             });
 
-            return Collector.Chat.ContextBudget.ComposeContext(chat.ContextSummary, turns);
+            return Collector.Chat.Helpers.ContextBudget.ComposeContext(chat.ContextSummary, turns);
         }
 
 private async Task<string> SummarizeContextAsync(string userMessage, string rawContext, string model, string appUserId, Guid workerId, CancellationToken cancellationToken)
@@ -1347,7 +1452,7 @@ Extract facts from this conversation:";
             try
             {
                 // strip prose around the JSON before parsing
-                var json = Collector.Chat.LLMJson.Extract(raw) ?? raw?.Trim() ?? "";
+                var json = Collector.Chat.Helpers.LLMJson.Extract(raw) ?? raw?.Trim() ?? "";
                 var node = System.Text.Json.Nodes.JsonNode.Parse(json);
                 if (node == null) return new List<MemoryNote>();
 

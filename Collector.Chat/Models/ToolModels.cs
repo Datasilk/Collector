@@ -1,3 +1,4 @@
+using Collector.Chat.Helpers;
 using System.Text.Json.Serialization;
 
 namespace Collector.Chat.Models;

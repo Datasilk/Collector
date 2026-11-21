@@ -29,8 +29,12 @@ namespace Collector.API.Controllers
             
             try
             {
-                // Get the image file as bytes
-                var imageBytes = Files.GetFileBytes(Files.Paths.Images, path);
+                var fullPath = Files.ResolveExisting(path);
+                if (!System.IO.File.Exists(fullPath))
+                {
+                    return NotFound($"Image not found: {path}");
+                }
+                var imageBytes = System.IO.File.ReadAllBytes(fullPath);
                 
                 // Determine the correct content type from the file extension
                 var ext = System.IO.Path.GetExtension(path)?.ToLowerInvariant();
@@ -81,7 +85,7 @@ namespace Collector.API.Controllers
                     await file.CopyToAsync(memoryStream);
                     var fileBytes = memoryStream.ToArray();
 
-                    var success = Files.SaveFileBytes(Files.Paths.Images, path, fileBytes);
+                    var success = Files.SaveFileBytes(Files.Paths.Journal, path, fileBytes);
                 if (!success)
                 {
                     return Json(new ApiResponse { success = false, message = "Failed to save image" });
@@ -144,7 +148,7 @@ namespace Collector.API.Controllers
 
                         var generatedName = $"{timestamp}-{(sanitizedModuleId ?? "img")}-{index}{extension}";
                         var relativePath = Path.Combine(normalizedFolder, generatedName).Replace("\\", "/");
-                        var success = Files.SaveFileBytes(Files.Paths.Images, relativePath, fileBytes);
+                        var success = Files.SaveFileBytes(Files.Paths.Journal, relativePath, fileBytes);
 
                         if (success)
                         {
@@ -210,7 +214,7 @@ namespace Collector.API.Controllers
             if (thumbnailBytes != null && thumbnailBytes.Length > 0)
             {
                 var thumbnailPath = BuildThumbnailPath(relativePath);
-                Files.SaveFileBytes(Files.Paths.Images, thumbnailPath, thumbnailBytes);
+                Files.SaveFileBytes(Files.Paths.Journal, thumbnailPath, thumbnailBytes);
             }
         }
 

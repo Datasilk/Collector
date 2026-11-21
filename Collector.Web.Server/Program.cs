@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.StaticFiles;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Host.UseWindowsService();
 builder.Host.UseSerilog((host, config) =>
 {
     config
@@ -129,7 +130,9 @@ Collector.AI.Ollama.Config.NumGpu = builder.Configuration.GetValue<int>("Ollama:
 Collector.AI.Ollama.Config.Temperature = builder.Configuration.GetValue<float>("Ollama:Temperature", 0.7f);
 Collector.AI.Ollama.Config.AutoPullModel = builder.Configuration.GetValue<bool>("Ollama:AutoPullModel", true);
 
-builder.Services.AddSingleton(sp => new OllamaSharp.OllamaApiClient(Collector.AI.Ollama.Config.Url));
+builder.Services.AddSingleton(sp => new OllamaSharp.OllamaApiClient(
+    new HttpClient { BaseAddress = new Uri(Collector.AI.Ollama.Config.Url), Timeout = TimeSpan.FromMinutes(15) },
+    "")); // parser pages eval ~75K-token prompts — the 100s default kills long generations
 
 Console.WriteLine($"Ollama Configuration:");
 Console.WriteLine($"  URL: {Collector.AI.Ollama.Config.Url}");
@@ -205,10 +208,7 @@ if (Collector.AI.Ollama.Config.AutoPullModel)
 
 // Set all file storage paths from configuration
 Files.ArticlesPath = builder.Configuration["Storage:Articles"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content", "articles");
-Files.FilesPath = builder.Configuration["Storage:Files"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content", "files");
-Files.ImagesPath = builder.Configuration["Storage:Images"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content", "images");
 Files.JournalPath = builder.Configuration["Storage:Journal"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content", "journal-entries");
-Files.VideosPath = builder.Configuration["Storage:Videos"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content", "videos");
 
 // Download required tools (ffmpeg, ffprobe, yt-dlp) if not already present
 var downloadToolsScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "download-tools.bat");

@@ -179,6 +179,35 @@ namespace Collector.Common
             return "";
         }
 
+        /// <summary>
+        /// Ask the Charlotte router to drive a page's JS-driven search with a
+        /// probe term and report the request the site fired. Returns the raw
+        /// JSON the router forwards ({"found":true,"request":{...}}), or null
+        /// when the router/endpoint can't be reached.
+        /// </summary>
+        public static async Task<string?> ProbeSearchAsync(string url, string probe)
+        {
+            var endpoint = !string.IsNullOrEmpty(RouterEndpoint)
+                ? RouterEndpoint + "/ProbeSearch"
+                : null;
+            if (string.IsNullOrEmpty(endpoint)) return null;
+
+            var postData = new StringBuilder();
+            postData.Append(String.Format("{0}={1}&", WebUtility.HtmlEncode("url"), WebUtility.HtmlEncode(url)));
+            postData.Append(String.Format("{0}={1}", WebUtility.HtmlEncode("probe"), WebUtility.HtmlEncode(probe)));
+            try
+            {
+                using var client = new HttpClient() { Timeout = TimeSpan.FromSeconds(75) };
+                var response = await client.PostAsync(endpoint,
+                    new StringContent(postData.ToString(), Encoding.UTF8, "application/x-www-form-urlencoded"));
+                var body = await response.Content.ReadAsStringAsync();
+                if (!response.IsSuccessStatusCode || body.StartsWith("Error", StringComparison.OrdinalIgnoreCase))
+                    return null;
+                return body;
+            }
+            catch { return null; }
+        }
+
         private static string CleanUrl(string url)
         {
             url = url.Split("?")[0];

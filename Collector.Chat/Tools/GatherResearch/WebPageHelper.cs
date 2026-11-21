@@ -1,6 +1,8 @@
+using Collector.Chat.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Collector.Common;
@@ -18,24 +20,15 @@ namespace Collector.Chat.Tools.GatherResearch;
 /// </summary>
 public class WebPageHelper : IResearchSourceHelper
 {
-    // Elements that are page chrome, never article content
-    private static readonly HashSet<string> SkipTags = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "script", "style", "!--", "nav", "footer", "aside", "form", "button",
-        "select", "option", "input", "label", "noscript", "fieldset", "legend"
-    };
-
-    private static readonly string[] FileExtensions =
-    {
-        ".pdf", ".zip", ".doc", ".docx", ".xls", ".xlsx", ".csv",
-        ".ppt", ".pptx", ".epub", ".rar", ".7z", ".txt", ".rtf"
-    };
-
-    private static readonly string[] VideoHostHints =
-    {
-        "youtube.com", "youtu.be", "vimeo.com", "dailymotion.com",
-        "twitch.tv", "rumble.com", "odysee.com"
-    };
+    /// <summary>Minimum real pixel dimension (width or height) for a kept image.</summary>
+    private const int MinImageWidth = 640;
+    /// <summary>Every dump image is downloaded + identified — cap the checks per page.</summary>
+    private const int MaxImageChecks = 10;
+    /// <summary>Stop downloading once this many images are verified — a gallery never needs more.</summary>
+    private const int EnoughImages = 10;
+    /// <summary>Fewer elements than this almost certainly means a stub
+    /// interstitial, not a real page (PMC's cookie-required shell is ~19).</summary>
+    private const int ThinDomElements = 60;
 
     /// <summary>Fallback helper — matches everything; must stay last in the registry.</summary>
     public bool Match(string url) => true;
@@ -45,8 +38,12 @@ public class WebPageHelper : IResearchSourceHelper
         Action<int, string>? onProgress = null,
         CancellationToken cancellationToken = default,
         Guid? appUserId = null,
-        Func<string, CancellationToken, Task<string>>? requestCookies = null)
+        Func<string, CancellationToken, Task<string>>? requestCookies = null,
+        Func<string, CancellationToken, Task<string?>>? htmlParser = null,
+        Collector.Data.Interfaces.ISearchEnginesRepository? searchEnginesRepo = null,
+        Func<string, Task<string>>? scriptAnalyzer = null)
     {
+        ChatDetailLog.Fn("web-scrape", "WebPageHelper.ExtractAsync");
         // Download via the shared downloader pipeline — same path
         // DownloadWorker uses: HEAD/GET handling, redirects, retries,
         // SSL failure detection, Charlotte browser fallback, file detection.
@@ -82,150 +79,282 @@ public class WebPageHelper : IResearchSourceHelper
         cancellationToken.ThrowIfCancellationRequested();
 
         var analyzedArticle = Html.DeserializeArticle(domJson);
+
+        // Thin-DOM retry at the fetch layer: Charlotte's headless browsers get
+        // bot/cookie interstitials on some sites (PMC serves a ~19-element
+        // cookie-required shell to BOTH backends) while a plain GET returns
+        // the full page. Direct HTTP carries a different fingerprint, so
+        // retry once and keep whichever produced the larger DOM.
+        if ((analyzedArticle.elements?.Count ?? 0) < ThinDomElements)
+        {
+            var rawHtml = await SearchHelper.FetchRawHtmlAsync(resolvedUrl ?? url);
+            var directArticle = SearchHelper.AnalyzeRawHtml(rawHtml);
+            if ((directArticle?.elements?.Count ?? 0) > (analyzedArticle.elements?.Count ?? 0))
+            {
+                ChatDetailLog.Line($"thin Charlotte DOM ({analyzedArticle.elements.Count} elements) — direct fetch produced {directArticle.elements.Count}, using it");
+                directArticle.url = resolvedUrl ?? url;
+                analyzedArticle = directArticle;
+            }
+        }
+
         Html.GetArticleInfoFromDOM(analyzedArticle);
 
-        var indexes = new List<AnalyzedElement>();
-        Html.GetBestElementIndexes(analyzedArticle, indexes);
-        Html.GetArticleElements(analyzedArticle, indexes);
+        // Search-engine discovery uses the RAW DOM — CleanDOM strips form
+        // elements and attributes, so this must see the unmodified elements.
+        var foundSearchForm = false;
+        if (searchEnginesRepo != null)
+        {
+            try
+            {
+                foundSearchForm = SearchHelper.DiscoverSearchEngines(analyzedArticle,
+                    resolvedUrl ?? url, searchEnginesRepo, null);
+            }
+            catch { /* discovery is best-effort */ }
+        }
+
+        // Cleaned DOM → flat HTML for the parser model (LLM_HtmlParsers). The
+        // dump it returns is the page's preferred content source — persisted
+        // next to the entry as research/{####}.json.
+        var cleanedElements = Html.CleanDOM(analyzedArticle.elements);
+        var cleanHtml = Html.FormatHtml(cleanedElements).ToString();
+        ChatDetailLog.Line($"cleaned DOM: {analyzedArticle.rawHtml?.Length ?? 0} → {cleanHtml.Length} chars");
+
+        string? parsedJson = null;
+        string? rawHtmlFile = null;
+        if (!string.IsNullOrWhiteSpace(cleanHtml))
+        {
+            // Stage the cleaned HTML BEFORE the parser call — the file must
+            // exist for inspection even if the model hangs or dies, and
+            // integration later pairs it with the dump as research/{####}.html.
+            try
+            {
+                var staging = $"_staging/{Guid.NewGuid():N}.html";
+                if (Files.SaveFile(Files.Paths.Journal, staging, cleanHtml))
+                    rawHtmlFile = staging;
+            }
+            catch { /* staging is diagnostic-only */ }
+
+            if (htmlParser != null)
+            {
+                onProgress?.Invoke(62, "Parsing HTML structure...");
+                try { parsedJson = await htmlParser(cleanHtml, cancellationToken); }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    ChatDetailLog.Line($"html parser failed on {resolvedUrl ?? url}: {ex.Message}\n{ex.StackTrace}");
+                }
+            }
+        }
+
+        // When the dump claims the page hosts a search form but DOM discovery
+        // found none, analyze its scripts for a JS-driven search endpoint —
+        // again on the raw article. If static analysis also finds nothing but
+        // a JS-driven search input exists, drive it with the browser probe
+        // and capture the request the site actually fires.
+        if (searchEnginesRepo != null && !foundSearchForm)
+        {
+            var dumpClaimsForm = DumpClaimsSearchForm(parsedJson);
+            if (scriptAnalyzer != null && dumpClaimsForm)
+            {
+                try
+                {
+                    foundSearchForm = await SearchHelper.DiscoverFromScriptsAsync(analyzedArticle,
+                        resolvedUrl ?? url, searchEnginesRepo, scriptAnalyzer, null);
+                }
+                catch { /* discovery is best-effort */ }
+            }
+            if (!foundSearchForm &&
+                (dumpClaimsForm || SearchHelper.HasJsDrivenSearchInput(analyzedArticle)))
+            {
+                try
+                {
+                    await SearchHelper.DiscoverViaProbeAsync(resolvedUrl ?? url,
+                        searchEnginesRepo, null);
+                }
+                catch { /* discovery is best-effort */ }
+            }
+        }
 
         var page = new ResearchPage
         {
             Url = resolvedUrl ?? url,
-            Title = analyzedArticle.title ?? string.Empty,
-            Language = DetectLanguage(analyzedArticle.rawHtml ?? domJson)
+            Title = analyzedArticle.title ?? "",
+            ParsedJson = parsedJson,
+            RawHtmlFile = rawHtmlFile,
+            DomElements = analyzedArticle.elements?.Count ?? 0
         };
-        var bodyElements = analyzedArticle.bodyElements ?? new List<DomElement>();
 
-        int headerIndex = 0, contentIndex = 0, imageIndex = 0;
-        foreach (var element in bodyElements)
-        {
-            if (element.tagName != null && SkipTags.Contains(element.tagName)) continue;
+        // ContentSections is the designed no-parser fallback: the relevance
+        // gate and ParseSections consume it whenever ParsedJson yields no
+        // usable text — which includes dumps that are empty, malformed, or
+        // schema-shaped. Always populate it so a parser failure can't lose
+        // the page's real content. Chrome detection must run on the RAW
+        // elements — CleanDOM's clones strip class/id attributes and styles,
+        // which are exactly the markers nav/sidebar detection needs.
+        ContentSectionsFromDom(page, analyzedArticle.elements ?? cleanedElements);
 
-            // Header elements (h1-h6)
-            if (element.tagName.StartsWith("h") && element.tagName.Length == 2 &&
-                char.IsDigit(element.tagName[1]))
-            {
-                var headerText = element.text?.Trim();
-                if (!string.IsNullOrWhiteSpace(headerText))
-                {
-                    page.Headers.Add(headerText);
-                    page.Layout.Add($"header:{headerIndex++}");
-                }
-                continue;
-            }
-
-            // Image elements
-            if (element.tagName == "img")
-            {
-                var src = element.attribute?.GetValueOrDefault("src", "");
-                if (!string.IsNullOrWhiteSpace(src))
-                {
-                    page.Images.Add(MakeAbsolute(src, page.Url));
-                    page.Layout.Add($"image:{imageIndex++}");
-                }
-                continue;
-            }
-
-            // Video elements and embeds
-            if (element.tagName is "video" or "iframe" or "embed" or "source")
-            {
-                var src = element.attribute?.GetValueOrDefault("src", "");
-                if (!string.IsNullOrWhiteSpace(src))
-                {
-                    src = MakeAbsolute(src, page.Url);
-                    if (!page.Videos.Contains(src)) page.Videos.Add(src);
-                }
-                continue;
-            }
-
-            // Anchors (links, videos, files)
-            if (element.tagName == "a")
-            {
-                var href = element.attribute?.GetValueOrDefault("href", "");
-                var linkText = element.text?.Trim();
-                if (!string.IsNullOrWhiteSpace(href) && !href.StartsWith("#") && !href.StartsWith("javascript:"))
-                {
-                    href = MakeAbsolute(href, page.Url);
-                    var entry = !string.IsNullOrWhiteSpace(linkText) ? $"{linkText}|{href}" : href;
-
-                    if (IsFileUrl(href)) page.Files.Add(entry);
-                    else if (IsVideoUrl(href)) { if (!page.Videos.Contains(href)) page.Videos.Add(href); }
-                    else page.Links.Add(entry);
-                }
-                continue;
-            }
-
-            // Content elements
-            if (element.tagName is "p" or "div" or "article" or "section" or "span" or "li" or "td" or "blockquote" or "pre" or "code")
-            {
-                var text = element.text?.Trim();
-                if (!string.IsNullOrWhiteSpace(text) && text.Length > 20)
-                {
-                    page.ContentSections.Add(text);
-                    page.Layout.Add($"content:{contentIndex++}");
-                }
-            }
-        }
-
-        // No structured content — fall back to the article summary/raw text
-        if (page.ContentSections.Count == 0)
-        {
-            if (!string.IsNullOrEmpty(analyzedArticle.summary))
-            {
-                page.ContentSections.Add(analyzedArticle.summary);
-                page.Layout.Add("content:0");
-            }
-            else if (!string.IsNullOrEmpty(analyzedArticle.rawText))
-            {
-                page.ContentSections.Add(analyzedArticle.rawText);
-                page.Layout.Add("content:0");
-            }
-        }
-
-        // All images from the article (including those outside bodyElements)
-        if (analyzedArticle.images != null)
-        {
-            foreach (var img in analyzedArticle.images)
-            {
-                if (!string.IsNullOrWhiteSpace(img.url) && !page.Images.Contains(img.url))
-                    page.Images.Add(MakeAbsolute(img.url, page.Url));
-            }
-        }
+        // Every image the dump names is downloaded and measured — only those
+        // whose max dimension clears the floor are kept for the entry.
+        page.Images = await WideImagesOnlyAsync(
+            ParsedJsonImageUrls(parsedJson), new HashSet<string>(), cancellationToken);
 
         return page;
     }
 
+    /// <summary>Chunk visible text out of the DOM into ContentSections — the
+    /// no-parser fallback consumed by the relevance gate, media placement and
+    /// ParseSections when ParsedJson is empty. Text inside chrome containers
+    /// (nav, header, footer, menus, cookie banners, hidden elements) is
+    /// skipped — an unfiltered blob starts with menu text and the
+    /// topic-assign model correctly marks it "skip", losing the whole page.
+    /// Requires the RAW element list (CleanDOM strips class/id/style).</summary>
+    internal static void ContentSectionsFromDom(ResearchPage page, List<DomElement> cleaned)
+    {
+        var text = new StringBuilder();
+        foreach (var el in cleaned)
+        {
+            if (el.tagName != "#text" || string.IsNullOrWhiteSpace(el.text)) continue;
+            if (IsChromeText(el)) continue;
+            text.Append(el.text.Trim()).Append(' ');
+            if (text.Length > 15000) break;
+        }
+
+        var remaining = text.ToString().Trim();
+        while (remaining.Length > 0 && page.ContentSections.Count < 5)
+        {
+            var take = Math.Min(3000, remaining.Length);
+            if (take < remaining.Length)
+            {
+                var lastSpace = remaining.LastIndexOf(' ', take);
+                if (lastSpace > take / 2) take = lastSpace;
+            }
+            page.ContentSections.Add(remaining.Substring(0, take).Trim());
+            remaining = remaining.Substring(take).TrimStart();
+        }
+    }
+
+    /// <summary>Chrome containers whose text never belongs in article
+    /// content — checked via the DOM hierarchy of each #text node.</summary>
+    private static readonly string[] ChromeTags =
+        { "nav", "header", "footer", "aside", "form", "script", "style", "noscript", "select", "button" };
+
+    private static bool IsChromeText(DomElement el)
+    {
+        foreach (var tag in ChromeTags)
+            if (el.HasTagInHierarchy(tag)) return true;
+        // Class/id heuristics — Wikipedia's menus are div-wrapped, not <nav>.
+        foreach (var anc in el.Hierarchy())
+        {
+            if (anc.style?.TryGetValue("display", out var disp) == true && disp == "none") return true;
+            if (anc.attribute?.ContainsKey("hidden") == true
+                || anc.attribute?.TryGetValue("aria-hidden", out var ah) == true && ah == "true") return true;
+            var id = anc.attribute?.TryGetValue("id", out var v) == true ? v : "";
+            var marker = (id + " " + string.Join(" ", anc.className ?? new List<string>())).ToLowerInvariant();
+            if (marker.Contains("navbox") || marker.Contains("sidebar") || marker.Contains("cookie")
+                || marker.Contains("banner") || marker.Contains("mw-panel") || marker.Contains("vector-menu")
+                || marker.Contains("sitenotice") || marker.Contains("mw-indicators")) return true;
+        }
+        return false;
+    }
+
+    /// <summary>All image URLs the parser dump declares — hero_image plus
+    /// sections[].images[] and root images[]. Malformed dumps yield none.</summary>
+    private static List<string> ParsedJsonImageUrls(string? parsedJson)
+    {
+        var urls = new List<string>();
+        if (string.IsNullOrWhiteSpace(parsedJson)) return urls;
+        try
+        {
+            if (AddEditJournalEntryTool.ParseModelJson(parsedJson)
+                is not { } root) return urls;
+            void Collect(System.Text.Json.Nodes.JsonNode? node)
+            {
+                if (node is not System.Text.Json.Nodes.JsonObject o) return;
+                var u = o["url"]?.ToString();
+                if (!string.IsNullOrWhiteSpace(u) && !urls.Contains(u)) urls.Add(u);
+            }
+            Collect(root["hero_image"]);
+            if (root["sections"] is System.Text.Json.Nodes.JsonArray sections)
+                foreach (var s in sections)
+                    if (s is System.Text.Json.Nodes.JsonObject so &&
+                        so["images"] is System.Text.Json.Nodes.JsonArray imgs)
+                        foreach (var im in imgs) Collect(im);
+            if (root["images"] is System.Text.Json.Nodes.JsonArray rootImgs)
+                foreach (var im in rootImgs) Collect(im);
+        }
+        catch { /* malformed dump — no image urls */ }
+        return urls;
+    }
+
     /// <summary>
-    /// The website's declared language — &lt;html lang="…"&gt; in the raw markup,
-    /// or the serialized DOM's lang attribute. Returns the ISO code or null.
+    /// Keep only images verified at least 640px in their largest dimension —
+    /// each URL is downloaded and identified (bounded to the first few
+    /// candidates, short timeout). Order is preserved.
     /// </summary>
-    private static string? DetectLanguage(string markup)
+    private static async Task<List<string>> WideImagesOnlyAsync(
+        List<string> images, HashSet<string> declaredWide, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(markup)) return null;
-        var m = System.Text.RegularExpressions.Regex.Match(markup,
-            "lang\\s*[=:]\\s*[\"']([a-zA-Z]{2,3}(?:-[a-zA-Z]{2,4})?)[\"']",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        return m.Success ? m.Groups[1].Value : null;
+        ChatDetailLog.Fn("web-scrape", "WideImagesOnlyAsync");
+        var ok = new HashSet<string>(declaredWide, StringComparer.OrdinalIgnoreCase);
+        var unknown = images.Where(u => !ok.Contains(u)).Take(MaxImageChecks).ToList();
+        if (unknown.Count > 0)
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+            client.DefaultRequestHeaders.Add("User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36");
+            var failures = 0;
+            var lastError = "";
+            // Sequential with spacing + a Retry-After retry — hotlinked CDNs
+            // (Wikimedia) return 429 on bursts even at low concurrency.
+            foreach (var u in unknown)
+            {
+                if (ok.Count >= EnoughImages) break;
+                try
+                {
+                    using var resp = await client.GetAsync(u, cancellationToken);
+                    if ((int)resp.StatusCode == 429)
+                    {
+                        var wait = resp.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(3);
+                        resp.Dispose();
+                        await Task.Delay(wait > TimeSpan.FromSeconds(10) ? TimeSpan.FromSeconds(10) : wait, cancellationToken);
+                        using var retry = await client.GetAsync(u, cancellationToken);
+                        if (!retry.IsSuccessStatusCode) { failures++; lastError = $"HTTP {(int)retry.StatusCode}"; continue; }
+                        var rbytes = await retry.Content.ReadAsByteArrayAsync(cancellationToken);
+                        if (Images.ImageMaxDimension(rbytes) >= MinImageWidth) ok.Add(u);
+                        else failures++;
+                        continue;
+                    }
+                    if (!resp.IsSuccessStatusCode) { failures++; lastError = $"HTTP {(int)resp.StatusCode}"; continue; }
+                    var bytes = await resp.Content.ReadAsByteArrayAsync(cancellationToken);
+                    if (Images.ImageMaxDimension(bytes) >= MinImageWidth) ok.Add(u);
+                    else failures++;
+                }
+                catch (Exception ex) { failures++; lastError = ex.Message; }
+                await Task.Delay(250, cancellationToken);
+            }
+            if (failures > 0)
+                ChatDetailLog.Line($"image size check: {failures} rejected or failed ({lastError})");
+        }
+        var kept = images.Where(ok.Contains).ToList();
+        if (kept.Count != images.Count)
+            ChatDetailLog.Line($"images kept {kept.Count}/{images.Count} at >= {MinImageWidth}px width or height");
+        return kept;
     }
 
-    private static string MakeAbsolute(string href, string baseUrl)
+    /// <summary>Does the parser dump claim this page exposes a site-search
+    /// facility? (search_engine_submit_form.url non-empty). Used to gate the
+    /// script-analysis tier — DOM discovery already ran by this point.</summary>
+    private static bool DumpClaimsSearchForm(string? parsedJson)
     {
-        if (string.IsNullOrWhiteSpace(href)) return href;
-        if (href.StartsWith("//")) return "https:" + href;
-        if (href.StartsWith("/") && Uri.TryCreate(baseUrl, UriKind.Absolute, out var baseUri))
-            return new Uri(baseUri, href).ToString();
-        return href;
-    }
-
-    private static bool IsFileUrl(string url)
-    {
-        var path = url.Split('?', '#')[0].ToLowerInvariant();
-        return FileExtensions.Any(ext => path.EndsWith(ext));
-    }
-
-    private static bool IsVideoUrl(string url)
-    {
-        var lower = url.ToLowerInvariant();
-        return VideoHostHints.Any(h => lower.Contains(h));
+        if (string.IsNullOrWhiteSpace(parsedJson)) return false;
+        try
+        {
+            var root = AddEditJournalEntryTool.ParseModelJson(parsedJson);
+            var form = root?["search_engine_submit_form"];
+            var url = form is System.Text.Json.Nodes.JsonObject fo
+                ? fo["url"]?.ToString() : form?.ToString();
+            return !string.IsNullOrWhiteSpace(url);
+        }
+        catch { return false; }
     }
 }

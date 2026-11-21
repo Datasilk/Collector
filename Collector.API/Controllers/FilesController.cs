@@ -30,15 +30,9 @@ namespace Collector.API.Controllers
             
             try
             {
-                // Get the full file path
-                var basePath = Files.GetPath(Files.Paths.Files);
-                if (string.IsNullOrEmpty(basePath))
-                {
-                    return NotFound("Files path not configured");
-                }
-                
-                var fullPath = System.IO.Path.Combine(basePath, path);
-                
+                // Get the full file path (journal root for journal-scoped paths, legacy root otherwise)
+                var fullPath = Files.ResolveExisting(path);
+
                 // Check if file exists
                 if (!System.IO.File.Exists(fullPath))
                 {
@@ -99,7 +93,7 @@ namespace Collector.API.Controllers
                     await file.CopyToAsync(memoryStream);
                     var fileBytes = memoryStream.ToArray();
                     
-                    var success = Files.SaveFileBytes(Files.Paths.Files, path, fileBytes);
+                    var success = Files.SaveFileBytes(Files.Paths.Journal, path, fileBytes);
                     if (!success)
                     {
                         return Json(new ApiResponse { success = false, message = "Failed to save file" });

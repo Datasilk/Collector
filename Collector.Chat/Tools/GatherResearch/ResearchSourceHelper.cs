@@ -1,3 +1,4 @@
+using Collector.Chat.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -25,13 +26,19 @@ public interface IResearchSourceHelper
     /// helpers use per-user credentials (e.g. saved YouTube cookies), and
     /// requestCookies(domain, ct) lets them ask the client's Chrome
     /// extension for fresh cookies and retry once when a fetch is blocked.
+    /// searchEnginesRepo + scriptAnalyzer enable site-search discovery:
+    /// when the downloaded page exposes a search form, it becomes a new
+    /// entry in the SearchEngines table.
     /// </summary>
     Task<ResearchPage?> ExtractAsync(
         string url,
         Action<int, string>? onProgress = null,
         CancellationToken cancellationToken = default,
         Guid? appUserId = null,
-        Func<string, CancellationToken, Task<string>>? requestCookies = null);
+        Func<string, CancellationToken, Task<string>>? requestCookies = null,
+        Func<string, CancellationToken, Task<string?>>? htmlParser = null,
+        Collector.Data.Interfaces.ISearchEnginesRepository? searchEnginesRepo = null,
+        Func<string, Task<string>>? scriptAnalyzer = null);
 }
 
 /// <summary>

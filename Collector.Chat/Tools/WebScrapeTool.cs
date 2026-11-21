@@ -1,3 +1,4 @@
+using Collector.Chat.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -24,15 +25,23 @@ public class WebScrapeTool : IChatTool
     private readonly IDomainsRepository? _domainsRepository;
     /// <summary>(appUserId, domain, ct) → fresh cookies from the client extension.</summary>
     private readonly Func<Guid, string, CancellationToken, Task<string>>? _requestCookies;
+    /// <summary>HTML → structured-JSON parser (LLM_HtmlParsers active model).</summary>
+    private readonly HtmlParser? _htmlParser;
+    /// <summary>New site-search endpoints discovered on scraped pages land here.</summary>
+    private readonly ISearchEnginesRepository? _searchEnginesRepo;
 
     public WebScrapeTool(
         LLMClient? llm = null,
         IDomainsRepository? domainsRepository = null,
-        Func<Guid, string, CancellationToken, Task<string>>? requestCookies = null)
+        Func<Guid, string, CancellationToken, Task<string>>? requestCookies = null,
+        ILLMHtmlParsersRepository? htmlParsersRepository = null,
+        ISearchEnginesRepository? searchEnginesRepo = null)
     {
         _llm = llm;
         _domainsRepository = domainsRepository;
         _requestCookies = requestCookies;
+        _htmlParser = new HtmlParser(htmlParsersRepository, llm);
+        _searchEnginesRepo = searchEnginesRepo;
     }
 
     public string ToolKey => "web-scrape";
@@ -74,6 +83,7 @@ public class WebScrapeTool : IChatTool
         SendMessage? sendMessage = null,
         CancellationToken cancellationToken = default)
     {
+        ChatDetailLog.Fn("web-scrape", "Run");
         try
         {
             onProgress(10, "Preparing to extract content...");
@@ -115,11 +125,31 @@ public class WebScrapeTool : IChatTool
                 cancellationToken, appUserId,
                 _requestCookies == null
                     ? null
-                    : (domain, ct) => _requestCookies(appUserId, domain, ct));
+                    : (domain, ct) => _requestCookies(appUserId, domain, ct),
+                _htmlParser == null ? null : (html, ct) => _htmlParser.ParseAsync(html, userMessage, ct),
+                _searchEnginesRepo,
+                _llm == null || _searchEnginesRepo == null
+                    ? null
+                    : (Func<string, Task<string>>)(p => _llm.LocalAsync(
+                        Prompts.ScriptAnalysisSystem(), p, json: true, cancellationToken)));
 
             if (page == null)
             {
+                RecordFailedPage(data, url);
                 onError($"Failed to download or parse content from URL: {url}");
+                return;
+            }
+
+            // Bot-lite stub: the host served a near-empty DOM (PMC ~30
+            // elements). Not a real page — don't store it, and count the
+            // host so gather-research stops re-queuing its siblings.
+            if (!page.IsFile && page.DomElements >= 0 && page.DomElements < 60)
+            {
+                RecordFailedPage(data, url);
+                var stubMsg = $"Skipped {page.Url} — host served a stub page ({page.DomElements} DOM elements; likely a bot wall)";
+                ChatDetailLog.Line($"web-scrape: {stubMsg}");
+                onProgress(100, stubMsg);
+                onComplete(stubMsg);
                 return;
             }
 
@@ -179,13 +209,30 @@ public class WebScrapeTool : IChatTool
     /// session-entry marker in shared data. Best-effort — any failure
     /// means "not collected" so scraping proceeds.
     /// </summary>
+    /// <summary>
+    /// Record a scrape failure in shared data so coverage loops stop
+    /// re-queuing it: the URL joins "failed-pages" (exact dedupe) and its
+    /// host joins "failed-hosts" — gather-research blocks a host entirely
+    /// after 2 failures this run (bot walls rarely lift mid-run).
+    /// </summary>
+    private static void RecordFailedPage(List<Dictionary<string, List<string>>> data, string url)
+    {
+        try
+        {
+            ResearchReviewTool.AddToList(data, "failed-pages", "urls", new[] { url });
+            if (Uri.TryCreate(url, UriKind.Absolute, out var u))
+                ResearchReviewTool.AddToList(data, "failed-hosts", "hosts", new[] { u.Host });
+        }
+        catch { /* bookkeeping is best-effort */ }
+    }
+
     private static bool AlreadyCollected(List<Dictionary<string, List<string>>> data, string url)
     {
         try
         {
             var entryId = ResearchReviewTool.GetSessionEntryId(data);
             if (entryId == null) return false;
-            var research = JournalEntryDocument.Load(entryId.Value).Research;
+            var research = JournalEntryDocument.Load(entryId.Value, ResearchReviewTool.GetSessionJournalId(data)).Research;
             return research?.HasSource(url) == true;
         }
         catch { return false; }
@@ -201,6 +248,7 @@ public class WebScrapeTool : IChatTool
     private async Task TryRegisterDomainAsync(
         ResearchPage page, OnProgress onProgress, CancellationToken cancellationToken)
     {
+        ChatDetailLog.Fn("web-scrape", "TryRegisterDomainAsync");
         if (_domainsRepository == null || page.IsFile || string.IsNullOrWhiteSpace(page.Url)) return;
         try
         {
@@ -242,6 +290,7 @@ public class WebScrapeTool : IChatTool
     private async Task TranslateToEnglishIfNeededAsync(
         ResearchPage page, OnProgress onProgress, CancellationToken cancellationToken)
     {
+        ChatDetailLog.Fn("web-scrape", "TranslateToEnglishIfNeededAsync");
         if (_llm == null || page.IsFile || page.ContentSections.Count == 0) return;
 
         bool english;

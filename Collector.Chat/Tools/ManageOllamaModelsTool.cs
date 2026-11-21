@@ -1,3 +1,4 @@
+using Collector.Chat.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,16 +23,18 @@ public class ManageOllamaModelsTool : IChatTool
 {
     private readonly OllamaApiClient _ollama;
     private readonly IOllamaModelsRepository _ollamaModelsRepo;
+    private readonly ILLMHtmlParsersRepository? _htmlParsersRepo;
 
-    public ManageOllamaModelsTool(OllamaApiClient ollama, IOllamaModelsRepository ollamaModelsRepo)
+    public ManageOllamaModelsTool(OllamaApiClient ollama, IOllamaModelsRepository ollamaModelsRepo, ILLMHtmlParsersRepository? htmlParsersRepo = null)
     {
         _ollama = ollama;
         _ollamaModelsRepo = ollamaModelsRepo;
+        _htmlParsersRepo = htmlParsersRepo;
     }
 
     public string ToolKey => "manage-ollama-models";
 
-    public string Description => "Manage Ollama models: list installed models, show which model is active, switch the active model, or download a new model. Use when the user asks about models (\"what models do I have\", \"which model is active\"), asks to run/use/switch to a model (\"ollama run <model>\", \"use <model>\", \"switch model to <model>\"), or asks to download/install/pull a model.";
+    public string Description => "Manage Ollama models: list installed models, show which model is active, switch the active model, download a new model, or manage HTML parser models. Use when the user asks about models (\"what models do I have\", \"which model is active\"), asks to run/use/switch to a model (\"ollama run <model>\", \"use <model>\", \"switch model to <model>\"), asks to download/install/pull a model, or asks to add/list/activate an html parser model (stored in LLM_HtmlParsers).";
 
     public bool AvailableToOllama => true;
 
@@ -74,6 +77,7 @@ public class ManageOllamaModelsTool : IChatTool
         SendMessage? sendMessage = null,
         CancellationToken cancellationToken = default)
     {
+        ChatDetailLog.Fn("manage-ollama-models", "Run");
         try
         {
             var args = plan != null && currentStepIndex >= 0 && currentStepIndex < plan.Steps.Count
@@ -81,6 +85,9 @@ public class ManageOllamaModelsTool : IChatTool
                 : null;
             var action = args?.GetValueOrDefault("action", "")?.ToString()?.Trim().ToLowerInvariant() ?? "";
             var model = CleanModelToken(args?.GetValueOrDefault("model", "")?.ToString());
+
+            // "add a new html parser model" targets LLM_HtmlParsers, not OllamaModels
+            var isParser = IsHtmlParserRequest(userMessage, args);
 
             // Infer missing pieces from the user's phrasing
             if (string.IsNullOrWhiteSpace(model))
@@ -99,6 +106,13 @@ public class ManageOllamaModelsTool : IChatTool
             catch (Exception ex)
             {
                 onError($"Could not reach Ollama to list models: {ex.Message}", ex);
+                return;
+            }
+
+            if (isParser)
+            {
+                await HandleParserRequestAsync(action, model, localModels,
+                    onProgress, onError, onComplete, sendMessage);
                 return;
             }
 
@@ -135,6 +149,115 @@ public class ManageOllamaModelsTool : IChatTool
         catch (Exception ex)
         {
             onError($"Failed to manage Ollama models: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// "html parser model" phrasing routes model management to the
+    /// LLM_HtmlParsers table instead of OllamaModels.
+    /// </summary>
+    private static bool IsHtmlParserRequest(string? userMessage, Dictionary<string, object>? args)
+    {
+        var msg = userMessage ?? "";
+        if (Regex.IsMatch(msg, @"html\s*parser", RegexOptions.IgnoreCase)) return true;
+        if (args != null)
+            foreach (var kv in args)
+                if (kv.Value != null && Regex.IsMatch(kv.Value.ToString()!, @"html\s*parser", RegexOptions.IgnoreCase))
+                    return true;
+        return false;
+    }
+
+    /// <summary>Add/activate/list/delete rows in LLM_HtmlParsers.</summary>
+    private async Task HandleParserRequestAsync(
+        string action, string? model, List<Model> localModels,
+        OnProgress onProgress, OnError onError, OnComplete onComplete, SendMessage? sendMessage)
+    {
+        if (_htmlParsersRepo == null)
+        {
+            onError("The HTML parser model table isn't configured on this chat session.", null);
+            return;
+        }
+
+        switch (action)
+        {
+            case "list":
+            {
+                var rows = _htmlParsersRepo.GetAll();
+                if (rows.Count == 0)
+                {
+                    sendMessage?.Invoke("No HTML parser models are configured yet.", null, null);
+                    onComplete("No HTML parser models configured");
+                    return;
+                }
+                var sb = new StringBuilder("HTML parser models:");
+                foreach (var m in rows)
+                    sb.Append($"\n- {m.Id} ({m.Name}){(m.Status == 1 ? "  ← active" : "")}");
+                sendMessage?.Invoke(sb.ToString(), null, null);
+                onComplete($"Listed {rows.Count} HTML parser model(s)");
+                return;
+            }
+
+            case "active":
+            case "status":
+            case "current":
+            {
+                var active = _htmlParsersRepo.GetActive();
+                sendMessage?.Invoke(
+                    active != null
+                        ? $"The active HTML parser model is '{active.Id}'."
+                        : "No HTML parser model is marked active.",
+                    null, null);
+                onComplete(active != null ? $"Active HTML parser model: {active.Id}" : "No active HTML parser model");
+                return;
+            }
+
+            case "download":
+            case "pull":
+            case "install":
+            case "switch":
+            case "activate":
+            case "use":
+            case "run":
+            case "add":
+            {
+                if (string.IsNullOrWhiteSpace(model))
+                {
+                    onError("No model name was provided. Ask the user which HTML parser model to add.", null);
+                    return;
+                }
+
+                var activate = action is "switch" or "activate" or "use" or "run";
+
+                if (!IsDownloaded(localModels, model))
+                {
+                    sendMessage?.Invoke($"Downloading Ollama model '{model}' — this may take a while…", null, null);
+                    if (!await PullModelAsync(model, onProgress, sendMessage))
+                    {
+                        onError($"Failed to download model '{model}' from Ollama.", null);
+                        return;
+                    }
+                }
+
+                if (_htmlParsersRepo.GetById(model) == null)
+                    _htmlParsersRepo.Add(new LLMHtmlParser { Id = model, Name = model, Status = 0 });
+
+                if (activate)
+                {
+                    _htmlParsersRepo.SetActive(model);
+                    sendMessage?.Invoke($"'{model}' is now the active HTML parser model.", null, null);
+                    onComplete($"Active HTML parser model set to '{model}'");
+                }
+                else
+                {
+                    sendMessage?.Invoke($"Added '{model}' as an HTML parser model.", null, null);
+                    onComplete($"Added HTML parser model '{model}'");
+                }
+                return;
+            }
+
+            default:
+                onError($"Unknown action '{action}'. Valid actions: list, active, switch/add, download.", null);
+                return;
         }
     }
 

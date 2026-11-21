@@ -354,8 +354,10 @@ export default function JournalEntryPage() {
     const updateThumbnail = async (entryData, thumbnail, moduleId = null, sourceEntryId = null) => {
         try {
             await updateEntryThumbnail(entryData.id, thumbnail, moduleId, sourceEntryId);
-            // Store the full path in state if sourceEntryId is provided
-            const thumbnailPath = sourceEntryId ? `${sourceEntryId}/${thumbnail}` : thumbnail;
+            // Store the full path in state if sourceEntryId is provided (mirrors server logic)
+            const thumbnailPath = sourceEntryId && typeof thumbnail === 'string' && !thumbnail.includes('/') && !thumbnail.includes('\\')
+                ? `${journalId}/${sourceEntryId}/images/${thumbnail}`
+                : thumbnail;
             setEntry({ ...entryData, thumbnail: thumbnailPath, thumbnailModuleId: moduleId });
             entryRef.current = { ...entryData, thumbnail: thumbnailPath, thumbnailModuleId: moduleId };
         } catch (err) {

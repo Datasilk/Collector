@@ -98,10 +98,14 @@ namespace Collector.Common
                                 }
                                 else if (response == null && wwwAdded == false && url.IndexOf("/www.") < 0)
                                 {
-                                    // Try adding www. to the URL
+                                    // Try adding www. to the URL — only for
+                                    // apex domains; prefixing a subdomain
+                                    // (en.wikipedia.org → www.en.wikipedia.org)
+                                    // produces a guaranteed-dead host.
+                                    var host = url.Replace("https://", "").Replace("http://", "").Split('/')[0];
+                                    if (host.Split('.').Length > 2) break;
                                     wwwAdded = true;
-                                    url = url.Replace("https://", "").Replace("http://", "");
-                                    url = "https://www." + url;
+                                    url = "https://www." + url.Replace("https://", "").Replace("http://", "");
                                     method = "HEAD";
                                     continue;
                                 }
@@ -193,10 +197,11 @@ namespace Collector.Common
                     }
                     else if (status != 200 && url.IndexOf("/www.") < 0)
                     {
-                        // Try adding www. to the URL
+                        // Try adding www. — apex domains only (see above).
+                        var host = url.Replace("https://", "").Replace("http://", "").Split('/')[0];
+                        if (host.Split('.').Length > 2) break;
                         wwwAdded = true;
-                        url = url.Replace("https://", "").Replace("http://", "");
-                        url = "https://www." + url;
+                        url = "https://www." + url.Replace("https://", "").Replace("http://", "");
                         method = "HEAD";
                         status = 0;
                         continue;

@@ -203,6 +203,35 @@ namespace Collector.Common
         }
 
         /// <summary>
+        /// Pixel width of encoded image bytes — reads only the format header.
+        /// Null when the bytes aren't a readable image.
+        /// </summary>
+        public static int? ImageWidth(byte[] imageBytes)
+        {
+            try
+            {
+                using var stream = new MemoryStream(imageBytes);
+                return Image.Identify(stream)?.Width;
+            }
+            catch { return null; }
+        }
+
+        /// <summary>
+        /// Larger of width/height of encoded image bytes — reads only the
+        /// format header. Null when the bytes aren't a readable image.
+        /// </summary>
+        public static int? ImageMaxDimension(byte[] imageBytes)
+        {
+            try
+            {
+                using var stream = new MemoryStream(imageBytes);
+                var info = Image.Identify(stream);
+                return info == null ? null : Math.Max(info.Width, info.Height);
+            }
+            catch { return null; }
+        }
+
+        /// <summary>
         /// Create a thumbnail from an image with a maximum dimension
         /// </summary>
         /// <param name="imageBytes">The original image as byte array</param>

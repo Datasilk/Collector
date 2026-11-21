@@ -1,3 +1,4 @@
+using Collector.Chat.Helpers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -79,6 +80,7 @@ public class GatherResearchTool : IChatTool
         SendMessage? sendMessage = null,
         CancellationToken cancellationToken = default)
     {
+        ChatDetailLog.Fn("gather-research", "Run");
         try
         {
             onProgress(5, "Initializing research gathering...");
@@ -97,17 +99,28 @@ public class GatherResearchTool : IChatTool
 
             // URL-direct research — when the request names a specific URL, we
             // download and extract THAT page instead of searching engines.
-            var directUrls = ExtractUrls(userMessage)
-                .Concat(ExtractUrls(context))
-                .Concat(ExtractUrls(args?.GetValueOrDefault("url", "")?.ToString() ?? ""))
-                .Distinct()
-                .Take(maxResults)
-                .ToList();
+            // Follow-up steps queued by coverage review / deepening carry an
+            // explicit query — they must SEARCH, not re-download the URL that
+            // happens to live in the original user message (which never
+            // changes between steps and would dead-end every follow-up on
+            // "already in sources").
+            var query = args?.GetValueOrDefault("query", "")?.ToString()?.Trim() ?? "";
+            var directUrls = ExtractUrls(args?.GetValueOrDefault("url", "")?.ToString() ?? "");
+            if (directUrls.Count == 0 && string.IsNullOrWhiteSpace(query))
+            {
+                directUrls = ExtractUrls(userMessage)
+                    .Concat(ExtractUrls(context))
+                    .Distinct()
+                    .ToList();
+            }
+            directUrls = directUrls.Take(maxResults).ToList();
             var urlDirect = directUrls.Count > 0;
 
-            // A research-review step may hand us the query directly (gap-filling
-            // follow-up); otherwise generate one from the user's request.
-            var query = args?.GetValueOrDefault("query", "")?.ToString()?.Trim() ?? "";
+            // Remember user-named pages — their research questions are scoped
+            // to the page itself, so if every one is skipped/failed the
+            // coverage review has nothing left to chase.
+            if (urlDirect)
+                ResearchReviewTool.AddToList(data, "url-direct", "urls", directUrls);
             if (urlDirect && string.IsNullOrWhiteSpace(query))
             {
                 // The URL itself is the "query" — it lands in asked-queries so
@@ -120,6 +133,13 @@ public class GatherResearchTool : IChatTool
                 query = await GenerateSearchQueryAsync(context, userMessage, ragContext, cancellationToken);
             }
 
+            // Follow-up queries arrive as full natural-language questions —
+            // engines lock onto individual words ("primary", "have") and return
+            // dictionary/e-commerce junk. Record the original question for
+            // coverage dedupe, but search with distilled keywords.
+            var askedQuery = query;
+            var searchQuery = urlDirect ? query : DistillToKeywords(query);
+
             if (string.IsNullOrWhiteSpace(query))
             {
                 onError("Failed to generate search query", null);
@@ -127,7 +147,12 @@ public class GatherResearchTool : IChatTool
             }
 
             // Track every asked query — the coverage loop never re-asks one.
-            ResearchReviewTool.AddToList(data, "asked-queries", "queries", new[] { query });
+            // Both the raw question and the distilled form are recorded so a
+            // rephrased repeat still trips the dedupe.
+            ResearchReviewTool.AddToList(data, "asked-queries", "queries",
+                string.Equals(askedQuery, searchQuery, StringComparison.OrdinalIgnoreCase)
+                    ? new[] { askedQuery }
+                    : new[] { askedQuery, searchQuery });
 
             // First research step of a run: derive the research questions the
             // coverage review (research-review) will check the entry against.
@@ -135,7 +160,7 @@ public class GatherResearchTool : IChatTool
             {
                 try
                 {
-                    var questions = await GenerateResearchQuestionsAsync(userMessage, ragContext, cancellationToken);
+                    var questions = await GenerateResearchQuestionsAsync(userMessage, ragContext, urlDirect, cancellationToken);
                     if (questions.Count > 0)
                     {
                         ResearchReviewTool.AddToList(data, "research-questions", "questions", questions);
@@ -150,12 +175,19 @@ public class GatherResearchTool : IChatTool
             sendMessage?.Invoke(urlDirect
                 ? $"Downloading {directUrls[0]}…"
                 : string.IsNullOrWhiteSpace(context)
-                    ? $"Searching the web for information about \"{query}\"…"
-                    : $"{context.Trim().TrimEnd('.')} — searching for \"{query}\"…", null, null);
+                    ? $"Searching the web for information about \"{searchQuery}\"…"
+                    : $"{context.Trim().TrimEnd('.')} — searching for \"{searchQuery}\"…", null, null);
 
-            var allUrls = new List<string>();
+            var allLinks = new List<SearchHelper.ResultLink>();
+            var searchIndex = -1;
             if (!urlDirect)
             {
+                // Record the engine call in run-shared data — sources gathered
+                // from its results get tagged with this query's index.
+                searchIndex = ResearchReviewTool.GetList(data, "search-queries", "queries").Count;
+                ResearchReviewTool.AddToList(data, "search-queries", "queries",
+                    new[] { System.Net.WebUtility.UrlEncode(searchQuery) });
+
                 var searchEngines = SearchHelper.GetEnabledEngines(_searchEnginesRepo);
 
                 // Search engines in priority order (lowest sort first), falling through
@@ -169,10 +201,15 @@ public class GatherResearchTool : IChatTool
 
                     try
                     {
-                        var urls = await SearchHelper.SearchEngineUrlsAsync(engine, query,
+                        var (urls, article) = await SearchHelper.SearchEnginePageAsync(engine, searchQuery,
                             (msg) => onProgress(10 + progressPercent, msg), _searchEnginesRepo,
                             p => AnalyzeScriptAsync(p, cancellationToken), cancellationToken: cancellationToken);
-                        allUrls.AddRange(urls);
+                        // Re-extract with anchor titles when we have the parsed
+                        // SERP — titles drive the relevance filter below.
+                        if (article?.elements != null)
+                            allLinks.AddRange(SearchHelper.ExtractResultLinks(article, engine));
+                        else
+                            allLinks.AddRange(urls.Select(u => new SearchHelper.ResultLink { Url = u }));
                     }
                     catch (OperationCanceledException) { throw; }
                     catch (Exception ex)
@@ -182,7 +219,7 @@ public class GatherResearchTool : IChatTool
                     }
 
                     // Highest-priority engine produced enough results; no need to hit lower-priority engines
-                    if (allUrls.Count >= maxResults)
+                    if (allLinks.Count >= maxResults)
                     {
                         break;
                     }
@@ -193,7 +230,19 @@ public class GatherResearchTool : IChatTool
 
             // Filter out sponsored links, duplicates, and invalid URLs —
             // URL-direct mode already carries the user's chosen pages.
-            var filteredUrls = urlDirect ? directUrls : SearchHelper.FilterByDomain(allUrls);
+            var dedupedLinks = DedupeLinksByDomain(allLinks);
+
+            // Relevance filter — judge result TITLES against the research
+            // request before spending scrape attempts on SERP noise
+            // (shopping listings, dictionary hits, unrelated topics).
+            var filteredUrls = urlDirect
+                ? directUrls
+                : (await FilterLinksByRelevanceAsync(dedupedLinks, searchQuery, userMessage, onProgress, cancellationToken))
+                    .Select(l => l.Url).ToList();
+
+            // Direct image/media asset URLs aren't research pages — scraping
+            // a .jpg yields nothing and pollutes the Sources module.
+            filteredUrls = filteredUrls.Where(u => !IsMediaAssetUrl(u)).ToList();
 
             // Never re-collect a URL the entry already lists as a research
             // source — coverage waves re-emit them constantly otherwise.
@@ -203,7 +252,7 @@ public class GatherResearchTool : IChatTool
             {
                 try
                 {
-                    var research = JournalEntryDocument.Load(entryId.Value).Research;
+                    var research = JournalEntryDocument.Load(entryId.Value, ResearchReviewTool.GetSessionJournalId(data)).Research;
                     if (research != null)
                     {
                         var fresh = filteredUrls.Where(u => !research.HasSource(u)).ToList();
@@ -214,6 +263,37 @@ public class GatherResearchTool : IChatTool
                 catch { /* dedup is best-effort */ }
             }
 
+            // Never re-attempt a URL already planned this run — failed scrapes
+            // never become sources, so without this the same dead URLs get
+            // re-queued by every coverage wave.
+            var alreadyPlanned = ResearchReviewTool.GetList(data, "planned-pages", "urls")
+                .Select(u => u.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (alreadyPlanned.Count > 0)
+            {
+                var fresh = filteredUrls.Where(u => !alreadyPlanned.Contains(u)).ToList();
+                skipped += filteredUrls.Count - fresh.Count;
+                filteredUrls = fresh;
+            }
+
+            // Scrape failures leave a trail: never re-plan a URL that already
+            // failed, and stop feeding hosts that walled us 2+ times this run —
+            // otherwise every coverage wave re-queues the same walled domains.
+            var failedPages = ResearchReviewTool.GetList(data, "failed-pages", "urls")
+                .Select(u => u.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var failedHosts = ResearchReviewTool.GetList(data, "failed-hosts", "hosts")
+                .GroupBy(h => h, StringComparer.OrdinalIgnoreCase)
+                .Where(g => g.Count() >= 2)
+                .Select(g => g.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (failedPages.Count > 0 || failedHosts.Count > 0)
+            {
+                var fresh = filteredUrls.Where(u =>
+                    !failedPages.Contains(u)
+                    && !(Uri.TryCreate(u, UriKind.Absolute, out var fu) && failedHosts.Contains(fu.Host)))
+                    .ToList();
+                skipped += filteredUrls.Count - fresh.Count;
+                filteredUrls = fresh;
+            }
+
             // Limit to max results
             var finalUrls = filteredUrls.Take(maxResults).ToList();
 
@@ -221,6 +301,12 @@ public class GatherResearchTool : IChatTool
             // ("collected 8 of 10 pages — 2 failed") — failed scrapes never
             // reach shared data, so the planned list is the denominator.
             ResearchReviewTool.AddToList(data, "planned-pages", "urls", finalUrls);
+
+            // Provenance: remember which search query produced each URL so the
+            // integrated source can carry searchIndex back to research.search.
+            if (searchIndex >= 0)
+                ResearchReviewTool.AddToList(data, "source-search", "pairs",
+                    finalUrls.Select(u => $"{searchIndex}|{u}"));
 
             if (finalUrls.Count == 0)
             {
@@ -241,7 +327,7 @@ public class GatherResearchTool : IChatTool
                 sendMessage?.Invoke($"Skipped {skipped} already-collected source{(skipped == 1 ? "" : "s")}.", null, null);
             }
 
-            onProgress(80, $"Found {finalUrls.Count} relevant URLs for query: {query}");
+            onProgress(80, $"Found {finalUrls.Count} relevant URLs for query: {searchQuery}");
             sendMessage?.Invoke($"Found {finalUrls.Count} source{(finalUrls.Count == 1 ? "" : "s")} — collecting research…", null, null);
 
             // Add scrape → integrate pairs for each URL so the journal entry
@@ -296,10 +382,14 @@ public class GatherResearchTool : IChatTool
 /// Derive the explicit research questions for this run — stored in shared
     /// data and checked by the research-review coverage step at the end.
     /// </summary>
-    private async Task<List<string>> GenerateResearchQuestionsAsync(string userMessage, string ragContext, CancellationToken cancellationToken = default)
+    private async Task<List<string>> GenerateResearchQuestionsAsync(string userMessage, string ragContext, bool urlDirect, CancellationToken cancellationToken = default)
     {
+        ChatDetailLog.Fn("gather-research", "GenerateResearchQuestionsAsync");
         var userPrompt = $"User's research request: {userMessage}\n\n" +
             (string.IsNullOrWhiteSpace(ragContext) ? "" : $"Conversation context:\n{ragContext}\n\n") +
+            (urlDirect
+                ? "The research is limited to the specific URL(s) named above — every question must be answerable from that page's own content.\n\n"
+                : "") +
             "Produce the research questions as JSON now.";
 
         var request = new OllamaSharp.Models.GenerateRequest
@@ -339,6 +429,7 @@ public class GatherResearchTool : IChatTool
     /// </summary>
     private async Task<string> AnalyzeScriptAsync(string prompt, CancellationToken cancellationToken = default)
     {
+        ChatDetailLog.Fn("gather-research", "AnalyzeScriptAsync");
         var request = new OllamaSharp.Models.GenerateRequest
         {
             Model = _ollamaModel,
@@ -359,6 +450,7 @@ public class GatherResearchTool : IChatTool
     /// </summary>
     private async Task<string> GenerateSearchQueryAsync(string context, string userMessage, string ragContext, CancellationToken cancellationToken = default)
     {
+        ChatDetailLog.Fn("gather-research", "GenerateSearchQueryAsync");
         try
         {
             // Framed as a mechanical text-transform, not an assistant answering
@@ -466,6 +558,151 @@ Examples:
         return true;
     }
 
+    /// <summary>Domain dedupe on result links — first link per host wins.</summary>
+    private static List<SearchHelper.ResultLink> DedupeLinksByDomain(List<SearchHelper.ResultLink> links)
+    {
+        ChatDetailLog.Fn("gather-research", "DedupeLinksByDomain");
+        var seen = new HashSet<string>();
+        var kept = new List<SearchHelper.ResultLink>();
+        foreach (var link in links)
+        {
+            if (!Uri.TryCreate(link.Url, UriKind.Absolute, out var uri)) continue;
+            if (seen.Add(uri.Host.ToLowerInvariant())) kept.Add(link);
+        }
+        return kept;
+    }
+
+    /// <summary>
+    /// SERP-level relevance check: hand the result titles + URLs to the local
+    /// model and keep only the ones it judges on-topic for the research
+    /// request. Fails open — when the model can't decide, all links pass.
+    /// </summary>
+    private async Task<List<SearchHelper.ResultLink>> FilterLinksByRelevanceAsync(
+        List<SearchHelper.ResultLink> links,
+        string searchQuery,
+        string userMessage,
+        OnProgress onProgress,
+        CancellationToken cancellationToken)
+    {
+        ChatDetailLog.Fn("gather-research", "FilterLinksByRelevanceAsync");
+        // Deterministic junk filter — dictionary/thesaurus/definition pages
+        // pass the LLM check too often (literal word overlap) and never
+        // contain research content.
+        var kept = links.Where(l => !IsJunkResult(l)).ToList();
+        if (kept.Count < links.Count)
+        {
+            ChatDetailLog.Links(links.Select(l => (l.Title ?? "", l.Url ?? "", kept.Contains(l))));
+            links = kept.Count > 0 ? kept : links;
+        }
+        if (links.Count <= 1)
+        {
+            ChatDetailLog.Links(links.Select(l => (l.Title ?? "", l.Url ?? "", true)));
+            return links;
+        }
+        try
+        {
+            var numbered = links.Select((l, i) =>
+                $"{i + 1}. {(string.IsNullOrWhiteSpace(l.Title) ? "(no title)" : l.Title)} — {l.Url}");
+            var system = @"You are a search-result filter for a research pipeline. Given a research request and a numbered list of search results (title — URL), decide which results will contain substantive, on-topic content.
+Keep: encyclopedia/reference articles, news coverage, educational or scholarly pages about the subject.
+Reject: shopping/product listings, dictionary/definition entries, image or video galleries, login or forum pages, and pages about a different subject that happens to share a word with the query.
+Respond with ONLY valid JSON in this exact format:
+{""relevant"":[1,2,3]}";
+            var user = $"RESEARCH REQUEST: {userMessage}\n\nSEARCH QUERY: {searchQuery}\n\nRESULTS:\n{string.Join("\n", numbered)}\n\nWhich result numbers are relevant?";
+
+            var request = new OllamaSharp.Models.GenerateRequest
+            {
+                Model = _ollamaModel,
+                System = system,
+                Prompt = user,
+                Stream = false,
+                Format = "json"
+            };
+            var text = "";
+            await foreach (var response in _ollama.GenerateAsync(request, cancellationToken))
+            {
+                if (response?.Response != null) text += response.Response;
+            }
+
+            if (LLMJson.TryParse<ResultFilterResponse>(text, out var r) && r?.Relevant != null)
+            {
+                var keep = r.Relevant.Where(n => n >= 1 && n <= links.Count).ToHashSet();
+                if (keep.Count == 0)
+                {
+                    ChatDetailLog.Links(links.Select(l => (l.Title ?? "", l.Url ?? "", true)));
+                    return links; // empty verdicts aren't trustworthy — keep all
+                }
+                ChatDetailLog.Links(links.Select((l, i) => (l.Title ?? "", l.Url ?? "", keep.Contains(i + 1))));
+                var filtered = links.Where((l, i) => keep.Contains(i + 1)).ToList();
+                var dropped = links.Count - filtered.Count;
+                if (dropped > 0)
+                    onProgress(72, $"Relevance filter: kept {filtered.Count} of {links.Count} results");
+                return filtered;
+            }
+        }
+        catch (OperationCanceledException) { throw; }
+        catch { /* filter is best-effort */ }
+        ChatDetailLog.Links(links.Select(l => (l.Title ?? "", l.Url ?? "", true)));
+        return links;
+    }
+
+    private class ResultFilterResponse
+    {
+        [JsonPropertyName("relevant")] public List<int>? Relevant { get; set; }
+    }
+
+    /// <summary>Reference sites that only define words — never useful as
+    /// research sources. Match on host plus dictionary-ish paths.</summary>
+    private static bool IsJunkResult(SearchHelper.ResultLink link)
+    {
+        var url = link.Url ?? "";
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var u)) return false;
+        var host = u.Host.ToLowerInvariant();
+        if (JunkHosts.Any(h => host == h || host.EndsWith("." + h))) return true;
+        var path = u.AbsolutePath.ToLowerInvariant();
+        return JunkPathMarkers.Any(m => path.Contains(m));
+    }
+
+    private static readonly string[] JunkHosts =
+    {
+        "dictionary.com", "merriam-webster.com", "thesaurus.com",
+        "thefreedictionary.com", "collinsdictionary.com", "urbandictionary.com",
+        "vocabulary.com", "wordreference.com", "synonyms.com",
+        "powerthesaurus.org", "wiktionary.org", "definitions.net",
+        "yourdictionary.com", "wordnik.com"
+    };
+
+    private static readonly string[] JunkPathMarkers =
+    {
+        "/dictionary/", "/thesaurus/", "/definition/", "/definitions/",
+        "/define/", "/synonyms/", "/meaning/"
+    };
+
+    /// <summary>Direct media/asset URLs (images, video, css, fonts) — scraping
+    /// one returns no article, so never queue them as research pages.</summary>
+    private static bool IsMediaAssetUrl(string url)
+    {
+        var clean = url.Split('?', '#')[0];
+        return System.Text.RegularExpressions.Regex.IsMatch(clean,
+            @"\.(jpe?g|png|gif|webp|svg|bmp|ico|mp[34]|webm|mov|css|js|woff2?)$",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    }
+
+    /// <summary>
+    /// Reduce a query string to keyword form. Already-terse queries pass
+    /// through unchanged; natural-language questions (which engines mishandle
+    /// by fixating on single words) get stopword-stripped.
+    /// </summary>
+    private static string DistillToKeywords(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return query ?? "";
+        var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var looksLikeQuestion = query.EndsWith("?") || words.Length > 8;
+        if (!looksLikeQuestion) return query;
+        var distilled = DeriveQueryFromMessage(query.TrimEnd('?').Trim());
+        return string.IsNullOrWhiteSpace(distilled) ? query : distilled;
+    }
+
     /// <summary>
     /// Deterministic fallback: distill the user's own message into a keyword
     /// query by dropping stopwords and truncation phrases.
@@ -475,17 +712,35 @@ Examples:
         var stopwords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "a", "an", "the", "is", "are", "was", "were", "what", "how", "why", "when",
-            "where", "who", "whom", "can", "could", "you", "please", "tell", "me", "about",
-            "find", "out", "all", "details", "information", "research", "on", "of", "for",
-            "in", "to", "and", "put", "it", "my", "journal", "save", "this", "that", "i",
+            "where", "who", "whom", "whose", "which", "can", "could", "you", "please",
+            "tell", "me", "about", "find", "out", "all", "details", "information",
+            "research", "on", "of", "for", "in", "to", "and", "or", "put", "it",
+            "its", "my", "journal", "save", "this", "that", "these", "those", "i",
             "want", "need", "get", "give", "write", "create", "make", "entry", "into",
-            "gather", "collect", "look", "up", "everything", "know"
+            "gather", "collect", "look", "up", "everything", "know", "do", "does",
+            "did", "doing", "have", "has", "had", "having", "be", "been", "being",
+            "will", "would", "shall", "should", "may", "might", "must", "with",
+            "from", "by", "at", "as", "if", "than", "then", "so", "such", "not",
+            "no", "between", "during", "before", "after", "while", "each", "other",
+            "they", "them", "their", "he", "she", "his", "her", "we", "our", "your",
+            "any", "some", "only", "also", "just", "over", "under", "associated",
+            "related", "regarding", "explain", "describe", "discuss", "compare",
+            "list", "examples", "example", "use", "used", "using", "today", "there",
+            "here", "much", "many", "most", "more", "both", "through", "across",
+            "within", "against", "per", "via", "versus", "vs", "etc", "people"
         };
         var words = (userMessage ?? "")
-            .Split(new[] { ' ', '\t', '\r', '\n', ',', '.', ';', ':', '?', '!' }, StringSplitOptions.RemoveEmptyEntries)
+            .Split(new[] { ' ', '\t', '\r', '\n', ',', '.', ';', ':', '?', '!', '(', ')', '"', '\'' }, StringSplitOptions.RemoveEmptyEntries)
             .Where(w => w.Length > 1 && w.Any(char.IsLetterOrDigit) && !stopwords.Contains(w))
-            .Take(8);
-        var query = string.Join(' ', words).Trim();
+            .Take(14)
+            .ToList();
+        // Subject-first ordering: search engines weight leading terms, so
+        // capitalized words (proper nouns — the actual subject) go before
+        // generic qualifiers ("primary", "significant") that otherwise make
+        // engines return dictionary definitions.
+        var entities = words.Where(w => char.IsUpper(w[0])).ToList();
+        var rest = words.Where(w => !char.IsUpper(w[0])).ToList();
+        var query = string.Join(' ', entities.Concat(rest).Take(10)).Trim();
         return string.IsNullOrWhiteSpace(query) ? (userMessage ?? "").Trim() : query;
     }
 }

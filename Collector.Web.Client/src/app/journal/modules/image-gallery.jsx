@@ -110,8 +110,9 @@ export default function ImageGalleryModule({
         const fileName = resolveImageFile(item);
         if (!fileName) return '';
         if (/^https?:\/\//i.test(fileName) || fileName.startsWith('data:')) return fileName;
-        return `${apiBasePath()}/image/journal-entries/${entryId}/${fileName}`;
-    }, [entryId, resolveImageFile]);
+        if (fileName.includes('/')) return `${apiBasePath()}/image/${fileName}`;
+        return `${apiBasePath()}/image/${journalId}/${entryId}/images/${fileName}`;
+    }, [entryId, journalId, resolveImageFile]);
 
     const mainImageSrc = useMemo(() => {
         if (!images.length) return null;
@@ -125,8 +126,9 @@ export default function ImageGalleryModule({
         if (!fileName) return '';
         // Remote/data images have no server-side thumb_ derivative — use the image itself.
         if (/^https?:\/\//i.test(fileName) || fileName.startsWith('data:')) return fileName;
-        return `${apiBasePath()}/image/journal-entries/${entryId}/thumb_${fileName}`;
-    }, [entryId, resolveImageFile]);
+        if (fileName.includes('/')) return `${apiBasePath()}/image/${fileName}`;
+        return `${apiBasePath()}/image/${journalId}/${entryId}/images/thumb_${fileName}`;
+    }, [entryId, journalId, resolveImageFile]);
 
     const scrollToPage = useCallback((targetPage) => {
         const viewport = thumbnailsViewportRef.current;
@@ -197,7 +199,7 @@ export default function ImageGalleryModule({
         setUploadError(null);
 
         try {
-            const folder = `journal-entries/${entryId}`;
+            const folder = `${journalId}/${entryId}/images`;
             const response = await uploadBatch(folder, imageFiles, { moduleId: moduleRef.current.id });
             if (!response.data?.success) {
                 setUploadError(response.data?.message || 'Failed to upload images.');

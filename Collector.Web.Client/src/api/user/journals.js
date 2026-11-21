@@ -32,6 +32,7 @@ const Journals = (args) => Api({...args, useToken:true}).endpoints(({api}) => {
         filterEntries: (journalId, filter) => api.post(`${apiPath}/${journalId}/entries/filter`, filter),
         getEntry: (id) => api.get(`${apiPath}/entries/${id}`),
         getEntryContent: (id) => api.get(`${apiPath}/entries/${id}/content`),
+        getEntryResearch: (id) => api.get(`${apiPath}/entries/${id}/research`),
         addEntry: (entry) => api.post(`${apiPath}/entries/add`, entry),
         renameEntry: (id, title) => api.post(`${apiPath}/entries/rename`, { Id: id, Title: title }),
         updateEntryDescription: (id, description) => api.post(`${apiPath}/entries/update-description`, { Id: id, Description: description }),

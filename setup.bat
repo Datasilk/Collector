@@ -46,15 +46,13 @@ if errorlevel 1 (
   exit /b 1
 )
 
-call :echoGreen "%ICON_DB% Ensuring PostgreSQL database \"Collector\" exists..."
-psql -v ON_ERROR_STOP=1 -U postgres -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='Collector'" | findstr /c:"1" >nul
-if errorlevel 1 (
-  psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c "CREATE DATABASE \"Collector\";"
-  if errorlevel 1 exit /b %errorlevel%
-)
+rem deploy.sql creates the database if needed and applies the full schema.
+rem PGPASSWORD keeps psql from prompting; override by setting it before
+rem running this script.
+if not defined PGPASSWORD set "PGPASSWORD=blackMustang777!"
 
-call :echoGreen "%ICON_SQL% Executing postgresql-tables.sql against database \"Collector\"..."
-psql -v ON_ERROR_STOP=1 -U postgres -d Collector -f postgresql/postgresql-tables.sql
+call :echoGreen "%ICON_SQL% Deploying PostgreSQL schema via deploy.bat into database \"Collector\"..."
+call deploy.bat Collector
 if errorlevel 1 exit /b %errorlevel%
 
 popd

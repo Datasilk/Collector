@@ -540,8 +540,62 @@ namespace Collector.Common.Extensions.Strings
 
     public static class Web
     {
+        // cp1252's high bytes that differ from Latin-1 — byte → char.
+        // Needed to reverse cp1252-misdecoded UTF-8 ("â€"" mojibake), whose
+        // telltale chars (€, smart quotes, ™, …) all live above U+00FF.
+        private static readonly (char c, byte b)[] Cp1252Specials =
+        {
+            ('€', 0x80), ('‚', 0x82), ('ƒ', 0x83), ('„', 0x84),
+            ('…', 0x85), ('†', 0x86), ('‡', 0x87), ('ˆ', 0x88),
+            ('‰', 0x89), ('Š', 0x8A), ('‹', 0x8B), ('Œ', 0x8C),
+            ('Ž', 0x8E), ('‘', 0x91), ('’', 0x92), ('“', 0x93),
+            ('”', 0x94), ('•', 0x95), ('–', 0x96), ('—', 0x97),
+            ('˜', 0x98), ('™', 0x99), ('š', 0x9A), ('›', 0x9B),
+            ('œ', 0x9C), ('ž', 0x9E), ('Ÿ', 0x9F),
+        };
+
+        /// <summary>Repairs UTF-8 misdecoded as Latin-1/cp1252 — the classic
+        /// "â\u0080\u0093" (Latin-1) or "â€"" (cp1252) mojibake signatures.
+        /// Trigger: a C1 control char (never legit in a URL) or a UTF-8
+        /// lead-byte digraph (Ã…, â€) followed by a cp1252 high char.
+        /// Re-maps chars to their cp1252/Latin-1 bytes and re-decodes as
+        /// UTF-8 when the result is valid; otherwise returns the input.</summary>
+        public static string RepairMojibake(this string url)
+        {
+            if (string.IsNullOrEmpty(url)) return url;
+            var signature = url.Any(c => c >= 0x80 && c <= 0x9F);
+            if (!signature)
+            {
+                for (var i = 0; i + 1 < url.Length; i++)
+                {
+                    var a = url[i]; var b = url[i + 1];
+                    if ((a == 'Ã' && b >= 0x80 && b <= 0xBF)
+                        || (a == 'â' && (b == '€' || b == 'œ' || b == '„' || b == '…'
+                            || b == '˜' || b == '™' || b == '–' || b == '—'
+                            || b == '‘' || b == '’' || b == '“' || b == '”')))
+                    {
+                        signature = true;
+                        break;
+                    }
+                }
+            }
+            if (!signature) return url;
+
+            var bytes = new byte[url.Length];
+            for (var i = 0; i < url.Length; i++)
+            {
+                var c = url[i];
+                if (c <= 0xFF) { bytes[i] = (byte)c; continue; }
+                var idx = Array.FindIndex(Cp1252Specials, t => t.c == c);
+                if (idx < 0) return url; // unmappable — real Unicode, not mojibake
+                bytes[i] = Cp1252Specials[idx].b;
+            }
+            return System.Text.Unicode.Utf8.IsValid(bytes) ? Encoding.UTF8.GetString(bytes) : url;
+        }
+
         public static string CleanUrl(this string url, bool queryString = true, bool hash = false, string[] removeFromQuery = null, string[] onlyKeepQueries = null)
         {
+            url = url.RepairMojibake();
             var u = url.Split(new char[] { '?' }, 2);
             var result = u[0];
             if (queryString == true && u.Length > 1)

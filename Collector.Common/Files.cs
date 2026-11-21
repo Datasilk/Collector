@@ -12,17 +12,11 @@ namespace Collector.Common
     {
         public static string ArticlesPath {get;set; } = "";
         public static string JournalPath {get;set; } = "";
-        public static string ImagesPath {get;set; } = "";
-        public static string FilesPath {get;set; } = "";
-        public static string VideosPath {get;set; } = "";
 
         public enum Paths
         {
             Articles,
-            Journal,
-            Images,
-            Files,
-            Videos
+            Journal
         }
 
 
@@ -34,15 +28,26 @@ namespace Collector.Common
                     return ArticlesPath;
                 case Paths.Journal:
                     return JournalPath;
-                case Paths.Images:
-                    return ImagesPath;
-                case Paths.Files:
-                    return FilesPath;
-                case Paths.Videos:
-                    return VideosPath;
                 default:
                     return "";
             }
+        }
+
+        /// <summary>
+        /// Resolves a stored relative path to a full path under the Journal
+        /// root. Journal-scoped paths ({journalId}/{entryId}/...) are
+        /// canonicalized so entry dirs match the on-disk N-format GUID.
+        /// </summary>
+        public static string ResolveExisting(string relativePath)
+        {
+            var rel = relativePath.Replace('\\', '/').TrimStart('/');
+            if (JournalPaths.IsJournalRelative(rel))
+            {
+                // Entry dirs on disk are N-format GUIDs; stored paths may be either.
+                var journalCandidate = Path.Combine(JournalPath, JournalPaths.Canonicalize(rel));
+                if (File.Exists(journalCandidate)) return journalCandidate;
+            }
+            return Path.Combine(JournalPath, JournalPaths.Canonicalize(rel));
         }
 
         /// <summary>
@@ -68,23 +73,19 @@ namespace Collector.Common
                 // Read and return the file content
                 return File.ReadAllText(fullPath);
             }
+            catch (FileNotFoundException)
+            {
+                // Expected miss during speculative probes (legacy-vs-new
+                // layout, optional research.json) — the exception itself
+                // carries the signal; don't spam the console.
+                throw;
+            }
             catch (Exception ex)
             {
                 // Log the exception if needed
                 Console.WriteLine($"Error reading file: {ex.Message}");
-                throw ex;
+                throw;
             }
-        }
-        
-        /// <summary>
-        /// Asynchronously gets the content of a file from the application content directory
-        /// </summary>
-        /// <param name="path">the sub folder within the Content directory to use</param>
-        /// <param name="relativePath">Relative path to the file within the Content sub folder</param>
-        /// <returns>The file content as a string</returns>
-        public static async Task<string> GetFileAsync(Paths path, string relativePath)
-        {
-            return await Task.Run(() => GetFile(path, relativePath));
         }
         
         /// <summary>
@@ -110,14 +111,29 @@ namespace Collector.Common
                 // Read and return the file content as bytes
                 return File.ReadAllBytes(fullPath);
             }
+            catch (FileNotFoundException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 // Log the exception if needed
                 Console.WriteLine($"Error reading file: {ex.Message}");
-                throw ex;
+                throw;
             }
         }
-        
+
+        /// <summary>
+        /// Asynchronously gets the content of a file from the application content directory
+        /// </summary>
+        /// <param name="path">the sub folder within the Content directory to use</param>
+        /// <param name="relativePath">Relative path to the file within the Content sub folder</param>
+        /// <returns>The file content as a string</returns>
+        public static async Task<string> GetFileAsync(Paths path, string relativePath)
+        {
+            return await Task.Run(() => GetFile(path, relativePath));
+        }
+
         /// <summary>
         /// Asynchronously gets the content of a file as a byte array from the application content directory
         /// </summary>

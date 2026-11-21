@@ -176,7 +176,7 @@ namespace Collector.Workers
                 DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
             });
 
-            var filePath = $"{entryId:N}.json";
+            var filePath = $"{journalId}/{entryId:N}/entry.json";
             var saveSuccess = Files.SaveFile(Files.Paths.Journal, filePath, contentJson);
 
             if (!saveSuccess)

@@ -507,13 +507,10 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
         if (!videoRef.current || !module.videoId || !hasLoadedOnce) return;
 
         const initHls = async () => {
-            // Check if HLS is already available
-            // HLS path structure: {entryId}/{videoGuid}/hls/
+            // Check if HLS is already available — hls/ sits beside the raw video
             if (module.videoPath) {
-                const pathParts = module.videoPath.split('/');
-                const videoFileName = pathParts[pathParts.length - 1];
-                const videoGuid = videoFileName.replace('.mp4', '');
-                const hlsDir = `${pathParts[0]}/${videoGuid}/hls`;
+                const videoDir = module.videoPath.substring(0, module.videoPath.lastIndexOf('/'));
+                const hlsDir = `${videoDir}/hls`;
                 const masterPlaylistUrl = `${apiBasePath()}/video/hls/${hlsDir}/master.m3u8`;
                 
                 // Check if HLS playlist exists
@@ -1343,18 +1340,8 @@ export default function VideoPlayerModule({ module, entryId, journalId, onUpdate
     const buildPreviewThumbnailUrl = (time) => {
         if (!module.videoPath) return null;
 
-        // Extract entry ID and video filename from videoPath
-        const pathParts = module.videoPath.split('/');
-        if (pathParts.length < 2) return null;
-
-        const entryIdFromPath = pathParts[0];
-        const effectiveEntryId = module.entryId || entryIdFromPath;
-        const videoFileName = pathParts[pathParts.length - 1];
-
-        // URL encode the filename to handle special characters like dots
-        const encodedFileName = encodeURIComponent(videoFileName);
-
-        return `${apiBasePath()}/video/preview/${effectiveEntryId}/${encodedFileName}/${time}`;
+        // The endpoint accepts the full videoPath + the second as the last segment
+        return `${apiBasePath()}/video/preview/${module.videoPath}/${time}`;
     };
 
     const loadPreviewThumbnail = async (time) => {

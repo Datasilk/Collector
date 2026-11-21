@@ -56,6 +56,7 @@ namespace Collector.Data.Services
             
             //Ollama Tables
             builder.Services.AddTransient<IOllamaModelsRepository, OllamaModelsRepository>();
+            builder.Services.AddTransient<ILLMHtmlParsersRepository, LLMHtmlParsersRepository>();
             
             //LLM Tables
             builder.Services.AddTransient<ILLMModelsRepository, LLMModelsRepository>();

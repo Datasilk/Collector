@@ -30,8 +30,8 @@ namespace Collector.API.Controllers
 
             try
             {
-                // Get the thumbnail file as bytes
-                var thumbnailBytes = Files.GetFileBytes(Files.Paths.Videos, path);
+                // Get the thumbnail file as bytes (journal root first, legacy root fallback)
+                var thumbnailBytes = System.IO.File.ReadAllBytes(Files.ResolveExisting(path));
                 
                 // Return as JPEG image
                 return File(thumbnailBytes, "image/jpeg");
@@ -42,25 +42,65 @@ namespace Collector.API.Controllers
             }
         }
 
-        [HttpGet("/video/preview/{entryId}/{videoFileName}/{second}")]
-        public async Task<IActionResult> GetSeekPreview(string entryId, string videoFileName, int second)
+        [HttpGet("/video/preview/{*path}")]
+        public async Task<IActionResult> GetSeekPreview(string path)
         {
-            if (string.IsNullOrEmpty(entryId) || string.IsNullOrEmpty(videoFileName))
+            // path shape: "{videoDir}/{second}" where videoDir is the journal-relative
+            // videos/{videoId} dir, or the legacy "{entryId}/{fileName}/{second}" form.
+            if (string.IsNullOrEmpty(path))
             {
                 return NotFound();
             }
 
             try
             {
+                var segments = path.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+                if (segments.Length < 2 || !int.TryParse(segments[^1], out var second))
+                {
+                    return NotFound();
+                }
+                // Strip an optional trailing video filename: clients send
+                // "{videoDir}/{second}" or the full "{videoPath}/{second}".
+                var videoExts = new[] { ".mp4", ".webm", ".ogg", ".mov", ".avi", ".wmv", ".flv", ".mkv", ".m4v" };
+                var hasFileSegment = videoExts.Any(e => segments[^2].EndsWith(e, StringComparison.OrdinalIgnoreCase));
+                var parentPath = string.Join('/', segments[..^1]);
+                var videoDirPath = hasFileSegment ? string.Join('/', segments[..^2]) : parentPath;
+
                 // Round down to nearest 10 seconds
                 var roundedSecond = (int)Math.Floor(second / 10.0) * 10;
-                
-                // Build paths (videoFileName includes extension)
-                var videoFileNameWithoutExt = Path.GetFileNameWithoutExtension(videoFileName);
                 var previewFileName = $"preview_{roundedSecond}.jpg";
-                var previewPath = Path.Combine(entryId, videoFileNameWithoutExt, previewFileName);
-                var previewFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), previewPath);
-                
+
+                string previewPath;
+                string videoPath;
+                if (JournalPaths.IsJournalRelative(videoDirPath))
+                {
+                    // New layout: {journalId}/{entryId}/videos/{videoId}/previews/…
+                    var videoDir = JournalPaths.Canonicalize(videoDirPath);
+                    previewPath = $"{videoDir}/previews/{previewFileName}";
+                    var videoDirFull = Path.Combine(Files.GetPath(Files.Paths.Journal), videoDir);
+                    var rawFile = Directory.Exists(videoDirFull)
+                        ? Directory.GetFiles(videoDirFull, "raw.*").FirstOrDefault()
+                        : null;
+                    if (rawFile == null)
+                    {
+                        return NotFound("Video file not found");
+                    }
+                    videoPath = $"{videoDir}/{Path.GetFileName(rawFile)}";
+                }
+                else
+                {
+                    // Legacy layout: {entryId}/{fileName}/{second} resolved under the journal root
+                    var videoFileName = hasFileSegment ? segments[^2] : null;
+                    if (videoFileName == null) return NotFound();
+                    var videoFileNameWithoutExt = Path.GetFileNameWithoutExtension(videoFileName);
+                    previewPath = Path.Combine(videoDirPath, videoFileNameWithoutExt, previewFileName);
+                    videoPath = Path.Combine(videoDirPath, videoFileName);
+                }
+
+                var previewFullPath = Path.Combine(
+                    Files.GetPath(Files.Paths.Journal),
+                    JournalPaths.Canonicalize(previewPath));
+
                 // Check if thumbnail already exists
                 if (!System.IO.File.Exists(previewFullPath))
                 {
@@ -78,35 +118,35 @@ namespace Collector.API.Controllers
                         return StatusCode(500, $"Error creating preview directory: {dirEx.Message}");
                     }
 
-                    // Build video file path (videoFileName includes extension)
-                    var videoPath = Path.Combine(entryId, videoFileName);
-                    var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoPath);
-                    
+                    var videoFullPath = Path.Combine(
+                        Files.GetPath(Files.Paths.Journal),
+                        JournalPaths.Canonicalize(videoPath));
+
                     if (!System.IO.File.Exists(videoFullPath))
                     {
                         return NotFound("Video file not found");
                     }
-                    
+
                     // Generate the thumbnail on-demand
                     var success = await Common.Videos.GenerateThumbnail(
-                        videoFullPath, 
+                        videoFullPath,
                         previewFullPath,
                         videoUrl: null, // No yt-dlp fallback for seek previews
-                        width: 160, 
-                        height: 90, 
-                        crop: true, 
+                        width: 160,
+                        height: 90,
+                        crop: true,
                         seekSeconds: roundedSecond,
                         timeoutSeconds: 10
                     );
-                    
+
                     if (!success)
                     {
                         return NotFound("Failed to generate preview thumbnail");
                     }
                 }
-                
+
                 // Get the preview thumbnail file as bytes
-                var previewBytes = Files.GetFileBytes(Files.Paths.Videos, previewPath);
+                var previewBytes = System.IO.File.ReadAllBytes(previewFullPath);
                 
                 // Return as JPEG image with cache headers
                 Response.Headers.Add("Cache-Control", "public, max-age=31536000"); // Cache for 1 year
@@ -130,9 +170,15 @@ namespace Collector.API.Controllers
                     return NotFound("Video not found");
                 }
 
-                // Build file path
-                var videoPath = Path.Combine(video.JournalEntryId.ToString(), video.Filename);
-                var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoPath);
+                // Build file path — new journal layout first, legacy videos root fallback
+                var videoStem = JournalPaths.VideoIdFromFileName(video.Filename);
+                var videoPath = JournalPaths.VideoPath(video.JournalId, video.JournalEntryId, videoStem, Path.GetExtension(video.Filename));
+                var videoFullPath = Files.ResolveExisting(videoPath);
+                if (!System.IO.File.Exists(videoFullPath))
+                {
+                    videoPath = Path.Combine(video.JournalEntryId.ToString(), video.Filename);
+                    videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Journal), videoPath);
+                }
                 var changed = false;
 
                 // Ensure FileSizeMb is populated
@@ -223,9 +269,9 @@ namespace Collector.API.Controllers
             
             try
             {
-                // Get the full file path
-                var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), path);
-                
+                // Get the full file path (journal root first, legacy root fallback)
+                var videoFullPath = Files.ResolveExisting(path);
+
                 if (!System.IO.File.Exists(videoFullPath))
                 {
                     return NotFound("Video file not found");
@@ -295,12 +341,13 @@ namespace Collector.API.Controllers
                 // Get file extension
                 var fileExtension = Path.GetExtension(file.FileName);
                 var fileName = $"{Guid.NewGuid()}{fileExtension}";
-                var relativePath = Path.Combine(entryId, fileName);
+                var videoStem = JournalPaths.VideoIdFromFileName(fileName);
+                var relativePath = JournalPaths.VideoPath(journalId, entryId, videoStem, fileExtension);
                 
                 // Save video file by streaming directly to disk (optimized for large files)
                 using (var stream = file.OpenReadStream())
                 {
-                    var success = await Files.SaveFileStreamAsync(Files.Paths.Videos, relativePath, stream);
+                    var success = await Files.SaveFileStreamAsync(Files.Paths.Journal, relativePath, stream);
                     if (!success)
                     {
                         return Json(new ApiResponse { success = false, message = "Failed to save video" });
@@ -308,8 +355,7 @@ namespace Collector.API.Controllers
                 }
 
                 // Generate thumbnail
-                var thumbnailFileName = $"{Path.GetFileNameWithoutExtension(fileName)}_thumb.jpg";
-                var thumbnailRelativePath = Path.Combine(entryId, thumbnailFileName);
+                var thumbnailRelativePath = JournalPaths.VideoThumbPath(journalId, entryId, videoStem);
                 var thumbnailSuccess = await GenerateThumbnail(relativePath, thumbnailRelativePath);
 
                 // Get video metadata using ffprobe
@@ -357,8 +403,8 @@ namespace Collector.API.Controllers
         {
             try
             {
-                var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoRelativePath);
-                var thumbnailFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), thumbnailRelativePath);
+                var videoFullPath = Files.ResolveExisting(videoRelativePath);
+                var thumbnailFullPath = Files.ResolveExisting(thumbnailRelativePath);
                 
                 // Use provided seek position, or calculate random position between 1-21% of video duration
                 int seekSeconds;
@@ -395,7 +441,7 @@ namespace Collector.API.Controllers
         {
             try
             {
-                var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoRelativePath);
+                var videoFullPath = Files.ResolveExisting(videoRelativePath);
 
                 // Use ffprobe to get video metadata
                 var startInfo = new ProcessStartInfo
@@ -446,9 +492,13 @@ namespace Collector.API.Controllers
                     return Json(new ApiResponse { success = false, message = "Video not found" });
                 }
 
-                var videoPath = Path.Combine(video.JournalEntryId.ToString(), video.Filename);
-                var thumbnailFileName = $"{Path.GetFileNameWithoutExtension(video.Filename)}_thumb.jpg";
-                var thumbnailRelativePath = Path.Combine(video.JournalEntryId.ToString(), thumbnailFileName);
+                var videoStem = JournalPaths.VideoIdFromFileName(video.Filename);
+                var videoPath = JournalPaths.VideoPath(video.JournalId, video.JournalEntryId, videoStem, Path.GetExtension(video.Filename));
+                if (!System.IO.File.Exists(Files.ResolveExisting(videoPath)))
+                {
+                    videoPath = Path.Combine(video.JournalEntryId.ToString(), video.Filename);
+                }
+                var thumbnailRelativePath = JournalPaths.VideoThumbPath(video.JournalId, video.JournalEntryId, videoStem);
 
                 var success = await GenerateThumbnail(videoPath, thumbnailRelativePath, seekPosition);
                 if (!success)
@@ -483,15 +533,16 @@ namespace Collector.API.Controllers
                 
                 // Delete from database
                     var success = _videoRepo.DeleteByModuleId(model.EntryId, model.ModuleId);
-                    var videoPath = Path.Combine(model.EntryId.ToString(), video.Filename);
-                    var thumbnailPath = Path.Combine(model.EntryId.ToString(), 
-                        $"{Path.GetFileNameWithoutExtension(video.Filename)}_thumb.jpg");
-                    
-                    // Delete video file
-                    Files.DeleteFile(Files.Paths.Videos, videoPath);
-                    
-                    // Delete thumbnail file
-                    Files.DeleteFile(Files.Paths.Videos, thumbnailPath);
+                    var videoStem = JournalPaths.VideoIdFromFileName(video.Filename);
+
+                    // New layout: remove the whole videos/{videoId} directory
+                    var videoDirFull = Path.Combine(Files.GetPath(Files.Paths.Journal),
+                        JournalPaths.VideoDir(video.JournalId, video.JournalEntryId, videoStem));
+                    if (Directory.Exists(videoDirFull))
+                    {
+                        Directory.Delete(videoDirFull, true);
+                    }
+
                 }
                 
                 return Json(new ApiResponse { success = true });
@@ -514,18 +565,23 @@ namespace Collector.API.Controllers
                     return Json(new ApiResponse { success = false, message = "Video not found" });
                 }
 
-                var videoPath = Path.Combine(video.JournalEntryId.ToString(), video.Filename);
-                var videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), videoPath);
+                var videoStem = JournalPaths.VideoIdFromFileName(video.Filename);
+                var videoPath = JournalPaths.VideoPath(video.JournalId, video.JournalEntryId, videoStem, Path.GetExtension(video.Filename));
+                var videoFullPath = Files.ResolveExisting(videoPath);
+                if (!System.IO.File.Exists(videoFullPath))
+                {
+                    videoFullPath = Path.Combine(Files.GetPath(Files.Paths.Journal),
+                        Path.Combine(video.JournalEntryId.ToString(), video.Filename));
+                }
 
                 if (!System.IO.File.Exists(videoFullPath))
                 {
                     return Json(new ApiResponse { success = false, message = "Video file not found" });
                 }
 
-                // Create HLS directory structure
-                var videoFileNameWithoutExt = Path.GetFileNameWithoutExtension(video.Filename);
-                var hlsDir = Path.Combine(video.JournalEntryId.ToString(), videoFileNameWithoutExt, "hls");
-                var hlsFullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), hlsDir);
+                // Create HLS directory structure under the video's own folder
+                var hlsDir = JournalPaths.VideoHlsDir(video.JournalId, video.JournalEntryId, videoStem);
+                var hlsFullPath = Path.Combine(Files.GetPath(Files.Paths.Journal), hlsDir);
 
                 // Generate HLS playlist and variants
                 var success = await Common.Videos.GenerateHlsPlaylist(videoFullPath, hlsFullPath, timeoutSeconds: 600);
@@ -557,7 +613,7 @@ namespace Collector.API.Controllers
 
             try
             {
-                var fullPath = Path.Combine(Files.GetPath(Files.Paths.Videos), path);
+                var fullPath = Files.ResolveExisting(path);
 
                 if (!System.IO.File.Exists(fullPath))
                 {

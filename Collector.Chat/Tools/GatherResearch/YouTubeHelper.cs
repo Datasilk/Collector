@@ -1,3 +1,4 @@
+using Collector.Chat.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -46,8 +47,12 @@ public class YouTubeHelper : IResearchSourceHelper
         Action<int, string>? onProgress = null,
         CancellationToken cancellationToken = default,
         Guid? appUserId = null,
-        Func<string, CancellationToken, Task<string>>? requestCookies = null)
+        Func<string, CancellationToken, Task<string>>? requestCookies = null,
+        Func<string, CancellationToken, Task<string?>>? htmlParser = null,
+        Collector.Data.Interfaces.ISearchEnginesRepository? searchEnginesRepo = null,
+        Func<string, Task<string>>? scriptAnalyzer = null)
     {
+        ChatDetailLog.Fn("web-scrape", "YouTubeHelper.ExtractAsync");
         var tempBase = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var infoPath = tempBase + ".info.json";
 
@@ -84,6 +89,7 @@ public class YouTubeHelper : IResearchSourceHelper
             }
 
             string title = "";
+            var meta = new List<string>();
             if (File.Exists(infoPath))
             {
                 try
@@ -94,8 +100,28 @@ public class YouTubeHelper : IResearchSourceHelper
                         title = ft.GetString() ?? "";
                     else if (root.TryGetProperty("title", out var tp) && tp.ValueKind == JsonValueKind.String)
                         title = tp.GetString() ?? "";
+
+                    // Metadata coverage questions often ask about (channel,
+                    // publish date, description) — the transcript can't answer
+                    // them, but info.json can. Surface it as a section.
+                    var uploader = root.TryGetProperty("uploader", out var up) ? up.GetString()
+                        : root.TryGetProperty("channel", out var ch) ? ch.GetString() : null;
+                    if (!string.IsNullOrWhiteSpace(uploader)) meta.Add($"Channel: {uploader}");
+                    if (root.TryGetProperty("upload_date", out var ud) &&
+                        DateTime.TryParseExact(ud.GetString(), "yyyyMMdd", null,
+                            System.Globalization.DateTimeStyles.None, out var dt))
+                        meta.Add($"Published: {dt:yyyy-MM-dd}");
+                    if (root.TryGetProperty("duration", out var dur) &&
+                        dur.TryGetInt32(out var secs) && secs > 0)
+                        meta.Add($"Duration: {TimeSpan.FromSeconds(secs):h\\:mm\\:ss}");
+                    if (root.TryGetProperty("view_count", out var vc) &&
+                        vc.TryGetInt64(out var views) && views > 0)
+                        meta.Add($"Views: {views:N0}");
+                    if (root.TryGetProperty("description", out var desc) &&
+                        desc.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(desc.GetString()))
+                        meta.Add($"Description: {desc.GetString()!.Trim()}");
                 }
-                catch { /* title is best-effort */ }
+                catch { /* title/metadata are best-effort */ }
             }
 
             var transcript = subFile != null
@@ -114,6 +140,13 @@ public class YouTubeHelper : IResearchSourceHelper
                 Language = subFile != null ? SubtitleLanguage(subFile) : null
             };
             page.Videos.Add(url);
+            if (meta.Count > 0)
+            {
+                var metaText = "Video metadata — " + string.Join(". ", meta);
+                if (metaText.Length > 1600) metaText = metaText.Substring(0, 1600) + "…";
+                page.ContentSections.Add(metaText);
+                page.Layout.Add("content:meta");
+            }
             if (!string.IsNullOrWhiteSpace(transcript))
             {
                 // Chunk the transcript into ~1800-char sections so the fact

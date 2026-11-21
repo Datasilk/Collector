@@ -7,7 +7,7 @@ import { Files } from '@/api/user/files';
 import { JournalFiles } from '@/api/user/journalFiles';
 
 // Upload an image for a checklist/image module and save metadata
-// Path format: journal-entries/{entryId}/{timestamp-moduleId.ext}
+// Path format: {journalId}/{entryId}/images/{timestamp-moduleId.ext}
 export async function uploadImageForModule(session, { imageFile, journalId, entryId, moduleId }) {
     if (!imageFile || !entryId || !moduleId) {
         return { success: false, message: 'Missing image, entryId, or moduleId' };
@@ -20,7 +20,7 @@ export async function uploadImageForModule(session, { imageFile, journalId, entr
         const timestamp = new Date().getTime();
         const fileExtension = imageFile.name.includes('.') ? imageFile.name.split('.').pop() : 'png';
         const fileName = `${timestamp}-${moduleId}.${fileExtension}`;
-        const path = `journal-entries/${entryId}/${fileName}`;
+        const path = `${journalId}/${entryId}/images/${fileName}`;
 
         const response = await imagesApi.upload(path, imageFile);
         if (!response.data?.success) {
@@ -59,7 +59,7 @@ export async function uploadImageForModule(session, { imageFile, journalId, entr
 }
 
 // Upload a PDF for a module and save metadata (JournalFiles)
-// Path format: {journalId}/{entryId}/{timestamp-originalName}
+// Path format: {journalId}/{entryId}/files/{timestamp-originalName}
 export async function uploadPdfForModule(session, { pdfFile, journalId, entryId, moduleId }) {
     if (!pdfFile || !journalId || !entryId || !moduleId) {
         return { success: false, message: 'Missing PDF, journalId, entryId, or moduleId' };
@@ -71,7 +71,7 @@ export async function uploadPdfForModule(session, { pdfFile, journalId, entryId,
     try {
         const timestamp = new Date().getTime();
         const fileName = `${timestamp}-${pdfFile.name}`;
-        const path = `${journalId}/${entryId}/${fileName}`;
+        const path = `${journalId}/${entryId}/files/${fileName}`;
 
         const response = await filesApi.upload(path, pdfFile);
         if (!response.data?.success) {
@@ -111,7 +111,7 @@ export async function uploadFileForModule(session, { file, journalId, entryId, m
     try {
         const timestamp = new Date().getTime();
         const fileName = `${timestamp}-${file.name}`;
-        const path = `${journalId}/${entryId}/${fileName}`;
+        const path = `${journalId}/${entryId}/files/${fileName}`;
 
         const response = await filesApi.upload(path, file);
         if (!response.data?.success) {

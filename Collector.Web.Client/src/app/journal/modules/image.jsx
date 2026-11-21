@@ -65,7 +65,7 @@ export default function ImageModule({ module, entryId, journalId, onUpdate, isEd
             const fileExtension = extensionFromName || fallbackExtension;
             const fileName = `${timestamp}-${module.id}.${fileExtension}`;
             const sourceEntryId = module.entryId || entryId;
-            const path = `journal-entries/${sourceEntryId}/${fileName}`;
+            const path = `${journalId}/${sourceEntryId}/images/${fileName}`;
 
             const response = await upload(path, file);
 
@@ -297,7 +297,9 @@ export default function ImageModule({ module, entryId, journalId, onUpdate, isEd
         : (module.image?.url || module.image?.src || module.url || '');
     const imageSrc = imageFile && (/^https?:\/\//i.test(imageFile) || imageFile.startsWith('data:'))
         ? imageFile
-        : apiBasePath() + `/image/journal-entries/${module.entryId || entryId}/${imageFile}`;
+        : (imageFile.includes('/')
+            ? apiBasePath() + `/image/${imageFile}`
+            : apiBasePath() + `/image/${journalId}/${module.entryId || entryId}/images/${imageFile}`);
 
     return (
         <div className="image-module">

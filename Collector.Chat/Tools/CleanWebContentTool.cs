@@ -1,3 +1,4 @@
+using Collector.Chat.Helpers;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -65,6 +66,7 @@ public class CleanWebContentTool : IChatTool
         SendMessage? sendMessage = null,
         CancellationToken cancellationToken = default)
     {
+        ChatDetailLog.Fn("clean-web-content", "Run");
         try
         {
             onProgress(5, "Starting content cleaning process...");
