@@ -11,11 +11,22 @@ How to publish Collector and deploy the PostgreSQL schema.
   `Collector.Web.Server` → `{path}\Collector.Web.Server` (React client
   builds into wwwroot), `Charlotte\Charlotte` → `{path}\Charlotte`,
   `Charlotte\Router` → `{path}\CharlottesWeb`.
-- Copies `Deploy\setup.bat`, `StartServices.bat`, `StopServices.bat` to the
-  deploy path. On the target: run `setup.bat` **elevated** (registers
-  `Charlotte`/`CharlottesWeb`/`Collector` Windows services, writes Router
-  `config.json` with admin creds + instance URLs — `/Browser` is appended
-  automatically), then `StartServices.bat`.
+- **Host choice**: after Debug/Release it asks (W)indows services or
+  (D)ocker; Windows copies `setup.bat`+`Start/StopServices.bat`, Docker
+  copies `setup-docker.bat` + `docker\*.yml` into `{path}\docker\`.
+  Both get `update-config.ps1` (ports + storage paths in appsettings).
+- On the target (Windows): run `setup.bat` **elevated** — registers
+  `Charlotte`/`CharlottesWeb`/`Collector` services, writes Router
+  `config.json` (`/Browser` appended to instance URLs), then
+  `StartServices.bat`.
+- On the target (Docker): run `setup-docker.bat` — same prompts plus a
+  content folder (created if missing) mounted to `/collector-content`;
+  Router instances use service DNS (`http://charlotte:7077`); Charlotte
+  container runs the Playwright image (CefSharp is Windows-only).
+- **Ports**: setup asks fe 7784/7783 + be 7780/7781, runs
+  `update-config.ps1` — sets `Urls` + `Auth.Domain`/JWT issuer, patches
+  baked-in `7780`/`7781` in `wwwroot` JS, updates `vite.config.js` if
+  present, and rewrites `Storage.Articles/Journal` to the content root.
 - `deprecated/publish.bat` is superseded — don't use it.
 
 ## Schema deploy — `Collector.SQL\deploy.bat [dbname]`

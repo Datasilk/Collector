@@ -1,0 +1,21 @@
+services:
+  charlottesweb:
+    image: mcr.microsoft.com/dotnet/aspnet:8.0
+    container_name: charlottesweb
+    working_dir: /app
+    volumes:
+      - ../CharlottesWeb:/app
+    ports:
+      - "7007:7007"
+      - "7008:7008"
+    environment:
+      - ASPNETCORE_URLS=http://+:7007
+      - DOTNET_RUNNING_IN_CONTAINER=true
+    command: ["dotnet", "Charlotte.Router.dll"]
+    networks:
+      - collector-net
+    restart: unless-stopped
+
+networks:
+  collector-net:
+    external: true

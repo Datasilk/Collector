@@ -12,12 +12,16 @@ rem --- load saved answers from a previous run ---
 set "DEPLOY_CFG=%~dp0deploy.json"
 set "SAVED_PATH="
 set "SAVED_CONFIG="
+set "SAVED_HOST="
 if exist "%DEPLOY_CFG%" (
     for /f "tokens=1* delims=:" %%a in ('findstr /i "\"DeployPath\"" "%DEPLOY_CFG%"') do (
         set "SAVED_PATH=%%b"
     )
     for /f "tokens=1* delims=:" %%a in ('findstr /i "\"Config\"" "%DEPLOY_CFG%"') do (
         set "SAVED_CONFIG=%%b"
+    )
+    for /f "tokens=1* delims=:" %%a in ('findstr /i "\"Host\"" "%DEPLOY_CFG%"') do (
+        set "SAVED_HOST=%%b"
     )
     if defined SAVED_PATH (
         set "SAVED_PATH=!SAVED_PATH:~2!"
@@ -29,6 +33,11 @@ if exist "%DEPLOY_CFG%" (
         set "SAVED_CONFIG=!SAVED_CONFIG:~2!"
         set "SAVED_CONFIG=!SAVED_CONFIG:"=!"
         set "SAVED_CONFIG=!SAVED_CONFIG:,=!"
+    )
+    if defined SAVED_HOST (
+        set "SAVED_HOST=!SAVED_HOST:~2!"
+        set "SAVED_HOST=!SAVED_HOST:"=!"
+        set "SAVED_HOST=!SAVED_HOST:,=!"
     )
 )
 
@@ -56,7 +65,18 @@ if /i "!CFG_CHOICE!"=="P" (
 )
 
 echo.
-echo Deploying %CONFIG% to %DEPLOY_PATH%
+set "HOST_HINT=W"
+if /i "!SAVED_HOST!"=="Docker" set "HOST_HINT=D"
+set /p "HOST_CHOICE=Deploy for (W)indows services or (D)ocker containers? [!HOST_HINT!]: "
+if "!HOST_CHOICE!"=="" set "HOST_CHOICE=!HOST_HINT!"
+if /i "!HOST_CHOICE!"=="D" (
+    set "HOST=Docker"
+) else (
+    set "HOST=Windows"
+)
+
+echo.
+echo Deploying %CONFIG% (%HOST%) to %DEPLOY_PATH%
 echo.
 
 echo [1/3] Publishing Collector.Web.Server (%CONFIG%)...
@@ -75,10 +95,19 @@ dotnet publish Charlotte\Router\Charlotte.Router.csproj -c %CONFIG% -r win-x64 -
 if errorlevel 1 goto :fail
 
 echo.
-echo Copying setup scripts to %DEPLOY_PATH%...
-copy /y "%~dp0Deploy\setup.bat" "%DEPLOY_PATH%\setup.bat" >nul
-copy /y "%~dp0Deploy\StartServices.bat" "%DEPLOY_PATH%\StartServices.bat" >nul
-copy /y "%~dp0Deploy\StopServices.bat" "%DEPLOY_PATH%\StopServices.bat" >nul
+if /i "!HOST!"=="Docker" (
+    echo Copying Docker setup files to %DEPLOY_PATH% (overwriting existing)...
+    copy /y "%~dp0Deploy\setup-docker.bat" "%DEPLOY_PATH%\setup-docker.bat" >nul
+    copy /y "%~dp0Deploy\update-config.ps1" "%DEPLOY_PATH%\update-config.ps1" >nul
+    if not exist "%DEPLOY_PATH%\docker" mkdir "%DEPLOY_PATH%\docker"
+    copy /y "%~dp0Deploy\docker\*.yml" "%DEPLOY_PATH%\docker\" >nul
+) else (
+    echo Copying Windows service setup files to %DEPLOY_PATH% (overwriting existing)...
+    copy /y "%~dp0Deploy\setup.bat" "%DEPLOY_PATH%\setup.bat" >nul
+    copy /y "%~dp0Deploy\StartServices.bat" "%DEPLOY_PATH%\StartServices.bat" >nul
+    copy /y "%~dp0Deploy\StopServices.bat" "%DEPLOY_PATH%\StopServices.bat" >nul
+    copy /y "%~dp0Deploy\update-config.ps1" "%DEPLOY_PATH%\update-config.ps1" >nul
+)
 if errorlevel 1 goto :fail
 
 rem --- remember these answers for the next run ---
@@ -86,7 +115,8 @@ set "JSON_PATH=!DEPLOY_PATH:\=\\!"
 (
 echo {
 echo   "DeployPath": "!JSON_PATH!",
-echo   "Config": "!CONFIG!"
+echo   "Config": "!CONFIG!",
+echo   "Host": "!HOST!"
 echo }
 ) > "%~dp0deploy.json"
 

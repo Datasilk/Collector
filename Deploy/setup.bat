@@ -108,6 +108,36 @@ echo.
 
 rem --- Collector service ---
 :collector_service
+
+rem --- port configuration ---
+echo.
+set /p "PORT_FE_HTTP=React front end HTTP port [7784]: "
+if "!PORT_FE_HTTP!"=="" set "PORT_FE_HTTP=7784"
+set /p "PORT_FE_HTTPS=React front end HTTPS port [7783]: "
+if "!PORT_FE_HTTPS!"=="" set "PORT_FE_HTTPS=7783"
+set /p "PORT_BE_HTTP=Server backend HTTP port [7780]: "
+if "!PORT_BE_HTTP!"=="" set "PORT_BE_HTTP=7780"
+set /p "PORT_BE_HTTPS=Server backend HTTPS port [7781]: "
+if "!PORT_BE_HTTPS!"=="" set "PORT_BE_HTTPS=7781"
+
+echo.
+set /p "CONTENT_PATH=Collector content data folder (e.g. M:\Collector\Content): "
+if "!CONTENT_PATH!"=="" (
+    echo   No path given - keeping existing storage paths.
+) else (
+    if not exist "!CONTENT_PATH!" (
+        echo   Creating !CONTENT_PATH! ...
+        mkdir "!CONTENT_PATH!"
+    )
+)
+
+echo.
+echo Applying configuration (ports: fe !PORT_FE_HTTP!/!PORT_FE_HTTPS! be !PORT_BE_HTTP!/!PORT_BE_HTTPS!, content: !CONTENT_PATH!)...
+if defined CONTENT_PATH (set "CP_ARG=-ContentRoot '!CONTENT_PATH!'") else set "CP_ARG="
+powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%\update-config.ps1" -Root "%ROOT%" -FeHttp !PORT_FE_HTTP! -FeHttps !PORT_FE_HTTPS! -BeHttp !PORT_BE_HTTP! -BeHttps !PORT_BE_HTTPS! !CP_ARG!
+if errorlevel 1 (echo   WARNING: config update script failed - check output above.)
+echo.
+
 set /p "REG_COLLECTOR=Register Collector as a Windows Service? (Y/N): "
 if /i "!REG_COLLECTOR!"=="Y" (
     if not exist "%ROOT%\Collector.Web.Server\Collector.Web.Server.exe" (
