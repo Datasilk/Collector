@@ -180,6 +180,28 @@ public class AddEditJournalEntryTool : IChatTool
                     onError("No journal entry is associated with this session yet — nothing to edit. Run a research request first, or open a journal entry and start a chat from its toolbar.", null);
                     return;
                 }
+
+                // All pages are bot-walls/challenge shells — bail before
+                // title generation so a "Just a moment…" page can't spawn
+                // an entry named after it ("…Captcha Challenge Response").
+                var realPages = pages.Where(p => !p.IsInstruction).ToList();
+                if (realPages.Count > 0 &&
+                    realPages.All(p => IsChallengePage(p.Title, BuildPageText(p, 4000))))
+                {
+                    var msg = realPages.Count == 1
+                        ? $"Skipped {realPages[0].Url} — it returned a bot-wall or challenge page; nothing to journal."
+                        : $"Skipped {realPages.Count} pages — all returned bot-wall or challenge pages; nothing to journal.";
+                    ChatDetailLog.Line($"add-edit-journal-entry: {msg}");
+                    // Retire the page-scoped research questions too —
+                    // coverage review reads this marker and stops chasing.
+                    ResearchReviewTool.AddToList(data, "url-direct-skipped", "urls",
+                        realPages.Select(p => p.Url).Where(u => u.Length > 0));
+                    onProgress(100, msg);
+                    sendMessage?.Invoke(msg, null, null);
+                    onComplete(msg);
+                    return;
+                }
+
                 var title = args?.GetValueOrDefault("title", "")?.ToString() ?? "";
                 var description = args?.GetValueOrDefault("description", "")?.ToString() ?? "";
                 var updateTitle = (args?.GetValueOrDefault("updateTitle", "false")?.ToString() ?? "false").ToLower() == "true";
@@ -374,10 +396,13 @@ public class AddEditJournalEntryTool : IChatTool
                     // File downloads (PDFs, images) have no text to judge —
                     // the gate only applies to text pages.
                     var gateText = BuildPageText(page, 4000);
+                    var isChallenge = IsChallengePage(page.Title, gateText);
                     if (!page.IsFile &&
                         !await IsPageRelevantAsync(entry, doc, data, page, gateText, onProgress, onRawRequest, onRawResponse, cancellationToken))
                     {
-                        sendMessage?.Invoke($"Skipped {pageHost} — its content isn't related to \"{entry.Title}\".", null, null);
+                        sendMessage?.Invoke(isChallenge
+                            ? $"Skipped {pageHost} — it returned a bot-wall or thin page, not usable content."
+                            : $"Skipped {pageHost} — its content isn't related to \"{entry.Title}\".", null, null);
                         // A user-named page that fails the gate leaves its
                         // page-scoped research questions permanently open —
                         // record the skip so research-review can retire them.
@@ -510,6 +535,9 @@ public class AddEditJournalEntryTool : IChatTool
             // sections outright — they never become topics.
             if (string.Equals(a?.Topic, "skip", StringComparison.OrdinalIgnoreCase)) continue;
             if (IsBoilerplateSection(sec.Heading)) continue;
+            // Assigned topic names bypass the heading check — the assign
+            // LLM files nav sections under labels like "site navigation".
+            if (a != null && IsBoilerplateSection(a.Topic)) continue;
 
             var topic = research.GetOrCreateTopic(
                 !string.IsNullOrWhiteSpace(a?.Topic) ? a!.Topic!
@@ -521,8 +549,10 @@ public class AddEditJournalEntryTool : IChatTool
                 topic = research.GetOrCreateSubTopic(topic, a!.Subtopic!, a.Tab);
 
             // Spec order: title → image-gallery (size-verified images) → content.
+            // Only download-verified URLs integrate — when every check
+            // failed the dump's unverified image list must not leak in.
             var secImages = sec.Images
-                .Where(im => pageImages.Count == 0 || pageImages.Contains(im.Url))
+                .Where(im => pageImages.Contains(im.Url))
                 .Where(im => gallerySeen.Add(im.Url))
                 .Select(im => (im.Url, im.Alt, im.Caption))
                 .ToList();
@@ -583,6 +613,9 @@ public class AddEditJournalEntryTool : IChatTool
         "related posts", "post navigation", "recent articles", "share this",
         "subscribe", "follow us", "sign up", "log in", "about us",
         "you may also like", "recommended", "more from", "newsletter", "footer",
+        "site navigation", "main navigation", "site information", "site info",
+        "main menu", "cookie consent", "cookie notice", "advertisement",
+        "advertisements", "skip links", "accessibility menu",
         // Parser-schema echoes — the model sometimes copies the output
         // schema's field names into a content heading.
         "search engine submit form", "search_engine_submit_form"
@@ -597,6 +630,159 @@ public class AddEditJournalEntryTool : IChatTool
 
     private static string NormalizeComment(string text)
         => string.Concat(text.Trim().ToLowerInvariant().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+    /// <summary>Chrome the parser fuses into the START of real paragraph
+    /// text — skip links, ad labels, consent banners, journal mastheads.
+    /// IsBoilerplateSection drops whole chrome sections; this strips the
+    /// same junk when it rides inside a paragraph's first words.</summary>
+    private static readonly string[] LeadChromePhrases =
+    {
+        "skip to main content", "skip to content", "skip to search form",
+        "skip to account menu", "skip to navigation", "skip to main navigation",
+        "skip to footer", "skip to article", "jump to content",
+        "jump to navigation", "jump to main content",
+        "search advertisement", "advertisement",
+        "privacy policy", "cookie policy", "terms of use", "sign in", "log in",
+        "from wikipedia, the free encyclopedia",
+        "you have full access to this open access article",
+        "get rights and content", "under a creative commons license",
+        "under an elsevier user license", "open archive",
+        "cite this article", "download pdf", "view pdf", "submit manuscript",
+        "aims and scope", "review open access", "open access",
+        "short communication", "review article", "research article",
+        "mini review", "full length article", "published by", "narration",
+        "essay", "editorial", "book review", "case report", "commentary",
+        "discussion"
+    };
+
+    /// <summary>Leading cookie-consent sentence ("This website utilizes
+    /// technologies such as cookies … ." / "We use cookies … .").</summary>
+    private static readonly Regex LeadCookieConsent = new(
+        @"^(?:this (?:website|site|page|service)[^.]{0,200}?cookies?[^.]*\." +
+        @"|we (?:and our partners )?(?:use|utilize)[^.]{0,200}?cookies?[^.]*\." +
+        @"|by (?:continuing|clicking)[^.]{0,200}?\.)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>Date + category breadcrumb fused into the paragraph lead:
+    /// "April 25, 2023 / Living Healthy / Genomic Medicine …".</summary>
+    private static readonly Regex LeadBreadcrumb = new(
+        @"^[A-Z][a-z]+ \d{1,2}, \d{4}(?:\s*/\s*[^/\n]{1,40})+\s*",
+        RegexOptions.Compiled);
+
+    /// <summary>Transcript timestamps at the lead: "00:00 00:31 …".</summary>
+    private static readonly Regex LeadTimestamps = new(
+        @"^(?:\d{1,2}:\d{2}(?::\d{2})?\s+){1,4}",
+        RegexOptions.Compiled);
+
+    /// <summary>Script-loader text fused into the lead:
+    /// "Loading MathJax/extensions/tex2jax.js …".</summary>
+    private static readonly Regex LeadScriptLoader = new(
+        @"^loading\s+[^\s]{1,150}?\.(?:js|css)\b\s*",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>Site breadcrumb at the lead with »/›/>/&#187; separators:
+    /// "Home &#187; Biology &#187; Ribosomes: Definition …" — requires at
+    /// least two separators so a lone "Home › X" heading survives.</summary>
+    private static readonly Regex LeadSiteBreadcrumb = new(
+        @"^(?i:home|index|main)\s*(?:&#\d+;|&\w+;|[»›>|·])\s*" +
+        @"(?:[^»›>|·\n]{1,60}?\s*(?:&#\d+;|&\w+;|[»›>|·])\s*){1,5}" +
+        @"[^»›>|·\n]{2,80}?(?=\s+[A-Z][a-z]{2,}\s+[a-z])",
+        RegexOptions.Compiled);
+
+    /// <summary>Journal masthead: "Review Open access Published: 21 May
+    /// 2026 Volume 21 , article number 210 ( 2026 )".</summary>
+    private static readonly Regex LeadMasthead = new(
+        @"^(?:review\s+)?(?:open access\s+)?published:\s*\d{1,2}\s+\w+\s+\d{4}\s*" +
+        @"(?:volume\s+\d+\s*,?\s*)?(?:article number[:\s]*\d+\s*\(\s*\d{4}\s*\)\s*)?",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>Journal metadata keys — a "Date:"/"Volume:"/"Page s :"
+    /// lead followed by more keys is a masthead, not prose.</summary>
+    private static readonly Regex MetaPairKey = new(
+        @"^(?:date|article|volume|issue|pages?|page\s*s?|doi|issn)\s*:\s*",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>End of a metadata pair's value — the next key, or a known
+    /// chrome label that terminates the run ("Published by", "Open
+    /// access", "Get rights and content", license boilerplate).</summary>
+    private static readonly Regex MetaPairEnd = new(
+        @"\s+(?:(?:date|article|volume|issue|pages?|page\s*s?|doi|issn)\s*:" +
+        @"|published\s+by|get\s+rights|open\s+(?:access|archive)" +
+        @"|under\s+an?\s|cite\s+this|download\s+pdf|view\s+pdf)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>Journal/publication name at the lead when a metadata
+    /// key:value run immediately follows: "Molecular Therapy Date: …".</summary>
+    private static readonly Regex LeadJournalName = new(
+        @"^[A-Z][^\n:]{2,60}?(?=\s+(?:date|article|volume|issue|pages?|page\s*s?|doi|issn)\s*:)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>Strip known page chrome fused into the START of paragraph
+    /// text — repeats until no chrome leads the paragraph. Returns the
+    /// remaining text ("" when the paragraph was all chrome).</summary>
+    private static string ScrubLeadChrome(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return "";
+        var t = text.TrimStart();
+        for (var pass = 0; pass < 6; pass++)
+        {
+            var before = t;
+            foreach (var phrase in LeadChromePhrases)
+                if (t.StartsWith(phrase, StringComparison.OrdinalIgnoreCase) &&
+                    (t.Length == phrase.Length || !char.IsLetterOrDigit(t[phrase.Length])))
+                    t = t.Substring(phrase.Length).TrimStart();
+            t = LeadCookieConsent.Replace(t, "", 1).TrimStart();
+            t = LeadScriptLoader.Replace(t, "", 1).TrimStart();
+            t = LeadSiteBreadcrumb.Replace(t, "", 1).TrimStart();
+            t = LeadBreadcrumb.Replace(t, "", 1).TrimStart();
+            t = LeadTimestamps.Replace(t, "", 1).TrimStart();
+            t = LeadMasthead.Replace(t, "", 1).TrimStart();
+            t = LeadJournalName.Replace(t, "", 1).TrimStart();
+            t = StripLeadMetaPairs(t);
+            t = t.TrimStart(' ', '\t', ':', '.', ',', '-', '—', '–', '|', '•', '·', '✓', '"', '\'');
+            if (t == before) break;
+        }
+        // Trailing chrome — title-echo paragraphs end with the skip link:
+        // "{page title} - PMC Skip to main content".
+        for (var pass = 0; pass < 4; pass++)
+        {
+            var before = t.TrimEnd(' ', '\t', ':', '.', ',', '-', '—', '–', '|', '•', '·');
+            t = before;
+            foreach (var phrase in LeadChromePhrases)
+                if (t.EndsWith(phrase, StringComparison.OrdinalIgnoreCase) &&
+                    (t.Length == phrase.Length ||
+                     !char.IsLetterOrDigit(t[t.Length - phrase.Length - 1])))
+                    t = t.Substring(0, t.Length - phrase.Length).TrimEnd();
+            if (t == before) break;
+        }
+        return t;
+    }
+
+    /// <summary>Strip a leading run of journal metadata key:value pairs
+    /// ("Date: 29 June 2015 Page s : R526-R532 Volume: Volume 25, Issue
+    /// 13") — needs at least two consecutive pairs so a lone "Date:" lead
+    /// in real prose survives. Each pair's value runs to the next key or
+    /// a chrome terminator.</summary>
+    private static string StripLeadMetaPairs(string t)
+    {
+        var m = MetaPairKey.Match(t);
+        if (!m.Success) return t;
+        var rest = t.Substring(m.Length);
+        var pairs = 0;
+        while (true)
+        {
+            var end = MetaPairEnd.Match(rest);
+            // No terminator — consume the last pair's value entirely.
+            if (!end.Success) { pairs++; rest = ""; break; }
+            var term = rest.Substring(end.Index).TrimStart();
+            pairs++;
+            // Chrome label ends the run — leave it for the phrase pass.
+            if (!MetaPairKey.IsMatch(term)) { rest = term; break; }
+            rest = term.Substring(MetaPairKey.Match(term).Length);
+            if (pairs >= 6) break;
+        }
+        return pairs >= 2 ? rest : t;
+    }
 
     private static bool IsBoilerplateSection(string? heading)
     {
@@ -877,6 +1063,12 @@ public class AddEditJournalEntryTool : IChatTool
 
         var item = (JsonObject)block.DeepClone();
         item["moduleId"] = ResearchObject.NewModuleId();
+        if (type == "paragraph")
+        {
+            var cleaned = ScrubLeadChrome(item["text"]?.ToString());
+            if (string.IsNullOrWhiteSpace(cleaned)) return;
+            item["text"] = cleaned;
+        }
         if (type is "bullet_list" or "numbered_list")
             item["items"] = ResearchObject.FlattenItems(block["items"]);
         if (type == "table")
@@ -961,8 +1153,105 @@ Respond with ONLY valid JSON in this exact format:
                     assignments[s.Section].Tab = s.Tab;
                 }
             }
+
+        // Post-assign cleanup — the model emits near-duplicate or garbled
+        // titles ("Scope and Scope", "Content" beside "Organization and
+        // Content", "History and Legacy" vs "History and Legacy of the
+        // Library of Alexandria"). Merge them onto one canonical topic
+        // before integration or sections split across twin topics.
+        DedupeAssignedTopics(assignments, existing);
         return assignments;
     }
+
+    /// <summary>
+    /// Deterministic near-duplicate merge over the assigned topic names.
+    /// First collapse garbled repeated-word titles, then redirect every
+    /// assigned title that is a near-dupe of an existing topic (existing
+    /// always wins — established structure beats fresh names) or of a
+    /// longer assigned title (the more specific name wins).
+    /// </summary>
+    private static void DedupeAssignedTopics(List<TopicAssignment> assignments, List<string> existing)
+    {
+        foreach (var a in assignments)
+        {
+            if (UngarbleTopicTitle(a.Topic) is { } fixedTopic) a.Topic = fixedTopic;
+            if (UngarbleTopicTitle(a.Subtopic) is { } fixedSub) a.Subtopic = fixedSub;
+        }
+
+        var assigned = assignments
+            .Select(a => a.Topic)
+            .Where(t => !string.IsNullOrWhiteSpace(t)
+                        && !t.Equals("skip", StringComparison.OrdinalIgnoreCase))
+            .Distinct()
+            .ToList();
+
+        foreach (var a in assignments)
+        {
+            if (string.IsNullOrWhiteSpace(a.Topic)
+                || a.Topic.Equals("skip", StringComparison.OrdinalIgnoreCase))
+                continue;
+            var norm = ResearchObject.Normalize(a.Topic);
+            if (norm.Length == 0) continue;
+
+            var match = existing
+                .Where(e => NearDuplicateTopic(norm, ResearchObject.Normalize(e)))
+                .OrderByDescending(e => ResearchObject.Normalize(e).Length)
+                .FirstOrDefault()
+                ?? assigned
+                    .Where(t => NearDuplicateTopic(norm, ResearchObject.Normalize(t)))
+                    .OrderByDescending(t => ResearchObject.Normalize(t).Length)
+                    .FirstOrDefault();
+            if (match != null && ResearchObject.Normalize(match) != norm)
+            {
+                ChatDetailLog.Line($"topic-assign: merged near-duplicate \"{a.Topic}\" → \"{match}\"");
+                a.Topic = match;
+            }
+        }
+    }
+
+    /// <summary>Collapse garbled duplicated-word titles — the model emits
+    /// "Scope and Scope" style repeats where both halves normalize equal, so
+    /// the real title is either half. Returns null when nothing was wrong.</summary>
+    private static string? UngarbleTopicTitle(string? title)
+    {
+        var t = (title ?? "").Trim();
+        if (t.Length == 0 || t.Equals("skip", StringComparison.OrdinalIgnoreCase)) return null;
+        var parts = Regex.Split(t, @"\s+(?:and|&|vs\.?|or|,)\s+", RegexOptions.IgnoreCase);
+        if (parts.Length == 2 && parts[0].Trim().Length > 0
+            && ResearchObject.Normalize(parts[0]) == ResearchObject.Normalize(parts[1]))
+            return parts[0].Trim();
+        var words = t.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length % 2 == 0 && words.Length >= 2)
+        {
+            var half = words.Length / 2;
+            var first = string.Join(' ', words.Take(half));
+            if (first.Equals(string.Join(' ', words.Skip(half)), StringComparison.OrdinalIgnoreCase))
+                return first;
+        }
+        return null;
+    }
+
+    /// <summary>Near-duplicate topic titles: one title's content words are a
+    /// strict subset of the other's ("history and legacy" ⊂ "history and
+    /// legacy of the library of alexandria", "content" ⊂ "organization and
+    /// content"). Normalized-equal titles already merge via
+    /// GetOrCreateTopic — this catches the asymmetric overlaps.</summary>
+    private static bool NearDuplicateTopic(string normalizedA, string normalizedB)
+    {
+        if (normalizedA.Length == 0 || normalizedB.Length == 0 || normalizedA == normalizedB)
+            return false;
+        var a = normalizedA.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(w => !TopicTitleStopwords.Contains(w)).ToHashSet();
+        var b = normalizedB.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(w => !TopicTitleStopwords.Contains(w)).ToHashSet();
+        if (a.Count == 0 || b.Count == 0) return false;
+        return a.IsSubsetOf(b) || b.IsSubsetOf(a);
+    }
+
+    private static readonly HashSet<string> TopicTitleStopwords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "and", "or", "of", "the", "a", "an", "in", "on", "for", "to", "its", "their", "vs"
+    };
 
     private class TopicAssignment
     {
@@ -1040,9 +1329,10 @@ Respond with ONLY valid JSON in this exact format:
         ChatDetailLog.Fn("add-edit-journal-entry", "IsPageRelevantAsync");
         // Bot-walls and challenge pages can never produce research — skip
         // before term analysis so their boilerplate can't fake relevance.
+        // Labelled as a fetch problem, not an off-topic judgment.
         if (IsChallengePage(page.Title, pageText))
         {
-            onProgress(60, $"Skipped off-topic page: {page.Title}");
+            onProgress(60, $"Skipped thin or bot-wall page: {page.Title}");
             return false;
         }
 
@@ -1059,6 +1349,20 @@ Respond with ONLY valid JSON in this exact format:
         var properNouns = CollectProperNouns(entry?.Title ?? "", data);
         var nounHits = properNouns.Count(t => Regex.IsMatch(haystack, @"\b" + Regex.Escape(t), RegexOptions.IgnoreCase));
 
+        // Institutional homepages — a bare root URL surfaced on an ambiguous
+        // keyword ("library" → mdpls.org, lapl.org) carries menus, hours and
+        // branch links, not article content. Their boilerplate still fools
+        // the LLM pass below often enough that the gate rejects them
+        // deterministically unless they clear a higher evidence bar: a
+        // named-subject hit, or (when the subject has no proper nouns)
+        // three+ generic-term hits.
+        if (IsInstitutionalHomepage(page.Url)
+            && (properNouns.Count > 0 ? nounHits == 0 : hits < 3))
+        {
+            onProgress(60, $"Skipped off-topic page: {page.Title}");
+            return false;
+        }
+
         if (properNouns.Count > 0)
         {
             if (nounHits >= 1) return true;
@@ -1073,7 +1377,7 @@ Respond with ONLY valid JSON in this exact format:
             var system = @"You are a relevance filter for a research pipeline. Decide whether a web page is ON-TOPIC for a journal entry.
 Return ONLY valid JSON: {""relevant"":true} or {""relevant"":false}.
 A page is relevant only if its content can answer questions about the entry's subject.
-Dictionary definitions, storefronts, forums, and pages about a different subject that happens to share a word are NOT relevant.";
+Dictionary definitions, storefronts, forums, institutional homepages/landing pages, and pages about a different subject that happens to share a word are NOT relevant.";
             var user = $"JOURNAL ENTRY SUBJECT: {entry?.Title}\n\n" +
                        $"RESEARCH QUESTIONS:\n{string.Join("\n", ResearchReviewTool.GetList(data, "research-questions", "questions").Take(6))}\n\n" +
                        $"PAGE TITLE: {page.Title}\nPAGE URL: {page.Url}\nPAGE EXCERPT:\n{(pageText?.Length > 1500 ? pageText.Substring(0, 1500) : pageText)}";
@@ -1978,6 +2282,23 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
     }
 
     /// <summary>
+    /// Bare root or near-root URL — an institution's landing page, not an
+    /// article. Search hits like mdpls.org surface on ambiguous keywords
+    /// ("library") but carry menus, hours and branch links, not content.
+    /// </summary>
+    private static bool IsInstitutionalHomepage(string? url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var u)) return false;
+        var path = (u.AbsolutePath ?? "").Trim('/');
+        if (path.Length == 0) return true;
+        // Near-root stubs (/home, /index.html, /en-us) are still landing pages.
+        return !path.Contains('/')
+            && Regex.IsMatch(path,
+                @"^(home|index\.\w+|default\.\w+|landing|portal|[a-z]{2}(-[a-z]{2,4})?)$",
+                RegexOptions.IgnoreCase);
+    }
+
+    /// <summary>
     /// Collect (title, url) pairs for every scraped/file page in shared data —
     /// fed to EnsureSourcesModule so pages that never reached research
     /// registration still appear in the Sources list.
@@ -2107,6 +2428,16 @@ Each fact is a single declarative sentence taken from the text. No prose, no mar
             if (bytes == null || bytes.Length < 1000)
             {
                 onDebug?.Invoke("Image download rejected — too small (tracking pixel or icon)");
+                return null;
+            }
+
+            // Real-image check — HTML error pages, JSON responses and
+            // truncated payloads must never be saved as ".jpg".
+            // Image.Identify reads the format header; null = not a
+            // decodable image.
+            if (Images.ImageMaxDimension(bytes) == null)
+            {
+                onDebug?.Invoke("Image download rejected — bytes are not a readable image (error page or truncated payload)");
                 return null;
             }
 

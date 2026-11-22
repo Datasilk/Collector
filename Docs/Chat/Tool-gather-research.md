@@ -25,6 +25,11 @@ else is queued by tools as the plan executes.
    pulls links, unwraps redirectors, drops file types and junk domains.
 4. **Relevance filter.** Candidate pages are scored/gated before scraping
    (see `clean-web-content`); off-topic pages are skipped, not scraped.
+   Two deterministic passes frame the LLM vote: junk/definition URLs are
+   dropped outright, and an **anchor lock** keeps any result whose
+   title/URL names a distinctive query term (acronyms like CRISPR/RNA,
+   non-stopword vocabulary ≥4 chars) — small-model verdicts flip
+   per-call, so anchored hits can't be voted out.
 5. **Plan extension.** Inserts `web-scrape` + `add-edit-journal-entry`
    pairs per URL, then a `research-review` step — the plan grows
    dynamically.

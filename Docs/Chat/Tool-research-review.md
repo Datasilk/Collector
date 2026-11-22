@@ -15,6 +15,12 @@
 4. **Retires unanswerable questions** — e.g. page-scoped questions whose
    target was relevance-skipped or failed — instead of chasing them with
    junk searches.
-5. The plan expands in rounds until coverage is satisfied or the page
+5. **Pure URL-direct runs stop here.** When every asked query is a
+   user-named URL ("scrape <url>…"), the request is a targeted page
+   collection — deepening and coverage follow-ups would research
+   *around* the named pages and balloon one scrape into dozens of
+   unrelated sources, so both are skipped. A run that also asked
+   topic queries (non-URL asked-queries) continues normally.
+6. The plan expands in rounds until coverage is satisfied or the page
    budget is exhausted; a healthy run converges (queries get narrower),
    it doesn't repeat.

@@ -36,7 +36,13 @@ public static class SearchHelper
             if (repo != null)
             {
                 engines = repo.GetEnabled()
-                    .Where(e => !string.IsNullOrWhiteSpace(e.Url) && e.Url.Contains("{search}"))
+                    .Where(e => !string.IsNullOrWhiteSpace(e.Url)
+                        && (e.Url.Contains("{search}")
+                            // POST engines keep the {search} placeholder in
+                            // RequestBodyVars, not the URL — the Url check
+                            // alone would filter every one of them out.
+                            || ((e.Method ?? "GET").Equals("POST", StringComparison.OrdinalIgnoreCase)
+                                && !string.IsNullOrWhiteSpace(e.RequestBodyVars))))
                     .ToList();
             }
         }
@@ -135,7 +141,7 @@ public static class SearchHelper
             // POST engines can't go through Charlotte (GET-only) — send the
             // request directly and extract result links from the raw HTML.
             ChatDetailLog.Search(engine.Name, $"POST {engine.Url}");
-            var html = await PostEngineRequestAsync(engine, query, onDebug);
+            var html = await PostEngineRequestAsync(engine, query, onDebug, repo);
             if (string.IsNullOrWhiteSpace(html))
                 return (urls, null);
             var engineHost = Uri.TryCreate(engine.Url, UriKind.Absolute, out var eu) ? eu.Host : "";
@@ -350,8 +356,13 @@ public static class SearchHelper
     /// <summary>
     /// Execute a Postman-style POST engine: substitute {search} into the
     /// request-body vars, apply header vars, return the response HTML.
+    /// Session-bound hidden fields (Drupal's form_build_id, CSRF nonces)
+    /// go stale between discovery and replay — a rejected request re-fetches
+    /// the discovering page, refreshes just those fields, and retries once.
     /// </summary>
-    private static async Task<string> PostEngineRequestAsync(SearchEngine engine, string query, Action<string>? onDebug)
+    private static async Task<string> PostEngineRequestAsync(
+        SearchEngine engine, string query, Action<string>? onDebug,
+        ISearchEnginesRepository? repo = null)
     {
         using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         client.DefaultRequestHeaders.Add("User-Agent",
@@ -370,23 +381,98 @@ public static class SearchHelper
         }
 
         var url = engine.Url.Replace("{search}", WebUtility.UrlEncode(query));
-        var vars = ParseBodyVars(engine.RequestBodyVars)
+        var templateVars = ParseBodyVars(engine.RequestBodyVars);
+        var vars = templateVars
             .ToDictionary(kv => kv.Key, kv => kv.Value.Replace("{search}", query));
+        var isJson = (engine.RequestBodyDataType ?? "form").Equals("json", StringComparison.OrdinalIgnoreCase);
 
-        HttpResponseMessage response;
-        if ((engine.RequestBodyDataType ?? "form").Equals("json", StringComparison.OrdinalIgnoreCase))
-        {
-            var json = System.Text.Json.JsonSerializer.Serialize(vars);
-            response = await client.PostAsync(url, new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
-        }
-        else
-        {
-            response = await client.PostAsync(url, new FormUrlEncodedContent(vars));
-        }
+        var response = await client.PostAsync(url, isJson
+            ? (HttpContent)new StringContent(System.Text.Json.JsonSerializer.Serialize(vars),
+                System.Text.Encoding.UTF8, "application/json")
+            : new FormUrlEncodedContent(vars));
 
         onDebug?.Invoke($"{engine.Name} → POST {url}: {(int)response.StatusCode}");
-        if (!response.IsSuccessStatusCode) return "";
+        if (!response.IsSuccessStatusCode)
+        {
+            // Session-bound tokens — a captured replay goes stale within
+            // minutes on Drupal-style forms. Re-fetch the discovering page
+            // on the same client (cookies carry into the retry), refresh
+            // only the volatile fields, and try once more.
+            var refreshed = await RefreshVolatileBodyVarsAsync(client, engine, vars, onDebug);
+            if (refreshed == null) return "";
+            foreach (var kv in refreshed) { vars[kv.Key] = kv.Value; templateVars[kv.Key] = kv.Value; }
+            response.Dispose();
+            response = await client.PostAsync(url, isJson
+                ? (HttpContent)new StringContent(System.Text.Json.JsonSerializer.Serialize(vars),
+                    System.Text.Encoding.UTF8, "application/json")
+                : new FormUrlEncodedContent(vars));
+            onDebug?.Invoke($"{engine.Name} → POST retry: {(int)response.StatusCode}");
+            if (!response.IsSuccessStatusCode) return "";
+
+            // A fresh token stays valid until the next rotation — persist it
+            // so later queries skip the extra page fetch.
+            try
+            {
+                engine.RequestBodyVars = System.Text.Json.JsonSerializer.Serialize(templateVars);
+                if (engine.SearchEngineId > 0) repo?.Update(engine);
+            }
+            catch { /* persisting refreshed vars is best-effort */ }
+        }
         return await DecodeHtmlAsync(response.Content);
+    }
+
+    /// <summary>Hidden-field names that carry session/instance-bound tokens —
+    /// captured values go stale, so they're re-extracted from a fresh page
+    /// load rather than replayed. Drupal mints form_build_id per form-cache
+    /// entry; CSRF nonces and viewstates rotate per session.</summary>
+    private static readonly Regex VolatileFieldName = new(
+        @"(form_build_id|form_token|csrf|xsrf|authenticity|nonce|_token|viewstate|eventvalidation|requestverificationtoken)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>
+    /// Re-extract volatile hidden fields (form_build_id, CSRF tokens,
+    /// viewstates) from a fresh load of the engine's discovery page. The GET
+    /// runs on the same HttpClient as the POST so any session cookies the
+    /// site sets carry into the retry. Returns the refreshed field values
+    /// only, or null when no volatile field changed or the page can't be
+    /// re-fetched.
+    /// </summary>
+    private static async Task<Dictionary<string, string>?> RefreshVolatileBodyVarsAsync(
+        HttpClient client, SearchEngine engine, Dictionary<string, string> vars,
+        Action<string>? onDebug)
+    {
+        if (string.IsNullOrWhiteSpace(engine.DiscoveredFrom)) return null;
+        var volatileKeys = vars.Keys.Where(k => VolatileFieldName.IsMatch(k)).ToList();
+        if (volatileKeys.Count == 0) return null;
+
+        string html;
+        try
+        {
+            using var page = await client.GetAsync(engine.DiscoveredFrom);
+            html = page.IsSuccessStatusCode && page.Content != null
+                ? await DecodeHtmlAsync(page.Content) : "";
+        }
+        catch { return null; }
+        if (string.IsNullOrWhiteSpace(html)) return null;
+
+        // <input name="key" value="v"> — attributes can appear in either order.
+        var refreshed = new Dictionary<string, string>();
+        foreach (var key in volatileKeys)
+        {
+            var esc = Regex.Escape(key);
+            var m = Regex.Match(html,
+                "<input[^>]*name=[\"']" + esc + "[\"'][^>]*value=[\"']([^\"']*)[\"']",
+                RegexOptions.IgnoreCase);
+            if (!m.Success)
+                m = Regex.Match(html,
+                    "<input[^>]*value=[\"']([^\"']*)[\"'][^>]*name=[\"']" + esc + "[\"']",
+                    RegexOptions.IgnoreCase);
+            if (m.Success && !string.Equals(m.Groups[1].Value, vars[key], StringComparison.Ordinal))
+                refreshed[key] = m.Groups[1].Value;
+        }
+        if (refreshed.Count > 0)
+            onDebug?.Invoke($"{engine.Name}: refreshed volatile form field(s): {string.Join(", ", refreshed.Keys)}");
+        return refreshed.Count > 0 ? refreshed : null;
     }
 
     private static Dictionary<string, string> ParseBodyVars(string? json)

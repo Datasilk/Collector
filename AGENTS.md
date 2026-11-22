@@ -15,7 +15,26 @@ We track work in `.agents/` at the repo root:
 ## Testing
 
 We don't do unit testing — there are no Test projects in this repo, don't
-create them.
+create them. Testing is live end-to-end runs (see the chat-system skill
+for the collector-chat CLI playbook). Before running tests, make sure
+the full stack is up:
+
+- **Collector.Web.Server** — running and listening on port 7780, in
+  Development mode (`ASPNETCORE_ENVIRONMENT=Development`) so chat detail
+  logs are written. `dotnet run` on the server project also launches the
+  Vite dev server for the React app automatically via SpaProxy
+  (`Collector.Web.Client.esproj` → `StartupCommand: npm run dev`). When
+  the built dll is run directly instead, start the client separately:
+  `npm run dev` in `Collector.Web.Client/` — the user may be browsing
+  the app while tests run, so keep it up.
+- **Charlotte Web Router** — `http://localhost:7007/GetDOM`
+  (`Collector.Common.Article.BrowserEndpoint` default).
+- **Charlotte browser instance** — `http://localhost:7077/Browser`
+  (the deployed `M:\Collector\Charlotte` build carries the full CefSharp
+  runtime; a plain local build is missing the natives).
+
+Scrapes fail silently to "Failed to download or parse content" when the
+Charlotte services aren't running — check them first on scrape errors.
 
 ## Documentation
 

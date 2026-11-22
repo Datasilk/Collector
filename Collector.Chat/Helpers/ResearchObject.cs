@@ -742,14 +742,39 @@ public class ResearchObject
         return string.Join(' ', sb.ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries));
     }
 
-    /// <summary>Tab labels must be ≤ 3 words — trim or fall back to null.</summary>
+    /// <summary>Tab labels must be ≤ 3 words — trim or fall back to null.
+    /// Rejects site-name tails ("History | Macks Lifesciences"), question
+    /// fragments ("how works"), leading stopwords, repeated words and
+    /// dangling conjunctions so the LLM's sloppier labels fall back to
+    /// FirstWords(topic, 3) instead of rendering as-is.</summary>
     public static string? CleanTabLabel(string? label)
     {
         var s = (label ?? "").Trim();
         if (s.Length == 0) return null;
+        // "X | Site Name" — pipe/dash tails are the site name, not the label.
+        var cut = s.IndexOfAny(new[] { '|', '–', '—', '»', '·' });
+        if (cut > 0) s = s.Substring(0, cut).Trim();
+        if (s.Length == 0) return null;
+        // Question fragments and leading function words are never labels.
+        if (System.Text.RegularExpressions.Regex.IsMatch(s,
+                @"^(?:how|what|why|when|where|whom?|which|the|a|an|and|or|but|in|on|of|to|for|is|are|was|were|do|does|did)\b",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            return null;
         var words = s.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return words.Length <= 3 ? s : string.Join(' ', words.Take(3));
+        var kept = new List<string>();
+        foreach (var w in words)
+            if (kept.Count == 0 || !string.Equals(kept[kept.Count - 1], w, StringComparison.OrdinalIgnoreCase))
+                kept.Add(w); // collapse "Scope Scope" → "Scope"
+        while (kept.Count > 0 &&
+               DanglingWords.Contains(kept[kept.Count - 1]))
+            kept.RemoveAt(kept.Count - 1); // "Scope and" → "Scope"
+        if (kept.Count == 0) return null;
+        return string.Join(' ', kept.Take(3));
     }
+
+    private static readonly HashSet<string> DanglingWords =
+        new(StringComparer.OrdinalIgnoreCase)
+        { "and", "or", "of", "the", "a", "an", "in", "on", "to", "for", "with", "by", "-" };
 
     public static string FirstWords(string s, int n)
         => string.Join(' ', (s ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(n));

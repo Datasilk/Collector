@@ -160,7 +160,10 @@ Integrates one scraped page into the target entry:
    vocabulary built from the entry title, research questions, and existing
    topic names. ≥2 term hits accept; a single hit gets an LLM second opinion;
    zero hits are skipped without registering a source — SERP noise can't
-   pollute the entry.
+   pollute the entry. Institutional homepages (bare root/landing URLs like
+   mdpls.org) face a higher deterministic bar — a named-subject hit, or 3+
+   generic hits when the subject has no proper nouns — since ambiguous
+   keyword matches on menu boilerplate otherwise fool the LLM pass.
 3. **Source + dump persistence.** `research.SyncSearches` mirrors this run's
    engine queries; `RegisterSource` dedupes the page URL and returns its
    index. Re-scraped sources replace their previous content —
@@ -184,7 +187,12 @@ Integrates one scraped page into the target entry:
    gets back per-section `{topic, subtopic, tab}` — or `"skip"` for
    navigation/category/boilerplate sections. `IsBoilerplateSection`
    additionally drops reference/see-also/external-links-style headings
-   outright. Sections then land via `GetOrCreateTopic`/`GetOrCreateSubTopic`
+   outright. A deterministic post-pass (`DedupeAssignedTopics`) then
+   ungarbles repeated-word titles ("Scope and Scope") and merges
+   near-duplicate titles — content-word subsets like "Content" vs
+   "Organization and Content" — onto existing topics (existing wins) or
+   the longer assigned name. Sections then land via
+   `GetOrCreateTopic`/`GetOrCreateSubTopic`
    (subtopics render as tabs, `tab` ≤3 words). Blocks are copied verbatim —
    only `type`, `moduleId`, and `source` are stamped; list/table items are
    flattened (`FlattenItems` hoists nested objects, keeps `{text,url}`
@@ -204,8 +212,12 @@ Integrates one scraped page into the target entry:
    keeps the Sources editor pinned last.
 7. **Media.** Only images verified ≥640px in **either** dimension may land
    in the entry — every URL the dump declares is downloaded +
-   dimension-checked (`Images.ImageMaxDimension`, bounded per page).
-   `AppendPageMedia` then deterministically places videos (2) and
+   dimension-checked (`Images.ImageMaxDimension`, bounded per page). UI
+   chrome is rejected first: `ChromeImageUrl` drops SVG/icon-class assets
+   and avatar/profile/logo/sprite URL paths before download, and the
+   post-download floor adds an 8 KB minimum plus an svg/icon media-type
+   rejection so chatbot icons and author headshots can't land in
+   galleries. `AppendPageMedia` then deterministically places videos (2) and
    files (3) as modules beside the topic the page merged into. User-requested
    images go through `AcquireRequestedImagesAsync`, which downloads real
    files into `journals/{journalId}/{entryId}/images/`.
@@ -238,6 +250,10 @@ Advisory coverage check after each collection wave:
   or judged too generic by `IsDetailedAsync`) each get a targeted search of up
   to 3 pages (15 total), tracked via `deepened-topics`/`deepening-done`,
   subject to the same page budget.
+- **Pure URL-direct runs skip deepening + follow-ups entirely.** When every
+  asked query is a user-named URL, the request is a targeted page collection;
+  expanding coverage would research around the named pages and balloon one
+  scrape into dozens of unrelated sources.
 
 ## The ResearchObject (knowledge layer)
 

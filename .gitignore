@@ -13,6 +13,8 @@ RECOVER_*
 *.jfm
 Collector.SQL.Migrate
 deprecated
+logs/
+nul
 
 
 # Build results

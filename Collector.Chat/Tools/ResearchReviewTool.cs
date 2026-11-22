@@ -138,14 +138,6 @@ public class ResearchReviewTool : IChatTool
                 research = doc.Research;
             }
 
-            // Subtopic deepening pass (once per request) — shallow topics get a
-            // targeted search round of up to 3 pages each, ~15 pages total.
-            var deepenMsg = "";
-            if (research != null && entryId != null)
-            {
-                deepenMsg = await RunDeepeningPassAsync(data, plan, currentStepIndex, entryId.Value, research, cancellationToken);
-            }
-
             // Run accounting — planned pages vs. what actually landed in
             // shared data (failed scrapes never create an item, so the
             // difference is the failure count).
@@ -162,6 +154,38 @@ public class ResearchReviewTool : IChatTool
                 ? $"Collected research from {collected} of {planned} page{(planned == 1 ? "" : "s")}" +
                   (planned - collected > 0 ? $" — {planned - collected} failed to scrape" : "") + "."
                 : "";
+
+            // Pure URL-direct runs: every asked query is a user-named page —
+            // "scrape THESE urls", not topic research. Deepening and
+            // coverage follow-ups would research *around* the named pages,
+            // which is how a one-page request balloons into dozens of
+            // unrelated sources (science.org: 85 steps for one scrape).
+            var nonUrlQueries = GetList(data, "asked-queries", "queries")
+                .Select(q => q.Trim())
+                .Where(q => q.Length > 0 && !directUrls.Contains(q, StringComparer.OrdinalIgnoreCase))
+                .ToList();
+            if (directUrls.Count > 0 && nonUrlQueries.Count == 0)
+            {
+                var doneMsg = "URL-direct request complete — named page(s) integrated, no follow-up research needed.";
+                onProgress(100, doneMsg);
+                sendMessage?.Invoke(doneMsg + (tally.Length > 0 ? " " + tally : ""), null, null);
+                onComplete(doneMsg + (tally.Length > 0 ? " " + tally : ""));
+                if (plan != null && currentStepIndex >= 0 && currentStepIndex < plan.Steps.Count)
+                {
+                    plan.Steps[currentStepIndex].Result ??= new Dictionary<string, object>();
+                    plan.Steps[currentStepIndex].Result["covered"] = "true";
+                    plan.Steps[currentStepIndex].Result["gaps"] = "0";
+                }
+                return;
+            }
+
+            // Subtopic deepening pass (once per request) — shallow topics get a
+            // targeted search round of up to 3 pages each, ~15 pages total.
+            var deepenMsg = "";
+            if (research != null && entryId != null)
+            {
+                deepenMsg = await RunDeepeningPassAsync(data, plan, currentStepIndex, entryId.Value, research, cancellationToken);
+            }
 
             onProgress(40, "Checking coverage against journal entry...");
 

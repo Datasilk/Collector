@@ -29,6 +29,25 @@ public class WebPageHelper : IResearchSourceHelper
     /// <summary>Fewer elements than this almost certainly means a stub
     /// interstitial, not a real page (PMC's cookie-required shell is ~19).</summary>
     private const int ThinDomElements = 60;
+    /// <summary>Raster images under this size are icons/spacers — a real
+    /// 640px photo almost never compresses below 8 KB.</summary>
+    private const int MinImageBytes = 8192;
+    /// <summary>Cleaned body text under this length is a rendered shell
+    /// (bot-wall, cookie interstitial) even when the element count looks
+    /// fine — matches the integration gate's thin-page floor.</summary>
+    private const int ThinBodyChars = 200;
+    private static readonly System.Text.RegularExpressions.Regex ThinTextRegex = new(
+        @"<[^>]+>", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>UI-chrome URL markers — directory segments or filename tokens
+    /// that signal icons, avatars, profile photos, sprites and social/chatbot
+    /// assets. Such files can still clear the 640px floor (an SVG viewBox or a
+    /// large headshot) but never belong in an article gallery.</summary>
+    private static readonly System.Text.RegularExpressions.Regex ChromeImageUrl = new(
+        @"\.(svg|ico)($|[?#])" +
+        @"|/(chatbots?|icons?|avatars?|profile[_-]?photos?|profiles?|headshots?|bylines?|authors?|contributors?|sprites?|logos?|favicons?|gravatars?|mastheads?|wordmarks?|social[_-]?media|badges?|emojis?|smilies)/" +
+        @"|[/_\-.](icon|logo|avatar|headshot|byline|profile|sprite|badge|button|arrow|spinner|loader|favicon|masthead|chatbot|wordmark|emoji|share)[/_\-.]",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
 
     /// <summary>Fallback helper — matches everything; must stay last in the registry.</summary>
     public bool Match(string url) => true;
@@ -118,6 +137,30 @@ public class WebPageHelper : IResearchSourceHelper
         var cleanedElements = Html.CleanDOM(analyzedArticle.elements);
         var cleanHtml = Html.FormatHtml(cleanedElements).ToString();
         ChatDetailLog.Line($"cleaned DOM: {analyzedArticle.rawHtml?.Length ?? 0} → {cleanHtml.Length} chars");
+
+        // Text-thin check — a DOM can clear the element bar yet hold only a
+        // rendered bot-wall/cookie shell (nav + scripts, no body). If the
+        // cleaned text is still tiny, retry the direct fetch once and keep
+        // whichever produced more body text.
+        var bodyText = ThinTextRegex.Replace(cleanHtml ?? "", " ").Trim();
+        if (bodyText.Length < ThinBodyChars)
+        {
+            var retryHtml = await SearchHelper.FetchRawHtmlAsync(resolvedUrl ?? url);
+            var retryArticle = SearchHelper.AnalyzeRawHtml(retryHtml);
+            if ((retryArticle?.elements?.Count ?? 0) > 0)
+            {
+                Html.GetArticleInfoFromDOM(retryArticle!);
+                var altClean = Html.FormatHtml(Html.CleanDOM(retryArticle!.elements)).ToString();
+                var altText = ThinTextRegex.Replace(altClean ?? "", " ").Trim();
+                if (altText.Length > bodyText.Length)
+                {
+                    ChatDetailLog.Line($"thin body text ({bodyText.Length} chars) — direct fetch produced {altText.Length}, using it");
+                    retryArticle.url = resolvedUrl ?? url;
+                    analyzedArticle = retryArticle;
+                    cleanHtml = altClean;
+                }
+            }
+        }
 
         string? parsedJson = null;
         string? rawHtmlFile = null;
@@ -296,7 +339,13 @@ public class WebPageHelper : IResearchSourceHelper
     {
         ChatDetailLog.Fn("web-scrape", "WideImagesOnlyAsync");
         var ok = new HashSet<string>(declaredWide, StringComparer.OrdinalIgnoreCase);
-        var unknown = images.Where(u => !ok.Contains(u)).Take(MaxImageChecks).ToList();
+        // URL-level chrome rejection — SVG icons, avatars and profile photos
+        // can clear the pixel floor but are never gallery content. Cheaper
+        // than spending a download on them.
+        var content = images.Where(u => !ChromeImageUrl.IsMatch(u)).ToList();
+        if (content.Count != images.Count)
+            ChatDetailLog.Line($"image chrome filter dropped {images.Count - content.Count} UI asset(s)");
+        var unknown = content.Where(u => !ok.Contains(u)).Take(MaxImageChecks).ToList();
         if (unknown.Count > 0)
         {
             using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
@@ -320,13 +369,13 @@ public class WebPageHelper : IResearchSourceHelper
                         using var retry = await client.GetAsync(u, cancellationToken);
                         if (!retry.IsSuccessStatusCode) { failures++; lastError = $"HTTP {(int)retry.StatusCode}"; continue; }
                         var rbytes = await retry.Content.ReadAsByteArrayAsync(cancellationToken);
-                        if (Images.ImageMaxDimension(rbytes) >= MinImageWidth) ok.Add(u);
+                        if (IsGalleryWorthy(rbytes, retry.Content?.Headers?.ContentType?.MediaType)) ok.Add(u);
                         else failures++;
                         continue;
                     }
                     if (!resp.IsSuccessStatusCode) { failures++; lastError = $"HTTP {(int)resp.StatusCode}"; continue; }
                     var bytes = await resp.Content.ReadAsByteArrayAsync(cancellationToken);
-                    if (Images.ImageMaxDimension(bytes) >= MinImageWidth) ok.Add(u);
+                    if (IsGalleryWorthy(bytes, resp.Content?.Headers?.ContentType?.MediaType)) ok.Add(u);
                     else failures++;
                 }
                 catch (Exception ex) { failures++; lastError = ex.Message; }
@@ -335,10 +384,23 @@ public class WebPageHelper : IResearchSourceHelper
             if (failures > 0)
                 ChatDetailLog.Line($"image size check: {failures} rejected or failed ({lastError})");
         }
-        var kept = images.Where(ok.Contains).ToList();
+        var kept = content.Where(ok.Contains).ToList();
         if (kept.Count != images.Count)
             ChatDetailLog.Line($"images kept {kept.Count}/{images.Count} at >= {MinImageWidth}px width or height");
         return kept;
+    }
+
+    /// <summary>Gallery floor after download: a minimum byte size plus a
+    /// verified max dimension. Tiny files are icons/spacers; SVG/icon media
+    /// types are chrome even when their markup claims 640px+.</summary>
+    private static bool IsGalleryWorthy(byte[] bytes, string? mediaType)
+    {
+        if (bytes.Length < MinImageBytes) return false;
+        if (mediaType != null &&
+            (mediaType.Contains("svg", StringComparison.OrdinalIgnoreCase)
+             || mediaType.Contains("icon", StringComparison.OrdinalIgnoreCase)))
+            return false;
+        return Images.ImageMaxDimension(bytes) >= MinImageWidth;
     }
 
     /// <summary>Does the parser dump claim this page exposes a site-search

@@ -599,13 +599,27 @@ Examples:
             ChatDetailLog.Links(links.Select(l => (l.Title ?? "", l.Url ?? "", true)));
             return links;
         }
+
+        // Anchor lock — results naming the query's distinctive terms
+        // (acronyms, technical vocabulary) are almost always on-topic.
+        // The LLM vote is unstable on 3b-class models (same links flip
+        // relevant/irrelevant per call), so an anchored result can't be
+        // voted out; the vote only prunes links with no anchor at all.
+        var anchors = QueryAnchors(searchQuery);
+        var locked = anchors.Count == 0
+            ? new HashSet<int>()
+            : links.Select((l, i) => (l, i + 1))
+                   .Where(x => anchors.Any(a => HasTerm(x.l, a)))
+                   .Select(x => x.Item2)
+                   .ToHashSet();
+
         try
         {
             var numbered = links.Select((l, i) =>
                 $"{i + 1}. {(string.IsNullOrWhiteSpace(l.Title) ? "(no title)" : l.Title)} — {l.Url}");
             var system = @"You are a search-result filter for a research pipeline. Given a research request and a numbered list of search results (title — URL), decide which results will contain substantive, on-topic content.
 Keep: encyclopedia/reference articles, news coverage, educational or scholarly pages about the subject.
-Reject: shopping/product listings, dictionary/definition entries, image or video galleries, login or forum pages, and pages about a different subject that happens to share a word with the query.
+Reject: shopping/product listings, dictionary/definition entries, image or video galleries, login or forum pages, institutional homepages and landing pages that only share a keyword with the request, and pages about a different subject that happens to share a word with the query.
 Respond with ONLY valid JSON in this exact format:
 {""relevant"":[1,2,3]}";
             var user = $"RESEARCH REQUEST: {userMessage}\n\nSEARCH QUERY: {searchQuery}\n\nRESULTS:\n{string.Join("\n", numbered)}\n\nWhich result numbers are relevant?";
@@ -627,11 +641,15 @@ Respond with ONLY valid JSON in this exact format:
             if (LLMJson.TryParse<ResultFilterResponse>(text, out var r) && r?.Relevant != null)
             {
                 var keep = r.Relevant.Where(n => n >= 1 && n <= links.Count).ToHashSet();
+                var rescued = locked.Where(n => !keep.Contains(n)).ToList();
+                keep.UnionWith(locked); // anchored hits survive a bad vote
                 if (keep.Count == 0)
                 {
                     ChatDetailLog.Links(links.Select(l => (l.Title ?? "", l.Url ?? "", true)));
                     return links; // empty verdicts aren't trustworthy — keep all
                 }
+                if (rescued.Count > 0)
+                    ChatDetailLog.Line($"anchor lock rescued {rescued.Count} on-topic result(s) the vote dropped");
                 ChatDetailLog.Links(links.Select((l, i) => (l.Title ?? "", l.Url ?? "", keep.Contains(i + 1))));
                 var filtered = links.Where((l, i) => keep.Contains(i + 1)).ToList();
                 var dropped = links.Count - filtered.Count;
@@ -649,6 +667,49 @@ Respond with ONLY valid JSON in this exact format:
     private class ResultFilterResponse
     {
         [JsonPropertyName("relevant")] public List<int>? Relevant { get; set; }
+    }
+
+    /// <summary>Query scaffolding words that must never become subject
+    /// anchors — they appear in every follow-up query.</summary>
+    private static readonly HashSet<string> AnchorStopwords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "what","when","where","which","whom","whose","about","into",
+        "from","with","than","then","them","they","their","this","that",
+        "these","those","such","some","many","much","more","most","other",
+        "over","under","between","during","before","after","have","has",
+        "had","does","did","been","were","research","article","page",
+        "pages","overview","introduction","guide","explained","learn",
+        "find","search","topic","part","deepening","section","journal",
+        "entry","request","question","gaps","coverage","review","found"
+    };
+
+    /// <summary>Distinctive subject terms in the query — acronyms
+    /// (CRISPR, RNA, mRNA) plus non-stopword vocabulary ≥4 chars.</summary>
+    private static List<string> QueryAnchors(string query)
+    {
+        var anchors = new List<string>();
+        foreach (var tok in (query ?? "")
+            .Split(new[] { ' ', '\t', '(', ')', '[', ']', '"', ',', ':', ';', '/', '-', '–', '—' },
+                   StringSplitOptions.RemoveEmptyEntries))
+        {
+            var w = tok.Trim('\'', '’', '.', '?', '!');
+            if (w.Length < 3) continue;
+            var upper = w.Count(char.IsUpper);
+            var isAcronym = upper >= 2 && w.Any(char.IsLetter);          // RNA, mRNA, DNA-seq
+            var isVocab = w.Length >= 4 && !AnchorStopwords.Contains(w); // ribosome, vaccine
+            if ((isAcronym || isVocab) && !anchors.Contains(w, StringComparer.OrdinalIgnoreCase))
+                anchors.Add(w);
+        }
+        return anchors;
+    }
+
+    /// <summary>Word-boundary term match across a result's title + URL.</summary>
+    private static bool HasTerm(SearchHelper.ResultLink link, string term)
+    {
+        var hay = $"{link.Title} {link.Url}";
+        return System.Text.RegularExpressions.Regex.IsMatch(
+            hay, @"\b" + System.Text.RegularExpressions.Regex.Escape(term),
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
     }
 
     /// <summary>Reference sites that only define words — never useful as
