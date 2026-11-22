@@ -1,15 +1,26 @@
+// Loads /api-base-path.json synchronously and caches the resolved base
+// URL on window.apiBasePath - the JSON file is required, not optional.
+const loadBasePaths = () => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', '/api-base-path.json', false);
+    xhr.send(null);
+    const paths = JSON.parse(xhr.responseText);
+    const href = window.location.href;
+    if (href.indexOf('http://localhost') >= 0) {
+        window.apiBasePath = paths.http;
+    } else if (href.indexOf('https://localhost') >= 0) {
+        window.apiBasePath = paths.https;
+    } else {
+        // non-localhost: same hostname as the page, configured port
+        const url = new URL(href);
+        const configured = url.protocol === 'https:' ? paths.https : paths.http;
+        window.apiBasePath = `${url.protocol}//${url.hostname}:${new URL(configured).port}`;
+    }
+}
+
 const apiBasePath = () => {
-    if (window.location.href.indexOf('http://localhost') >= 0) {
-        return 'http://localhost:7780';
-    }
-    if (window.location.href.indexOf('https://localhost') >= 0) {
-        return 'https://localhost:7781';
-    }
-    
-    // For non-localhost URLs, use the same hostname but with specific ports
-    const url = new URL(window.location.href);
-    const port = url.protocol === 'https:' ? '7781' : '7780';
-    return `${url.protocol}//${url.hostname}:${port}`;
+    if (!window.apiBasePath) loadBasePaths();
+    return window.apiBasePath;
 }
 
 export { apiBasePath }
