@@ -1,21 +1,32 @@
+name: collector
+
 services:
   charlotte:
-    # Playwright image — CefSharp is Windows-only, so containers must use
-    # the playwright backend (CompositeBrowser falls back automatically).
-    image: mcr.microsoft.com/playwright/dotnet:v1.64.0-jammy
-    container_name: charlotte
+    # Plain ASP.NET runtime image — browsers are installed after launch
+    # by setup-docker.bat (docker exec ... playwright.ps1 install
+    # --with-deps) into the persistent playwright-browsers volume.
+    image: mcr.microsoft.com/dotnet/aspnet:8.0
     working_dir: /app
     volumes:
-      - ../Charlotte:/app
-    ports:
-      - "7077:7077"
+      - ../../Charlotte:/app
+      - playwright-browsers:/ms-playwright
+    # No container_name / host port: setup-docker.bat scales this service
+    # (--scale charlotte=N). Replicas get predictable names on the
+    # collector-net network: collector-charlotte-1, -2, ... which the
+    # Router's instance config points at.
     environment:
       - ASPNETCORE_URLS=http://+:7077
       - DOTNET_RUNNING_IN_CONTAINER=true
+      - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+      # CefSharp is Windows-only - env var overrides appsettings "Browser".
+      - Browser=playwright
     command: ["dotnet", "Charlotte.dll"]
     networks:
       - collector-net
     restart: unless-stopped
+
+volumes:
+  playwright-browsers:
 
 networks:
   collector-net:

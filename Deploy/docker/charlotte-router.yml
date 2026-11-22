@@ -1,10 +1,12 @@
+name: collector
+
 services:
   charlottesweb:
     image: mcr.microsoft.com/dotnet/aspnet:8.0
     container_name: charlottesweb
     working_dir: /app
     volumes:
-      - ../CharlottesWeb:/app
+      - ../../CharlottesWeb:/app
     ports:
       - "7007:7007"
       - "7008:7008"

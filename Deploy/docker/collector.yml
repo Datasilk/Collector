@@ -1,25 +1,31 @@
+name: collector
+
 services:
   collector:
     image: mcr.microsoft.com/dotnet/aspnet:8.0
     container_name: collector
     working_dir: /app
     volumes:
-      - ../Collector.Web.Server:/app
+      - ../../Collector.Web.Server:/app
       - ${CONTENT_PATH}:/collector-content
       - ${USERPROFILE}/.aspnet/https:/https:ro
     ports:
       - "${PORT_BE_HTTP}:${PORT_BE_HTTP}"
       - "${PORT_BE_HTTPS}:${PORT_BE_HTTPS}"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_ENVIRONMENT=${APP_ENVIRONMENT:-Production}
       - ASPNETCORE_URLS=http://+:${PORT_BE_HTTP};https://+:${PORT_BE_HTTPS}
       # HTTPS inside the container needs a cert — drop aspnetapp.pfx +
       # password into ~/.aspnet/https (mounted above) or terminate TLS
       # upstream and remove the https binding.
       - ASPNETCORE_Kestrel__Certificates__Default__Path=/https/aspnetapp.pfx
-      - ASPNETCORE_Kestrel__Certificates__Default__Password=
+      - ASPNETCORE_Kestrel__Certificates__Default__Password=${CERT_PASSWORD}
       - DOTNET_RUNNING_IN_CONTAINER=true
     command: ["dotnet", "Collector.Web.Server.dll"]
+    # Lets the container reach services on the docker host (e.g. Ollama)
+    # via host.docker.internal — required on Linux, harmless on Desktop.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - collector-net
     restart: unless-stopped
